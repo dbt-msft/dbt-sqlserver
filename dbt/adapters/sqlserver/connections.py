@@ -119,6 +119,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
         logger.debug("Cancel query")
         pass
 
+    def begin(self):
+        return 'BEGIN TRANSACTION'
+
+    def commit(self):
+#        pass
+        return 'COMMIT'
 
     @classmethod
     def get_credentials(cls, credentials):
@@ -126,4 +132,4 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def get_status(cls, cursor):
-        return cursor.statusmessage
+        return str(cursor.rowcount)
