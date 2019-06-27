@@ -66,5 +66,5 @@
 {% endmacro %}
 
 {% macro default__create_table_as(temporary, relation, sql) -%}
-  {{ sql | replace(" FROM ", "INTO " +  relation|string + " FROM ", 1) }}
+  SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM ({{ sql }}) as a
 {% endmacro %}_
