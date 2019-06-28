@@ -17,26 +17,25 @@
 
 {% macro sqlserver__list_schemas(database) %}
   {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
-    select distinct
-      table_schema as [schema]
-    from information_schema.tables
+    select  name as [schema]
+    from sys.schemas
   {% endcall %}
   {{ return(load_result('list_schemas').table) }}
 {% endmacro %}
 
 {% macro sqlserver__create_schema(database_name, schema_name) -%}
-  {% call statement('create_schema', auto_begin=False) -%}
+  {% call statement('create_schema') -%}
     USE {{ database_name }}
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ schema }}')
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = {{ schema_name | replace('"', "'") }})
     BEGIN
-    EXEC('CREATE SCHEMA {{ schema }}')
+    EXEC('CREATE SCHEMA {{ schema_name | replace('"', "") }}')
     END
   {% endcall %}
 {% endmacro %}
 
 {% macro sqlserver__drop_schema(database_name, schema_name) -%}
   {% call statement('drop_schema') -%}
-    drop schema if exists {{database_name}}.{{schema_name}} 
+    drop schema if exists {{database_name}}.{{schema_name}}
   {% endcall %}
 {% endmacro %}
 

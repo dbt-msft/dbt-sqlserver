@@ -99,6 +99,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 server=credentials.server,
                 password=credentials.password,
                 port=credentials.port,
+                autocommit=True,
                 **kwargs)
 
             connection.handle = handle
@@ -119,12 +120,17 @@ class SQLServerConnectionManager(SQLConnectionManager):
         logger.debug("Cancel query")
         pass
 
-    def begin(self):
-        return 'BEGIN TRANSACTION'
+    #def begin(self):
+    #    return 'BEGIN TRANSACTION'
 
-    def commit(self):
-#        pass
-        return 'COMMIT'
+    #def commit(self):
+    #    return 'COMMIT'
+
+    def add_begin_query(self):
+        return self.add_query('BEGIN TRANSACTION', auto_begin=False)
+
+    def add_commit_query(self):
+        return self.add_query('COMMIT', auto_begin=False)
 
     @classmethod
     def get_credentials(cls, credentials):
@@ -132,4 +138,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def get_status(cls, cursor):
-        return str(cursor.rowcount)
+        if cursor.rowcount == -1:
+            status = 'OK'
+        else:
+            status = str(cursor.rowcount)
+        return status
