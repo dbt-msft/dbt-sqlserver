@@ -120,17 +120,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
         logger.debug("Cancel query")
         pass
 
-    #def begin(self):
-    #    return 'BEGIN TRANSACTION'
-
-    #def commit(self):
-    #    return 'COMMIT'
-
     def add_begin_query(self):
         return self.add_query('BEGIN TRANSACTION', auto_begin=False)
 
     def add_commit_query(self):
-        return self.add_query('COMMIT', auto_begin=False)
+        return self.add_query('COMMIT TRANSACTION', auto_begin=False)
 
     @classmethod
     def get_credentials(cls, credentials):

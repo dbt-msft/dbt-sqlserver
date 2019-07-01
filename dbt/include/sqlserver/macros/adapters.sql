@@ -64,6 +64,13 @@
   {%- endcall %}
 {% endmacro %}
 
-{% macro default__create_table_as(temporary, relation, sql) -%}
-  SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM ({{ sql }}) as a
+{% macro sqlserver__create_table_as(temporary, relation, sql) -%}
+   {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
+    SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM ({{ sql }}) as a
+   {% if not temporary and as_columnstore -%}
+    DROP INDEX IF EXISTS {{ relation.schema }}.{{ relation.identifier }}.{{ relation.schema }}_{{ relation.identifier }}_cci
+    CREATE CLUSTERED COLUMNSTORE INDEX {{ relation.schema }}_{{ relation.identifier }}_cci
+    ON {{ relation.schema }}.{{ relation.identifier }}
+   {% endif %}
 {% endmacro %}_
+
