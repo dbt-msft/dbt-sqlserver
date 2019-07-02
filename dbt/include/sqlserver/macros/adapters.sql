@@ -79,3 +79,4 @@
 {% macro sqlserver__current_timestamp() -%}
   getdate()
 {%- endmacro %}
+
