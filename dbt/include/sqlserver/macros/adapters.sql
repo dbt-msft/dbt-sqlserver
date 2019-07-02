@@ -66,7 +66,7 @@
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
-    SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM (
+    SELECT * INTO {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }} FROM (
     {{ sql }}
     ) as a
    {% if not temporary and as_columnstore -%}

@@ -116,6 +116,15 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         return connection
 
+    def execute(self, sql, auto_begin=False, fetch=False):
+        _, cursor = self.add_query(sql, auto_begin)
+        status = self.get_status(cursor)
+        if fetch:
+            table = self.get_result_from_cursor(cursor)
+        else:
+            table = dbt.clients.agate_helper.empty_table()
+        return status, table
+
     def cancel(self, connection):
         logger.debug("Cancel query")
         pass
