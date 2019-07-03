@@ -18,6 +18,7 @@ dbt/include/sqlserver/__pycache__/__init__.cpython-37.pyc
 dbt/include/sqlserver/macros/adapters.sql
 dbt/include/sqlserver/macros/catalog.sql
 dbt/include/sqlserver/macros/schema_tests.sql
+dbt/include/sqlserver/macros/materializations/incremental/incremental.sql
 dbt_sqlserver.egg-info/PKG-INFO
 dbt_sqlserver.egg-info/SOURCES.txt
 dbt_sqlserver.egg-info/dependency_links.txt

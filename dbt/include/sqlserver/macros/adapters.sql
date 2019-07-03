@@ -47,8 +47,8 @@
 
 {% macro sqlserver__check_schema_exists(database, schema) -%}
   {% call statement('check_schema_exists', fetch_result=True, auto_begin=False) -%}
-    USE {{ database_name }}
-    SELECT count(*) FROM sys.schemas WHERE name = '{{ schema }}'
+    --USE {{ database_name }}
+    SELECT count(*) as schema_exist FROM sys.schemas WHERE name = '{{ schema }}'
   {%- endcall %}
   {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
@@ -99,4 +99,13 @@
   {% endcall %}
   {% set table = load_result('get_columns_in_relation').table %}
   {{ return(sql_convert_columns_in_relation(table)) }}
+{% endmacro %}
+
+{% macro sqlserver__make_temp_relation(base_relation, suffix) %}
+    {% set tmp_identifier = base_relation.identifier ~ suffix %}
+    {% set tmp_relation = base_relation.incorporate(
+                                path={"identifier": tmp_identifier},
+                                table_name=tmp_identifier) -%}
+
+    {% do return(tmp_relation) %}
 {% endmacro %}
