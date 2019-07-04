@@ -7,6 +7,8 @@ from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.logger import GLOBAL_LOGGER as logger
 
+import time
+
 
 SQLSERVER_CREDENTIALS_CONTRACT = {
     'type': 'object',
@@ -39,7 +41,10 @@ SQLSERVER_CREDENTIALS_CONTRACT = {
 
 class SQLServerCredentials(Credentials):
     SCHEMA = SQLSERVER_CREDENTIALS_CONTRACT
-
+    ALIASES = {
+        'host': 'server',
+        'pass': 'password'
+    }
     @property
     def type(self):
         return 'sqlserver'
@@ -134,6 +139,36 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     def add_commit_query(self):
         return self.add_query('COMMIT TRANSACTION', auto_begin=False)
+
+    def add_query(self, sql, auto_begin=True, bindings=None,
+                  abridge_sql_log=False):
+        connection = self.get_thread_connection()
+
+        if bindings:
+            # The sqlserver connector is more strict than, eg., psycopg2 -
+            # which allows any iterable thing to be passed as a binding.
+            bindings = tuple(bindings)
+
+        if auto_begin and connection.transaction_open is False:
+            self.begin()
+
+        logger.debug('Using {} connection "{}".'
+                     .format(self.TYPE, connection.name))
+
+        with self.exception_handler(sql):
+            if abridge_sql_log:
+                logger.debug('On %s: %s....', connection.name, sql[0:512])
+            else:
+                logger.debug('On %s: %s', connection.name, sql)
+            pre = time.time()
+
+            cursor = connection.handle.cursor()
+            cursor.execute(sql, bindings)
+
+            logger.debug("SQL status: %s in %0.2f seconds",
+                         self.get_status(cursor), (time.time() - pre))
+
+            return connection, cursor
 
     @classmethod
     def get_credentials(cls, credentials):
