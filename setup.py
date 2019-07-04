@@ -19,7 +19,7 @@ setup(
     long_description_content_type='text/markdown',
     author="Mikael Ene",
     author_email="mikael.ene@gmail.com",
-    url="",
+    url="https://github.com/mikaelene/dbt-sqlserver",
     packages=find_packages(),
     package_data={
         'dbt': [
