@@ -23,7 +23,7 @@ Easiest install is to use pip:
 
 ### Materializations
 - Table: 
-    - Will be materialized as columns store index by default (requires SQL Server 2017 as least). To override specify:
+    - Will be materialized as columns store index by default (requires SQL Server 2017 as least). To override:
 {{
   config(
     as_columnstore = false,
@@ -44,10 +44,11 @@ Easiest install is to use pip:
 ### Sources
 
 ### Testing & documentation
-- Unique: Is the only test tested so far. The rest will be tested and added if possible soon.
-
+- All tests supported 
 - Docs
 
 ### Snapshots
 - Timestamp
 - Check
+
+But, all columns in source table needs to be set to allow NULL. If any column has a NOT NULL constraint, an error will be thrown.

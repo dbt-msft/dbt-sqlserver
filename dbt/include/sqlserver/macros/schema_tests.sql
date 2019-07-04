@@ -6,7 +6,7 @@ select count(*) as validation_errors
 from (
 
     select
-        {{ column_name }}
+        {{ column_name }} as validation_errors
 
     from {{ model }}
     where {{ column_name }} is not null
