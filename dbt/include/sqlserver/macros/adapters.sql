@@ -71,9 +71,16 @@
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
-    SELECT * INTO {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }} FROM (
+
+    EXEC('create view {{ relation.schema }}.{{ relation.identifier }}_temp_for_table as
     {{ sql }}
-    ) as a
+    ');
+
+    SELECT * INTO {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }} FROM
+    {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }}_temp_for_table
+
+    drop view {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }}_temp_for_table
+    
    {% if not temporary and as_columnstore -%}
     DROP INDEX IF EXISTS {{ relation.schema }}.{{ relation.identifier }}.{{ relation.schema }}_{{ relation.identifier }}_cci
     CREATE CLUSTERED COLUMNSTORE INDEX {{ relation.schema }}_{{ relation.identifier }}_cci

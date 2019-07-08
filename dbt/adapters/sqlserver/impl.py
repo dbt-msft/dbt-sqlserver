@@ -9,15 +9,6 @@ class SQLServerAdapter(SQLAdapter):
     def date_function(cls):
         return 'getdate()'
 
-    """
-        - convert_text_type
-        - convert_number_type
-        - convert_boolean_type
-        - convert_datetime_type
-        - convert_date_type
-        - convert_time_type
-        """
-
     @classmethod
     def convert_text_type(cls, agate_table, col_idx):
         column = agate_table.columns[col_idx]
