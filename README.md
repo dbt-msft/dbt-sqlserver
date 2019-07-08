@@ -33,7 +33,7 @@ Easiest install is to use pip:
 - Incremental
 
 
-- Ephemeral: NOT SUPPORTED!
+- Ephemeral: NOW SUPPORTED :-) !
 
 ### Seeds
 

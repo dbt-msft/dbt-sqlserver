@@ -4,7 +4,7 @@ from distutils.core import setup
 import os
 
 package_name = "dbt-sqlserver"
-package_version = "0.1.0"
+package_version = "0.1.1"
 description = """The sqlserver adpter plugin for dbt (data build tool)"""
 
 #this_directory = os.path.abspath(os.path.dirname(__file__))
