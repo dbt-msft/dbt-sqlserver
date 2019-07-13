@@ -71,15 +71,17 @@
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
+   {%- set temp_view_indentifier = relation.identifier.replace("#", "") + '_temp_view' -%}
+   {%- set temp_view_sql = sql.replace("'", "''") -%}
 
-    EXEC('create view {{ relation.schema }}.{{ relation.identifier }}_temp_for_table as
-    {{ sql }}
+    EXEC('create view {{ relation.schema }}.{{ temp_view_indentifier }} as
+    {{ temp_view_sql }}
     ');
 
-    SELECT * INTO {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }} FROM
-    {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }}_temp_for_table
+    SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
+    {{ relation.schema }}.{{ temp_view_indentifier }}
 
-    drop view {{ relation.schema }}.{% if temporary: -%}#{%- endif %}{{ relation.identifier }}_temp_for_table
+    drop view {{ relation.schema }}.{{ temp_view_indentifier }}
     
    {% if not temporary and as_columnstore -%}
     DROP INDEX IF EXISTS {{ relation.schema }}.{{ relation.identifier }}.{{ relation.schema }}_{{ relation.identifier }}_cci
@@ -94,19 +96,35 @@
 
 {% macro sqlserver__get_columns_in_relation(relation) -%}
   {% call statement('get_columns_in_relation', fetch_result=True) %}
-      select
+      SELECT
           column_name,
           data_type,
           character_maximum_length,
           numeric_precision,
           numeric_scale
-
-      from INFORMATION_SCHEMA.COLUMNS
-      where table_name = '{{ relation.identifier }}'
-        {% if relation.schema %}
-        and table_schema = '{{ relation.schema }}'
-        {% endif %}
+      FROM
+          (select
+              ordinal_position,
+              column_name,
+              data_type,
+              character_maximum_length,
+              numeric_precision,
+              numeric_scale
+          from INFORMATION_SCHEMA.COLUMNS
+          where table_name = '{{ relation.identifier }}'
+            and table_schema = '{{ relation.schema }}'
+          UNION ALL
+          select
+              ordinal_position,
+              column_name,
+              data_type,
+              character_maximum_length,
+              numeric_precision,
+              numeric_scale
+          from tempdb.INFORMATION_SCHEMA.COLUMNS
+          where table_name like '{{ relation.identifier }}%') cols
       order by ordinal_position
+
 
   {% endcall %}
   {% set table = load_result('get_columns_in_relation').table %}
@@ -114,7 +132,7 @@
 {% endmacro %}
 
 {% macro sqlserver__make_temp_relation(base_relation, suffix) %}
-    {% set tmp_identifier = base_relation.identifier ~ suffix %}
+    {% set tmp_identifier = '#' ~  base_relation.identifier ~ suffix %}
     {% set tmp_relation = base_relation.incorporate(
                                 path={"identifier": tmp_identifier},
                                 table_name=tmp_identifier) -%}

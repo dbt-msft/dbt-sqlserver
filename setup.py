@@ -25,10 +25,12 @@ setup(
         'dbt': [
             'include/sqlserver/dbt_project.yml',
             'include/sqlserver/macros/*.sql',
+            'include/sqlserver/macros/**/*.sql',
+            'include/sqlserver/macros/**/**/*.sql',
         ]
     },
     install_requires=[
-        'dbt-core>=0.14.0a1',
+        'dbt-core>=0.14.0',
         'cython>=0.29.10',
         'pymssql>=2.1.4',
     ]

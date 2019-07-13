@@ -196,3 +196,11 @@
     ) sbq
 
 {% endmacro %}
+
+{% macro sqlserver__create_columns(relation, columns) %}
+  {% for column in columns %}
+    {% call statement() %}
+      alter table {{ relation }} add "{{ column.name }}" {{ column.data_type }};
+    {% endcall %}
+  {% endfor %}
+{% endmacro %}
