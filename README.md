@@ -5,7 +5,7 @@ Only supports dbt 0.14!
 
 Easiest install is to use pip:
 
-    pip install git+https://github.com/mikaelene/dbt-sqlserver#egg=dbt_sqlserver
+    pip install dbt_sqlserver
 
 
 ## Configure your profile
@@ -31,9 +31,7 @@ Easiest install is to use pip:
 }}
 - View
 - Incremental
-
-
-- Ephemeral: NOW SUPPORTED :-) !
+- Ephemeral
 
 ### Seeds
 
@@ -51,4 +49,4 @@ Easiest install is to use pip:
 - Timestamp
 - Check
 
-But, all columns in source table needs to be set to allow NULL. If any column has a NOT NULL constraint, an error will be thrown.
+But, columns in source table can not have any constraints. If for example any column has a NOT NULL constraint, an error will be thrown.

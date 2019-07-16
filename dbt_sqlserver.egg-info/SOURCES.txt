@@ -8,13 +8,9 @@ dbt/adapters/__init__.py
 dbt/adapters/sqlserver/__init__.py
 dbt/adapters/sqlserver/connections.py
 dbt/adapters/sqlserver/impl.py
-dbt/adapters/sqlserver/__pycache__/__init__.cpython-37.pyc
-dbt/adapters/sqlserver/__pycache__/connections.cpython-37.pyc
-dbt/adapters/sqlserver/__pycache__/impl.cpython-37.pyc
 dbt/include/__init__.py
 dbt/include/sqlserver/__init__.py
 dbt/include/sqlserver/dbt_project.yml
-dbt/include/sqlserver/__pycache__/__init__.cpython-37.pyc
 dbt/include/sqlserver/macros/adapters.sql
 dbt/include/sqlserver/macros/catalog.sql
 dbt/include/sqlserver/macros/schema_tests.sql
