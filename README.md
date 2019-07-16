@@ -5,7 +5,7 @@ Only supports dbt 0.14!
 
 Easiest install is to use pip:
 
-    pip install dbt_sqlserver
+    pip install dbt-sqlserver
 
 
 ## Configure your profile
