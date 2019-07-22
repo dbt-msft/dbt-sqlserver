@@ -19,5 +19,3 @@ class SQLServerAdapter(SQLAdapter):
     @classmethod
     def convert_datetime_type(cls, agate_table, col_idx):
         return "datetime"
-
-

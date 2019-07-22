@@ -87,7 +87,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             raise dbt.exceptions.RuntimeException(e)
 
-
     @classmethod
     def open(cls, connection):
         if connection.state == 'open':
@@ -126,11 +125,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
         pass
 
     def add_begin_query(self):
-   #     return self.add_query('BEGIN TRANSACTION', auto_begin=False)
+        # return self.add_query('BEGIN TRANSACTION', auto_begin=False)
         pass
 
     def add_commit_query(self):
-   #     return self.add_query('COMMIT TRANSACTION', auto_begin=False)
+        # return self.add_query('COMMIT TRANSACTION', auto_begin=False)
         pass
 
     def add_query(self, sql, auto_begin=True, bindings=None,
