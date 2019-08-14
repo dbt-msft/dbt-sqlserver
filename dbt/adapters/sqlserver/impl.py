@@ -14,7 +14,8 @@ class SQLServerAdapter(SQLAdapter):
         column = agate_table.columns[col_idx]
         lens = (len(d.encode("utf-8")) for d in column.values_without_nulls())
         max_len = max(lens) if lens else 64
-        return "varchar({})".format(max_len)
+        length = max_len if max_len > 16 else 16
+        return "varchar({})".format(length)
 
     @classmethod
     def convert_datetime_type(cls, agate_table, col_idx):

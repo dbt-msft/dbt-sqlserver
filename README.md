@@ -1,7 +1,7 @@
 # dbt-sqlserver
-https://www.getdbt.com/ adapter for sql server. Based on pymssql. 
+[dbt](https://www.getdbt.com) adapter for sql server. Based on pymssql. 
 
-Only supports dbt 0.14!
+Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analytics/dbt-integration-tests/). Only supports dbt 0.14 and newer!
 
 Easiest install is to use pip:
 

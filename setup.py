@@ -1,15 +1,10 @@
 #!/usr/bin/env python
 from setuptools import find_packages
 from distutils.core import setup
-# import os
 
 package_name = "dbt-sqlserver"
-package_version = "0.1.3"
-description = """The sqlserver adpter plugin for dbt (data build tool)"""
-
-# this_directory = os.path.abspath(os.path.dirname(__file__))
-# with open(os.path.join(this_directory, 'README.md')) as f:
-#    long_description = f.read()
+package_version = "0.1.4"
+description = """A sqlserver adpter plugin for dbt (data build tool)"""
 
 setup(
     name=package_name,

@@ -1,11 +1,11 @@
 Metadata-Version: 2.1
 Name: dbt-sqlserver
-Version: 0.1.3
-Summary: The sqlserver adpter plugin for dbt (data build tool)
+Version: 0.1.4
+Summary: A sqlserver adpter plugin for dbt (data build tool)
 Home-page: https://github.com/mikaelene/dbt-sqlserver
 Author: Mikael Ene
 Author-email: mikael.ene@gmail.com
-License: UNKNOWN
-Description: The sqlserver adpter plugin for dbt (data build tool)
+License: MIT
+Description: A sqlserver adpter plugin for dbt (data build tool)
 Platform: UNKNOWN
 Description-Content-Type: text/markdown
