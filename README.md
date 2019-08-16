@@ -14,7 +14,7 @@ Easiest install is to use pip:
       threads: 1
       server: server-host-name or ip
       port: 1433
-      user: username
+      user: username (If using Windows Authentication use companydomain\username instead)
       password: password
       database: databasename
       schema: schemaname
