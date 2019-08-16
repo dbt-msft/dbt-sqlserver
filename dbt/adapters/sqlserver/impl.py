@@ -1,5 +1,6 @@
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.sqlserver import SQLServerConnectionManager
+import agate
 
 
 class SQLServerAdapter(SQLAdapter):
@@ -19,4 +20,17 @@ class SQLServerAdapter(SQLAdapter):
 
     @classmethod
     def convert_datetime_type(cls, agate_table, col_idx):
+        return "datetime"
+
+    @classmethod
+    def convert_boolean_type(cls, agate_table, col_idx):
+        return "bit"
+
+    @classmethod
+    def convert_number_type(cls, agate_table, col_idx):
+        decimals = agate_table.aggregate(agate.MaxPrecision(col_idx))
+        return "float" if decimals else "int"
+
+    @classmethod
+    def convert_time_type(cls, agate_table, col_idx):
         return "datetime"
