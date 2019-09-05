@@ -1,57 +1,64 @@
 from contextlib import contextmanager
 
-import pymssql
+import pyodbc
+import time
 
+import dbt.compat
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
+
 from dbt.logger import GLOBAL_LOGGER as logger
-
-import time
-
 
 SQLSERVER_CREDENTIALS_CONTRACT = {
     'type': 'object',
     'additionalProperties': False,
     'properties': {
+        'driver': {
+            'type': 'string',
+        },
+        'host': {
+            'type': 'string',
+        },
         'database': {
             'type': 'string',
-        },
-        'server': {
-            'type': 'string',
-        },
-        'user': {
-            'type': 'string',
-        },
-        'password': {
-            'type': 'string',
-        },
-        'port': {
-            'type': 'integer',
-            'minimum': 0,
-            'maximum': 65535,
         },
         'schema': {
             'type': 'string',
         },
+        'UID': {
+            'type': 'string',
+        },
+        'PWD': {
+            'type': 'string',
+        },
+        'windows_login': {
+            'type': 'boolean'
+        }
     },
-    'required': ['database', 'server', 'user', 'password', 'port', 'schema'],
+    'required': ['driver', 'host', 'database', 'schema'],
 }
 
 
 class SQLServerCredentials(Credentials):
     SCHEMA = SQLSERVER_CREDENTIALS_CONTRACT
     ALIASES = {
-        'host': 'server',
-        'pass': 'password'
+        'user': 'UID'
+        , 'username': 'UID'
+        , 'pass': 'PWD'
+        , 'password': 'PWD'
+        , 'server': 'host'
+        , 'trusted_connection': 'windows_login'
     }
+
     @property
     def type(self):
         return 'sqlserver'
 
     def _connection_keys(self):
         # return an iterator of keys to pretty-print in 'dbt debug'
-        return ('server', 'port', 'user', 'database', 'schema')
+        # raise NotImplementedError
+        return 'server', 'database', 'schema', 'UID', 'windows_login'
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
@@ -62,13 +69,13 @@ class SQLServerConnectionManager(SQLConnectionManager):
         try:
             yield
 
-        except pymssql.DatabaseError as e:
-            logger.debug('SQL Server error: {}'.format(str(e)))
+        except pyodbc.DatabaseError as e:
+            logger.debug('Database error: {}'.format(str(e)))
 
             try:
                 # attempt to release the connection
                 self.release()
-            except pymssql.Error:
+            except pyodbc.Error:
                 logger.debug("Failed to release connection!")
                 pass
 
@@ -89,29 +96,36 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def open(cls, connection):
+
         if connection.state == 'open':
             logger.debug('Connection is already open, skipping open.')
             return connection
 
-        credentials = cls.get_credentials(connection.credentials.incorporate())
-        kwargs = {}
+        credentials = connection.credentials
 
         try:
-            handle = pymssql.connect(
-                database=credentials.database,
-                user=credentials.user,
-                server=credentials.server,
-                password=credentials.password,
-                port=credentials.port,
-                autocommit=True,
-                **kwargs)
+            con_str = []
+            con_str.append(f"DRIVER={{{credentials.driver}}}")
+            con_str.append(f"SERVER={credentials.host}")
+            con_str.append(f"Database={credentials.database}")
 
-            connection.handle = handle
+            if not getattr(credentials, 'windows_login', False):
+                con_str.append(f"UID={credentials.UID}")
+                con_str.append(f"PWD={credentials.PWD}")
+            else:
+                con_str.append(f"trusted_connection=yes")
+
+            con_str_concat = ';'.join(con_str)
+            logger.debug(f'Using connection string: {con_str_concat}')
+
+            handle = pyodbc.connect(con_str_concat, autocommit=True)
+
             connection.state = 'open'
-        except pymssql.Error as e:
-            logger.debug("Got an error when attempting to open a sql server "
-                         "connection: '{}'"
-                         .format(e))
+            connection.handle = handle
+            logger.debug(f'Connected to db: {credentials.database}')
+
+        except pyodbc.Error as e:
+            logger.debug(f"Could not connect to db: {e}")
 
             connection.handle = None
             connection.state = 'fail'
@@ -134,12 +148,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     def add_query(self, sql, auto_begin=True, bindings=None,
                   abridge_sql_log=False):
-        connection = self.get_thread_connection()
 
-        if bindings:
-            # The sqlserver connector is more strict than, eg., psycopg2 -
-            # which allows any iterable thing to be passed as a binding.
-            bindings = tuple(bindings)
+        connection = self.get_thread_connection()
 
         if auto_begin and connection.transaction_open is False:
             self.begin()
@@ -155,7 +165,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
             pre = time.time()
 
             cursor = connection.handle.cursor()
-            cursor.execute(sql, bindings)
+
+            # pyodbc does not handle a None type binding!
+            if bindings is None:
+                cursor.execute(sql)
+            else:
+                cursor.execute(sql, bindings)
 
             logger.debug("SQL status: %s in %0.2f seconds",
                          self.get_status(cursor), (time.time() - pre))
@@ -182,3 +197,4 @@ class SQLServerConnectionManager(SQLConnectionManager):
         else:
             table = dbt.clients.agate_helper.empty_table()
         return status, table
+

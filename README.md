@@ -7,17 +7,28 @@ Easiest install is to use pip:
 
     pip install dbt-sqlserver
 
-
+Since version 0.14.0, pyodbc is used for connecting to SQL Server.
+ 
 ## Configure your profile
-
+Configure your dbt profile for using SQL Server authentication or Integrated Security:
+##### SQL Server authentication 
       type: sqlserver
-      threads: 1
+      driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
       server: server-host-name or ip
       port: 1433
-      user: username (If using Windows Authentication use companydomain\username instead)
+      user: username
       password: password
       database: databasename
       schema: schemaname
+
+##### Integrated Security
+      type: sqlserver
+      driver: 'ODBC Driver 17 for SQL Server'
+      server: server-host-name or ip
+      port: 1433
+      user: username
+      schema: schemaname
+      windows_login: True
 
 ## Supported features
 
@@ -42,7 +53,8 @@ Easiest install is to use pip:
 ### Sources
 
 ### Testing & documentation
-- All tests supported 
+- Schema test supported
+- Data tests supported from dbt 0.14.1
 - Docs
 
 ### Snapshots

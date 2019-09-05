@@ -3,7 +3,7 @@ from setuptools import find_packages
 from distutils.core import setup
 
 package_name = "dbt-sqlserver"
-package_version = "0.1.4"
+package_version = "0.14.0"
 description = """A sqlserver adpter plugin for dbt (data build tool)"""
 
 setup(
@@ -26,7 +26,6 @@ setup(
     },
     install_requires=[
         'dbt-core>=0.14.0',
-        'cython>=0.29.10',
-        'pymssql>=2.1.4',
+        'pyodbc>=4.0.27',
     ]
 )
