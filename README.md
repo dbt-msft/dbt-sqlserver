@@ -7,7 +7,7 @@ Easiest install is to use pip:
 
     pip install dbt-sqlserver
 
-Since version 0.14.0, pyodbc is used for connecting to SQL Server.
+Since version 0.14.0, pyodbc is used for connecting to SQL Server. It is advised to use the same version of dbt-sqlserver as for dbt.
  
 ## Configure your profile
 Configure your dbt profile for using SQL Server authentication or Integrated Security:
