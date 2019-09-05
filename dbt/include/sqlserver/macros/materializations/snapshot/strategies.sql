@@ -4,8 +4,7 @@
     {% endfor %}), 2)
 {% endmacro %}
 
-
-{% macro snapshot_check_strategy(node, snapshotted_rel, current_rel, config) %}
+{% macro snapshot_check_strategy(node, snapshotted_rel, current_rel, config, target_exists) %}
     {% set check_cols_config = config['check_cols'] %}
     {% set primary_key = config['unique_key'] %}
     {% set updated_at = snapshot_get_time() %}
@@ -23,7 +22,7 @@
         {% for col in check_cols %}
             {{ snapshotted_rel }}.{{ col }} != {{ current_rel }}.{{ col }}
             or
-            ({{ snapshotted_rel }}.{{ col }} is null) AND NOT ({{ current_rel }}.{{ col }} is null)
+            ({{ snapshotted_rel }}.{{ col }} is null) and not ({{ current_rel }}.{{ col }} is null)
             {%- if not loop.last %} or {% endif %}
 
         {% endfor %}
@@ -39,5 +38,3 @@
         "scd_id": scd_id_expr
     }) %}
 {% endmacro %}
-
-
