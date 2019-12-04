@@ -1,5 +1,5 @@
 # dbt-sqlserver
-[dbt](https://www.getdbt.com) adapter for sql server. Based on pymssql. 
+[dbt](https://www.getdbt.com) adapter for sql server.
 
 Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analytics/dbt-integration-tests/). Only supports dbt 0.14 and newer!
 
@@ -62,3 +62,9 @@ Configure your dbt profile for using SQL Server authentication or Integrated Sec
 - Check
 
 But, columns in source table can not have any constraints. If for example any column has a NOT NULL constraint, an error will be thrown.
+
+## Changelog
+
+### v0.15.0
+Requires dbt v0.15.0 or greater
+

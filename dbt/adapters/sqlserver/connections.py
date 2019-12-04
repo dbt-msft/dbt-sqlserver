@@ -3,7 +3,6 @@ from contextlib import contextmanager
 import pyodbc
 import time
 
-import dbt.compat
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
@@ -79,8 +78,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 logger.debug("Failed to release connection!")
                 pass
 
-            raise dbt.exceptions.DatabaseException(
-                dbt.compat.to_string(e).strip())
+            raise dbt.exceptions.DatabaseException(str(e).strip()) from e
 
         except Exception as e:
             logger.debug("Error running SQL: %s", sql)
