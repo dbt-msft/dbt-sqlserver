@@ -1,6 +1,5 @@
-{% macro basic_load_csv_rows(model, batch_size) %}
-    {% set agate_table = model['agate_table'] %}
-    {% set cols_sql = ", ".join(agate_table.column_names) %}
+{% macro basic_load_csv_rows(model, batch_size, agate_table) %}
+    {% set cols_sql = get_seed_column_quoted_csv(model, agate_table.column_names) %}
     {% set bindings = [] %}
 
     {% set statements = [] %}
@@ -13,7 +12,7 @@
         {% endfor %}
 
         {% set sql %}
-            insert into {{ this.render(False) }} ({{ cols_sql }}) values
+            insert into {{ this.render() }} ({{ cols_sql }}) values
             {% for row in chunk -%}
                 ({%- for column in agate_table.column_names -%}
                     ?
@@ -34,6 +33,6 @@
     {{ return(statements[0]) }}
 {% endmacro %}
 
-{% macro sqlserver__load_csv_rows(model) %}
-  {{ return(basic_load_csv_rows(model, 200) )}}
+{% macro sqlserver__load_csv_rows(model, agate_table) %}
+  {{ return(basic_load_csv_rows(model, 200, agate_table) )}}
 {% endmacro %}

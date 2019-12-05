@@ -9,39 +9,21 @@ from dbt.adapters.sql import SQLConnectionManager
 
 from dbt.logger import GLOBAL_LOGGER as logger
 
-SQLSERVER_CREDENTIALS_CONTRACT = {
-    'type': 'object',
-    'additionalProperties': False,
-    'properties': {
-        'driver': {
-            'type': 'string',
-        },
-        'host': {
-            'type': 'string',
-        },
-        'database': {
-            'type': 'string',
-        },
-        'schema': {
-            'type': 'string',
-        },
-        'UID': {
-            'type': 'string',
-        },
-        'PWD': {
-            'type': 'string',
-        },
-        'windows_login': {
-            'type': 'boolean'
-        }
-    },
-    'required': ['driver', 'host', 'database', 'schema'],
-}
+from dataclasses import dataclass
+from typing import Optional
 
 
+@dataclass
 class SQLServerCredentials(Credentials):
-    SCHEMA = SQLSERVER_CREDENTIALS_CONTRACT
-    ALIASES = {
+    driver: str
+    host: str
+    database: str
+    schema: str
+    UID: Optional[str] = None
+    PWD: Optional[str] = None
+    windows_login: Optional[bool] = False
+
+    _ALIASES = {
         'user': 'UID'
         , 'username': 'UID'
         , 'pass': 'PWD'
