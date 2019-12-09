@@ -1,4 +1,4 @@
-{% macro dbt__incremental_delete(target_relation, tmp_relation) -%}
+               {% macro dbt__incremental_delete(target_relation, tmp_relation) -%}
   {%- set unique_key = config.require('unique_key') -%}
 
   delete
@@ -77,5 +77,7 @@
   {{ adapter.commit() }}
 
   {{ run_hooks(post_hooks, inside_transaction=False) }}
+
+  {{ return({'relations': [target_relation]}) }}
 
 {%- endmaterialization %}

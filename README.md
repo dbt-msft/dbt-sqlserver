@@ -1,13 +1,16 @@
 # dbt-sqlserver
-[dbt](https://www.getdbt.com) adapter for sql server. Based on pymssql. 
+[dbt](https://www.getdbt.com) adapter for sql server.
 
-Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analytics/dbt-integration-tests/). Only supports dbt 0.14 and newer!
+Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analytics/dbt-integration-tests/). 
+
+Only supports dbt 0.14 and newer!
+- For dbt 0.14.x use dbt-sqlserver 0.14.x
+- For dbt 0.15.x use dbt-sqlserver 0.15.x
 
 Easiest install is to use pip:
 
     pip install dbt-sqlserver
 
-Since version 0.14.0, pyodbc is used for connecting to SQL Server. It is advised to use the same version of dbt-sqlserver as for dbt.
  
 ## Configure your profile
 Configure your dbt profile for using SQL Server authentication or Integrated Security:
@@ -62,3 +65,11 @@ Configure your dbt profile for using SQL Server authentication or Integrated Sec
 - Check
 
 But, columns in source table can not have any constraints. If for example any column has a NOT NULL constraint, an error will be thrown.
+
+## Changelog
+
+### v0.15.0
+Requires dbt v0.15.0 or greater
+
+### pre v0.15.0
+Requires dbt v0.14.x
