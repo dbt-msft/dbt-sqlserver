@@ -68,6 +68,12 @@ But, columns in source table can not have any constraints. If for example any co
 
 ## Changelog
 
+### v0.15.01
+Fix release for v0.15.0
+#### Fixes:
+- Setting the port had no effect. Issue #9
+- Unable to generate docs. Issue #12
+
 ### v0.15.0
 Requires dbt v0.15.0 or greater
 
