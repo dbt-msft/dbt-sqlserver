@@ -19,6 +19,7 @@ class SQLServerCredentials(Credentials):
     host: str
     database: str
     schema: str
+    port: Optional[int] = 1433
     UID: Optional[str] = None
     PWD: Optional[str] = None
     windows_login: Optional[bool] = False
@@ -39,7 +40,7 @@ class SQLServerCredentials(Credentials):
     def _connection_keys(self):
         # return an iterator of keys to pretty-print in 'dbt debug'
         # raise NotImplementedError
-        return 'server', 'database', 'schema', 'UID', 'windows_login'
+        return 'server', 'database', 'schema', 'port', 'UID', 'windows_login'
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
@@ -87,6 +88,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             con_str = []
             con_str.append(f"DRIVER={{{credentials.driver}}}")
             con_str.append(f"SERVER={credentials.host}")
+            con_str.append(f"PORT={credentials.port}")
             con_str.append(f"Database={credentials.database}")
 
             if not getattr(credentials, 'windows_login', False):
