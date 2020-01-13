@@ -68,7 +68,7 @@ But, columns in source table can not have any constraints. If for example any co
 
 ## Changelog
 
-### v0.15.01
+### v0.15.0.1
 Fix release for v0.15.0
 #### Fixes:
 - Setting the port had no effect. Issue #9
