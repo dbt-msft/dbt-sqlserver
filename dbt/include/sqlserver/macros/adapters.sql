@@ -45,6 +45,10 @@
   {%- endcall %}
 {% endmacro %}
 
+{% macro sqlserver__drop_relation_script(relation) -%}
+    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
+{% endmacro %}
+
 {% macro sqlserver__check_schema_exists(database, schema) -%}
   {% call statement('check_schema_exists', fetch_result=True, auto_begin=False) -%}
     --USE {{ database_name }}
@@ -84,19 +88,20 @@
                                 path={"identifier": relation.identifier ~ '_temp_view'},
                                 type='view')-%}
 
-   {{ drop_relation(tmp_relation) }}
+   {{ sqlserver__drop_relation_script(tmp_relation) }}
 
-   {{ drop_relation(relation) }}
+   {{ sqlserver__drop_relation_script(relation) }}
 
    {{ create_view_as(tmp_relation, sql) }}
 
    {{ sqlserver__insert_into_from(relation, tmp_relation) }}
 
-   {{ drop_relation(tmp_relation) }}
+   {{ sqlserver__drop_relation_script(tmp_relation) }}
     
    {% if not temporary and as_columnstore -%}
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
+
 {% endmacro %}_
 
 {% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
