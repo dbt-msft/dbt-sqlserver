@@ -54,8 +54,9 @@
 {% endmacro %}
 
 {% macro sqlserver__create_view_as(relation, sql) -%}
-  create view {{ relation.schema }}.{{ relation.identifier }} as 
-    {{ sql }}
+  {%- set view_sql = sql.replace("'", "''") -%}
+  EXEC('create view {{ relation.schema }}.{{ relation.identifier }} as
+    {{ view_sql }}');
 {% endmacro %}
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
@@ -69,26 +70,42 @@
   {%- endcall %}
 {% endmacro %}
 
+{% macro sqlserver__create_clustered_columnstore_index(relation) -%}
+  {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
+  {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
+  DROP INDEX IF EXISTS {{relation_name}}.{{cci_name}}
+  CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
+    ON {{relation_name}}
+{% endmacro %}
+
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
-   {%- set temp_view_indentifier = relation.identifier.replace("#", "") + '_temp_view' -%}
-   {%- set temp_view_sql = sql.replace("'", "''") -%}
+   {% set tmp_relation = relation.incorporate(
+                                path={"identifier": relation.identifier ~ '_temp_view'},
+                                type='view')-%}
 
-    EXEC('create view {{ relation.schema }}.{{ temp_view_indentifier }} as
-    {{ temp_view_sql }}
-    ');
+   {{ drop_relation(tmp_relation) }}
 
-    SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
-    {{ relation.schema }}.{{ temp_view_indentifier }}
+   {{ drop_relation(relation) }}
 
-    drop view {{ relation.schema }}.{{ temp_view_indentifier }}
+   {{ create_view_as(tmp_relation, sql) }}
+
+   {{ sqlserver__insert_into_from(relation, tmp_relation) }}
+
+   {{ drop_relation(tmp_relation) }}
     
    {% if not temporary and as_columnstore -%}
-    DROP INDEX IF EXISTS {{ relation.schema }}.{{ relation.identifier }}.{{ relation.schema }}_{{ relation.identifier }}_cci
-    CREATE CLUSTERED COLUMNSTORE INDEX {{ relation.schema }}_{{ relation.identifier }}_cci
-    ON {{ relation.schema }}.{{ relation.identifier }}
+   {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
 {% endmacro %}_
+
+{% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
+  {%- set full_to_relation = to_relation.schema ~ '.' ~ to_relation.identifier -%}
+  {%- set full_from_relation = from_relation.schema ~ '.' ~ from_relation.identifier -%}
+
+  SELECT * INTO {{full_to_relation}} FROM {{full_from_relation}}
+
+{% endmacro %}
 
 {% macro sqlserver__current_timestamp() -%}
   getdate()
