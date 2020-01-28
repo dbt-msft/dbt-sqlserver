@@ -55,6 +55,7 @@ Configure your dbt profile for using SQL Server authentication or Integrated Sec
 
 ### Sources
 
+
 ### Testing & documentation
 - Schema test supported
 - Data tests supported from dbt 0.14.1
@@ -66,7 +67,40 @@ Configure your dbt profile for using SQL Server authentication or Integrated Sec
 
 But, columns in source table can not have any constraints. If for example any column has a NOT NULL constraint, an error will be thrown.
 
+### Indexes
+There is now possible to define a regular sql server index on a table. 
+This is best used when the default clustered columnstore index materialisation is not suitable. 
+One reason would be that you need a large table that usually is queried one row at a time.
+
+Clusterad and non-clustered index are supported:
+- create_clustered_index(columns, unique=False)
+- create_nonclustered_index(columns, includes=False)
+- drop_all_indexes_on_table(): Drops current indexex on a table. Only meaningfull if model is incremental.
+
+
+Example of applying Unique clustered index on two columns, Ordinary index on one column, Ordinary index on one column with another column included
+
+    {{
+        config({
+            "as_columnstore": false, 
+            "materialized": 'table',
+            "post-hook": [
+                "{{ create_clustered_index(columns = ['row_id', 'row_id_complement'], unique=True) }}",
+                "{{ create_nonclustered_index(columns = ['modified_date']) }}",
+                "{{ create_nonclustered_index(columns = ['row_id'], includes = ['modified_date']) }}",
+            ]
+        })
+    }}
+
+
 ## Changelog
+
+### v0.15.1
+#### New Features:
+- Ability to define an index in a poosthook
+
+#### Fixes:
+- Previously when a model run was interupted unfinished models prevented the next run and you had to manually delete them. This is now fixed so that unfinished models will be deleted on next run.
 
 ### v0.15.0.1
 Fix release for v0.15.0
