@@ -11,6 +11,9 @@ Easiest install is to use pip:
 
     pip install dbt-sqlserver
 
+On Ubuntu make sure you have the ODBC header files before installing
+    
+    sudo apt install unixodbc-dev
  
 ## Configure your profile
 Configure your dbt profile for using SQL Server authentication or Integrated Security:
