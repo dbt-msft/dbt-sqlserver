@@ -77,9 +77,10 @@
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
   {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
   {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
+  {%- set full_relation = relation.schema ~ '.' ~ relation.identifier -%}
   DROP INDEX IF EXISTS {{relation_name}}.{{cci_name}}
   CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
-    ON {{relation_name}}
+    ON {{full_relation}}
 {% endmacro %}
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
