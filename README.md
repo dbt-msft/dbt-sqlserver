@@ -98,6 +98,12 @@ Example of applying Unique clustered index on two columns, Ordinary index on one
 
 ## Changelog
 
+### v0.15.2
+
+#### Fixes:
+- Fixes an issue with clustered columnstore index not beeing created.
+
+
 ### v0.15.1
 #### New Features:
 - Ability to define an index in a poosthook
