@@ -58,9 +58,14 @@
 {% endmacro %}
 
 {% macro sqlserver__create_view_as(relation, sql) -%}
+  create view {{ relation.schema }}.{{ relation.identifier }} as
+    {{ sql }}
+{% endmacro %}
+
+{% macro sqlserver__create_view_as_exec(relation, sql) -%}
   {%- set view_sql = sql.replace("'", "''") -%}
   EXEC('create view {{ relation.schema }}.{{ relation.identifier }} as
-    {{ view_sql }}');
+    {{ view_sql }}')
 {% endmacro %}
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
@@ -93,7 +98,7 @@
 
    {{ sqlserver__drop_relation_script(relation) }}
 
-   {{ create_view_as(tmp_relation, sql) }}
+   {{ create_view_as_exec(tmp_relation, sql) }}
 
    {{ sqlserver__insert_into_from(relation, tmp_relation) }}
 
