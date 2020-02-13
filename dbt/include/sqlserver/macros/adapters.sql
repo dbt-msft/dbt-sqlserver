@@ -86,16 +86,14 @@
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
    {% set tmp_relation = relation.incorporate(
-                                path={"identifier": relation.identifier ~ '_temp_view'},
+                                path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
                                 type='view')-%}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
 
    {{ sqlserver__drop_relation_script(relation) }}
 
-   EXEC('create view {{ relation.schema }}.{{ temp_view_indentifier }} as
-    {{ temp_view_sql }}
-    ');
+   {{ create_view_as(tmp_relation, sql) }}
 
    {{ sqlserver__insert_into_from(relation, tmp_relation) }}
 
