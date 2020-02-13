@@ -88,7 +88,7 @@
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
-   {%- set temp_view_sql = sql.replace("''", "''''") -%}
+   {%- set temp_view_sql = sql.replace("'", "''") -%}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
 
