@@ -98,7 +98,7 @@
 
    {{ sqlserver__drop_relation_script(relation) }}
 
-   {{ create_view_as_exec(tmp_relation, sql) }}
+   {{ sqlserver__create_view_as_exec(tmp_relation, sql) }}
 
    {{ sqlserver__insert_into_from(relation, tmp_relation) }}
 
