@@ -60,7 +60,7 @@
 {% macro sqlserver__create_view_as(relation, sql) -%}
   {%- set view_sql = sql.replace("'", "''") -%}
   EXEC('create view {{ relation.schema }}.{{ relation.identifier }} as
-    {{ view_sql }}')
+    {{ view_sql }}');
 {% endmacro %}
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
