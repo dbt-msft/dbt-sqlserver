@@ -98,7 +98,8 @@
     {{ temp_view_sql }}
     ');
 
-   {{ sqlserver__insert_into_from(relation, tmp_relation) }}
+   SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
+    {{ tmp_relation.schema }}.{{ tmp_relation.identifier }}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
     
