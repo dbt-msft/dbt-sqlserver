@@ -4,7 +4,7 @@
     {% endfor %}), 2)
 {% endmacro %}
 
-{% macro snapshot_check_strategy(node, snapshotted_rel, current_rel, config, target_exists) %}
+{% macro sqlserver__snapshot_check_strategy(node, snapshotted_rel, current_rel, config, target_exists) %}
     {% set check_cols_config = config['check_cols'] %}
     {% set primary_key = config['unique_key'] %}
     {% set updated_at = snapshot_get_time() %}

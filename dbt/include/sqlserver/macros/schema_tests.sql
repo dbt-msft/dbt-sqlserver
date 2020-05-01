@@ -1,4 +1,4 @@
-{% macro test_unique(model) %}
+{% macro sqlserver__test_unique(model) %}
 
 {% set column_name = kwargs.get('column_name', kwargs.get('arg')) %}
 
@@ -18,7 +18,7 @@ from (
 {% endmacro %}
 
 
-{% macro test_not_null(model) %}
+{% macro sqlserver__test_not_null(model) %}
 
 {% set column_name = kwargs.get('column_name', kwargs.get('arg')) %}
 
@@ -29,7 +29,7 @@ where {{ column_name }} is null
 {% endmacro %}
 
 
-{% macro test_accepted_values(model, values) %}
+{% macro sqlserver__test_accepted_values(model, values) %}
 
 {% set column_name = kwargs.get('column_name', kwargs.get('field')) %}
 
@@ -63,7 +63,7 @@ from validation_errors
 {% endmacro %}
 
 
-{% macro test_relationships(model, to, field) %}
+{% macro sqlserver__test_relationships(model, to, field) %}
 
 {% set column_name = kwargs.get('column_name', kwargs.get('from')) %}
 

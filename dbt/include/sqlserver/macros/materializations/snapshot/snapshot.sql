@@ -1,4 +1,4 @@
-{% macro snapshot_staging_table_inserts(strategy, source_sql, target_relation) -%}
+{% macro sqlserver__snapshot_staging_table_inserts(strategy, source_sql, target_relation) -%}
 
     select
         'insert' as dbt_change_type,
@@ -37,7 +37,7 @@
 {%- endmacro %}
 
 
-{% macro snapshot_staging_table_updates(strategy, source_sql, target_relation) -%}
+{% macro sqlserver__snapshot_staging_table_updates(strategy, source_sql, target_relation) -%}
 
     select
         'update' as dbt_change_type,
@@ -73,7 +73,7 @@
 {%- endmacro %}
 
 
-{% macro build_snapshot_staging_table(strategy, sql, target_relation) %}
+{% macro sqlserver__build_snapshot_staging_table(strategy, sql, target_relation) %}
     {% set tmp_relation = make_temp_relation(target_relation) %}
 
     {% set inserts_select = snapshot_staging_table_inserts(strategy, sql, target_relation) %}
@@ -94,7 +94,7 @@
 {% endmacro %}
 
 
-{% materialization snapshot, default %}
+{% materialization sqlserver__snapshot, default %}
   {%- set config = model['config'] -%}
 
   {%- set target_database = config.get('target_database') -%}
@@ -184,7 +184,7 @@
 {% endmacro %}
 
 
-{% macro build_snapshot_table(strategy, sql) %}
+{% macro sqlserver__build_snapshot_table(strategy, sql) %}
 
     select *,
         COALESCE({{ strategy.scd_id }}, NULL)  as dbt_scd_id,
