@@ -141,9 +141,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         with self.exception_handler(sql):
             if abridge_sql_log:
-                logger.debug('On %s: %s....', connection.name, sql[0:512])
+                logger.debug('On {}: {}....', connection.name, sql[0:512])
             else:
-                logger.debug('On %s: %s', connection.name, sql)
+                logger.debug('On {}: {}', connection.name, sql)
             pre = time.time()
 
             cursor = connection.handle.cursor()
