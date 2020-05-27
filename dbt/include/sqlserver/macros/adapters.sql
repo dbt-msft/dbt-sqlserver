@@ -85,7 +85,11 @@
   {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
   {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
   {%- set full_relation = relation.schema ~ '.' ~ relation.identifier -%}
-  DROP INDEX IF EXISTS {{relation_name}}.{{cci_name}}
+  if object_id ('{{relation_name}}.{{cci_name}}','U') is not null
+      begin
+      drop index {{relation_name}}.{{cci_name}}
+      end
+
   CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
     ON {{full_relation}}
 {% endmacro %}
