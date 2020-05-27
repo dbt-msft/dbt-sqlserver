@@ -41,12 +41,21 @@
 
 {% macro sqlserver__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
-    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
+    if object_id ('{{ relation.schema }}.{{ relation.identifier }}','U') is not null
+      begin
+      drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
+      end
   {%- endcall %}
 {% endmacro %}
 
+
+{# if object_id ('source.stg_absence_hours__dbt_tmp','U') is not null drop table source.stg_absence_hours__dbt_tmp; #}
+
 {% macro sqlserver__drop_relation_script(relation) -%}
-    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
+  if object_id ('{{ relation.schema }}.{{ relation.identifier }}','U') is not null
+    begin
+    drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
+    end
 {% endmacro %}
 
 {% macro sqlserver__check_schema_exists(database, schema) -%}
