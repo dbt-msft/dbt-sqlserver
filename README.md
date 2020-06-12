@@ -6,6 +6,8 @@ Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analyti
 Only supports dbt 0.14 and newer!
 - For dbt 0.14.x use dbt-sqlserver 0.14.x
 - For dbt 0.15.x use dbt-sqlserver 0.15.x
+- dbt 0.16.x is unsupported
+- For dbt 0.17.x use dbt-sqlserver 0.17.x
 
 Easiest install is to use pip:
 
@@ -97,6 +99,11 @@ Example of applying Unique clustered index on two columns, Ordinary index on one
 
 
 ## Changelog
+
+### v0.17.0
+
+#### New Features:
+- Adds support for dbt 0.17.x
 
 ### v0.15.2
 
