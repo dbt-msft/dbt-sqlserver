@@ -13,8 +13,8 @@
            else table_type
       end as table_type
     from information_schema.tables
-    where table_schema like '{{ schema }}'
-      and table_catalog like '{{ schema_relation.database.lower() }}'
+    where table_schema like '{{ schema_relation.schema }}'
+      and table_catalog like '{{ schema_relation.database }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
 {% endmacro %}
