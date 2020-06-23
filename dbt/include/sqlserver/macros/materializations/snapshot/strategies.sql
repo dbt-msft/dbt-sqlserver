@@ -29,7 +29,7 @@
         )
     {%- endset %}
 
-    {% set scd_id_expr = snapshot_hash_arguments([primary_key, updated_at]) %}
+    {% set scd_id_expr = sqlserver__snapshot_hash_arguments([primary_key, updated_at]) %}
 
     {% do return({
         "unique_key": primary_key,
