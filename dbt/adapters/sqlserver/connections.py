@@ -64,7 +64,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             raise dbt.exceptions.DatabaseException(str(e).strip()) from e
 
         except Exception as e:
-            logger.debug("Error running SQL: %s", sql)
+            logger.debug(f"Error running SQL: {sql}")
             logger.debug("Rolling back transaction.")
             self.release()
             if isinstance(e, dbt.exceptions.RuntimeException):
@@ -141,9 +141,10 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         with self.exception_handler(sql):
             if abridge_sql_log:
-                logger.debug('On {}: {}....', connection.name, sql[0:512])
+                logger.debug('On {}: {}....'.format(
+                    connection.name, sql[0:512]))
             else:
-                logger.debug('On {}: {}', connection.name, sql)
+                logger.debug('On {}: {}'.format(connection.name, sql))
             pre = time.time()
 
             cursor = connection.handle.cursor()
@@ -154,8 +155,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
             else:
                 cursor.execute(sql, bindings)
 
-            logger.debug("SQL status: %s in %0.2f seconds",
-                         self.get_status(cursor), (time.time() - pre))
+            logger.debug("SQL status: {} in {:0.2f} seconds".format(
+                         self.get_status(cursor), (time.time() - pre)))
 
             return connection, cursor
 
