@@ -41,12 +41,21 @@
 
 {% macro sqlserver__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
-    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
+    if object_id ('{{ relation.schema }}.{{ relation.identifier }}','U') is not null
+      begin
+      drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
+      end
   {%- endcall %}
 {% endmacro %}
 
+
+{# if object_id ('source.stg_absence_hours__dbt_tmp','U') is not null drop table source.stg_absence_hours__dbt_tmp; #}
+
 {% macro sqlserver__drop_relation_script(relation) -%}
-    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
+  if object_id ('{{ relation.schema }}.{{ relation.identifier }}','U') is not null
+    begin
+    drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
+    end
 {% endmacro %}
 
 {% macro sqlserver__check_schema_exists(database, schema) -%}
@@ -63,14 +72,12 @@
 {% endmacro %}
 
 
+{# TODO Actually Implement the rename index piece #}
+{# TODO instead of deleting it...  #}
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
-    EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
-    IF EXISTS(
-    SELECT *
-    FROM sys.indexes
-    WHERE name='{{ from_relation.schema }}_{{ from_relation.identifier }}_cci' and object_id = OBJECT_ID('{{ from_relation.schema }}.{{ to_relation.identifier }}'))
-    EXEC sp_rename N'{{ from_relation.schema }}.{{ to_relation.identifier }}.{{ from_relation.schema }}_{{ from_relation.identifier }}_cci', N'{{ from_relation.schema }}_{{ to_relation.identifier }}_cci', N'INDEX'
+  
+    rename object {{ from_relation.schema }}.{{ from_relation.identifier }} to {{ to_relation.identifier }}
   {%- endcall %}
 {% endmacro %}
 
@@ -78,7 +85,11 @@
   {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
   {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
   {%- set full_relation = relation.schema ~ '.' ~ relation.identifier -%}
-  DROP INDEX IF EXISTS {{relation_name}}.{{cci_name}}
+  if object_id ('{{relation_name}}.{{cci_name}}','U') is not null
+      begin
+      drop index {{relation_name}}.{{cci_name}}
+      end
+
   CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
     ON {{full_relation}}
 {% endmacro %}
