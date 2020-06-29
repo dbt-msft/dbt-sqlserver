@@ -2,9 +2,9 @@
 from setuptools import find_packages
 from distutils.core import setup
 
-package_name = "dbt-sqlserver"
+package_name = "dbt-azuresynapse"
 package_version = "0.15.2"
-description = """A sqlserver adpter plugin for dbt (data build tool)"""
+description = """A Azure Synapse adpter plugin for dbt (data build tool)"""
 
 setup(
     name=package_name,
@@ -25,7 +25,7 @@ setup(
         ]
     },
     install_requires=[
-        'dbt-core>=0.15.0',
+        'dbt-core==0.15.3',
         'pyodbc>=4.0.27',
     ]
 )
