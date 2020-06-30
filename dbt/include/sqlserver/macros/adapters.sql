@@ -39,12 +39,6 @@
   {% endcall %}
 {% endmacro %}
 
-{% macro sqlserver__drop_relation(relation) -%}
-  {% call statement('drop_relation', auto_begin=False) -%}
-    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
-  {%- endcall %}
-{% endmacro %}
-
 {% macro sqlserver__drop_relation_script(relation) -%}
     drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
 {% endmacro %}
