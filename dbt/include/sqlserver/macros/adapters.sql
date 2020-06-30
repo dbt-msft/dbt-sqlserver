@@ -25,9 +25,11 @@
 
 {% macro sqlserver__create_schema(database_name, schema_name) -%}
   {% call statement('create_schema') -%}
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = {{ schema_name | replace('"', "'") }})
+    {%- set quote_none = schema_name | replace('"', "") -%}
+    {%- set quote_single = schema_name | replace('"', "'") -%}
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = {{ quote_single }})
     BEGIN
-    EXEC('CREATE SCHEMA {{ schema_name | replace('"', "") }}')
+    EXEC('CREATE SCHEMA {{ quote_none }}')
     END
   {% endcall %}
 {% endmacro %}
