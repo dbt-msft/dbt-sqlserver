@@ -157,7 +157,6 @@
           from INFORMATION_SCHEMA.COLUMNS
           where table_name = '{{ relation.identifier }}'
             and table_schema = '{{ relation.schema }}'
-      order by ordinal_position
 
 
   {% endcall %}
