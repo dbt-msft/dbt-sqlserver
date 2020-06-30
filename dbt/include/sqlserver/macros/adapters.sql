@@ -114,16 +114,13 @@
     {{ temp_view_sql }}
     ');
 
-   SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
-    {{ tmp_relation.schema }}.{{ tmp_relation.identifier }}
+  CREATE TABLE {{ relation.schema }}.{{ relation.identifier }}
+    WITH(DISTRIBUTION = ROUND_ROBIN)
+    AS (SELECT * FROM {{ tmp_relation.schema }}.{{ tmp_relation.identifier }})
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
-    
-   {% if not temporary and as_columnstore -%}
-   {{ sqlserver__create_clustered_columnstore_index(relation) }}
-   {% endif %}
 
-{% endmacro %}_
+{% endmacro %}
 
 {% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
   {%- set full_to_relation = to_relation.schema ~ '.' ~ to_relation.identifier -%}
