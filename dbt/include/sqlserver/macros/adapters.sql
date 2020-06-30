@@ -25,7 +25,6 @@
 
 {% macro sqlserver__create_schema(database_name, schema_name) -%}
   {% call statement('create_schema') -%}
-    USE {{ database_name }}
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = {{ schema_name | replace('"', "'") }})
     BEGIN
     EXEC('CREATE SCHEMA {{ schema_name | replace('"', "") }}')
