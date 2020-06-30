@@ -38,6 +38,7 @@
   {% endcall %}
 {% endmacro %}
 
+{# TODO make this function just a wrapper of sqlserver__drop_relation_script #}
 {% macro sqlserver__drop_relation(relation) -%}
   {% if relation.type == 'view' -%}
    {% set object_id_type = 'V' %}
@@ -53,14 +54,17 @@
   {%- endcall %}
 {% endmacro %}
 
-
-{# if object_id ('source.stg_absence_hours__dbt_tmp','U') is not null drop table source.stg_absence_hours__dbt_tmp; #}
-
 {% macro sqlserver__drop_relation_script(relation) -%}
-  if object_id ('{{ relation.schema }}.{{ relation.identifier }}','U') is not null
-    begin
-    drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
-    end
+  {% if relation.type == 'view' -%}
+   {% set object_id_type = 'V' %}
+   {% elif relation.type == 'table'%}
+   {% set object_id_type = 'U' %}
+   {%- else -%} invalid target name
+   {% endif %}
+  if object_id ('{{ relation.schema }}.{{ relation.identifier }}','{{ object_id_type }}') is not null
+      begin
+      drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
+      end
 {% endmacro %}
 
 {% macro sqlserver__check_schema_exists(database, schema) -%}
