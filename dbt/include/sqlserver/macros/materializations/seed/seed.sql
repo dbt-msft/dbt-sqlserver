@@ -8,24 +8,25 @@
         {% set bindings = [] %}
 
         {% for row in chunk %}
-            {% set _ = bindings.extend(row) %}
+            {% do bindings.extend(row) %}
         {% endfor %}
 
         {% set sql %}
-            insert into {{ this.render() }} ({{ cols_sql }}) values
+            insert into {{ this.render() }} ({{ cols_sql }})
             {% for row in chunk -%}
-                ({%- for column in agate_table.column_names -%}
-                    ?
-                    {%- if not loop.last%},{%- endif %}
-                {%- endfor -%})
-                {%- if not loop.last%},{%- endif %}
-            {%- endfor %}
+                {{'SELECT'+' '}}
+                {%- for column in agate_table.column_names -%}
+                    '{{row[column]}}'
+                    {%- if not loop.last%}, {%- endif -%}
+                {%- endfor -%}
+                {%- if not loop.last-%} {{' '+'UNION ALL'+'\n'}} {%- endif -%}
+            {%- endfor -%}
         {% endset %}
 
-        {% set _ = adapter.add_query(sql, bindings=bindings, abridge_sql_log=True) %}
+        {% do adapter.add_query(sql, abridge_sql_log=True) %}
 
         {% if loop.index0 == 0 %}
-            {% set _ = statements.append(sql) %}
+            {% do statements.append(sql) %}
         {% endif %}
     {% endfor %}
 
