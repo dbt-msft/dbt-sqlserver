@@ -1,0 +1,3 @@
+dbt-sqlserver==0.15.2
+dbt==0.15.3
+.
