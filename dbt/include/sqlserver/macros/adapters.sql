@@ -158,7 +158,7 @@
               numeric_scale
           from INFORMATION_SCHEMA.COLUMNS
           where table_name = '{{ relation.identifier }}'
-            and table_schema = '{{ relation.schema }}'
+            and table_schema = '{{ relation.schema }}') cols
 
 
   {% endcall %}
