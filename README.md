@@ -6,6 +6,8 @@ Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analyti
 Only supports dbt 0.14 and newer!
 - For dbt 0.14.x use dbt-sqlserver 0.14.x
 - For dbt 0.15.x use dbt-sqlserver 0.15.x
+- dbt 0.16.x is unsupported
+- dbt 0.17.x is unsupported  - development in progress
 
 Easiest install is to use pip:
 
@@ -14,7 +16,7 @@ Easiest install is to use pip:
 On Ubuntu make sure you have the ODBC header files before installing
     
     sudo apt install unixodbc-dev
- 
+
 ## Configure your profile
 Configure your dbt profile for using SQL Server authentication or Integrated Security:
 ##### SQL Server authentication 
