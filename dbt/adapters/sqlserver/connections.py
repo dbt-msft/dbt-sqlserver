@@ -22,7 +22,9 @@ class SQLServerCredentials(Credentials):
     port: Optional[int] = 1433
     UID: Optional[str] = None
     PWD: Optional[str] = None
-    windows_login: Optional[bool] = False
+    # "sql", "ActiveDirectoryPassword" or "ActiveDirectoryInteractive"
+    authentication: Optional[str] = "sql"
+    encrypt: Optional[str] = "yes"
 
     _ALIASES = {
         'user': 'UID'
@@ -30,7 +32,7 @@ class SQLServerCredentials(Credentials):
         , 'pass': 'PWD'
         , 'password': 'PWD'
         , 'server': 'host'
-        , 'trusted_connection': 'windows_login'
+        , 'auth': 'authentication'
     }
 
     @property
@@ -40,7 +42,8 @@ class SQLServerCredentials(Credentials):
     def _connection_keys(self):
         # return an iterator of keys to pretty-print in 'dbt debug'
         # raise NotImplementedError
-        return 'server', 'database', 'schema', 'port', 'UID', 'windows_login'
+        return 'server', 'database', 'schema', \
+               'port', 'UID', 'authentication', 'encrypt'
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
@@ -88,14 +91,22 @@ class SQLServerConnectionManager(SQLConnectionManager):
             con_str = []
             con_str.append(f"DRIVER={{{credentials.driver}}}")
             con_str.append(f"SERVER={credentials.host}")
-            con_str.append(f"PORT={credentials.port}")
             con_str.append(f"Database={credentials.database}")
+            con_str.append(f"UID={{{credentials.UID}}}")
 
-            if not getattr(credentials, 'windows_login', False):
-                con_str.append(f"UID={credentials.UID}")
-                con_str.append(f"PWD={credentials.PWD}")
-            else:
-                con_str.append(f"trusted_connection=yes")
+            type_auth = getattr(credentials, 'authentication', 'sql')
+
+            if 'ActiveDirectory' in type_auth:
+                con_str.append(f"Authentication={credentials.authentication}")
+                # can't pase user w/ ADPassword
+                if type_auth == "ActiveDirectoryPassword":
+                    con_str.remove(f"UID={{{credentials.UID}}}")
+
+            if type_auth in ['sql', 'ActiveDirectoryPassword']:
+                con_str.append(f"PWD={{{credentials.PWD}}}")
+
+            if not getattr(credentials, 'encrypt', False):
+                con_str.append(f"Encrypt={credentials.encrypt}")
 
             con_str_concat = ';'.join(con_str)
             logger.debug(f'Using connection string: {con_str_concat}')
@@ -180,4 +191,3 @@ class SQLServerConnectionManager(SQLConnectionManager):
         else:
             table = dbt.clients.agate_helper.empty_table()
         return status, table
-
