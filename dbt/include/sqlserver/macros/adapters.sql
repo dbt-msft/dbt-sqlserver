@@ -26,8 +26,7 @@
 {% macro sqlserver__create_schema(database_name, schema_name) -%}
   {% call statement('create_schema') -%}
     {%- set quote_none = schema_name | replace('"', "") -%}
-    {%- set quote_single = schema_name | replace('"', "'") -%}
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = {{ quote_single }})
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ quote_none }')
     BEGIN
     EXEC('CREATE SCHEMA {{ quote_none }}')
     END
@@ -121,7 +120,10 @@
     ');
 
   CREATE TABLE {{ relation.schema }}.{{ relation.identifier }}
-    WITH(DISTRIBUTION = ROUND_ROBIN)
+    WITH(
+      DISTRIBUTION = ROUND_ROBIN,
+      {{config.get('index',default="CLUSTERED COLUMNSTORE INDEX")}}
+      )
     AS (SELECT * FROM {{ tmp_relation.schema }}.{{ tmp_relation.identifier }})
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
