@@ -1,5 +1,18 @@
-# dbt-sqlserver
-[dbt](https://www.getdbt.com) adapter for sql server.
+# dbt-synapse
+
+[dbt](https://www.getdbt.com) adapter for Azure Synapse.
+
+## :construction: under construction :construction:
+
+slowly porting over @mikaelene's custom adapter.
+
+outstanding work:
+- make sure the incremental materializations are working as they should be
+- Add support for `ActiveDirectoryMsi`
+- Publish as package to `pypi`
+- other stuff i can't remember
+
+## stuff copied straight from `dbt-sqlserver`
 
 Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analytics/dbt-integration-tests/). 
 

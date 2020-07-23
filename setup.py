@@ -2,7 +2,7 @@
 from setuptools import find_packages
 from distutils.core import setup
 
-package_name = "dbt-azuresynapse"
+package_name = "dbt-synapse"
 package_version = "0.15.2"
 description = """A Azure Synapse adpter plugin for dbt (data build tool)"""
 
