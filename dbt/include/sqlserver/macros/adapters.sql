@@ -105,7 +105,8 @@
 {% endmacro %}
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
-   {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
+   {%- set index = config.get('index', default="CLUSTERED COLUMNSTORE INDEX") -%}
+   {%- set dist = config.get('dist', default="ROUND_ROBIN") -%}
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
@@ -121,8 +122,8 @@
 
   CREATE TABLE {{ relation.schema }}.{{ relation.identifier }}
     WITH(
-      DISTRIBUTION = ROUND_ROBIN,
-      {{config.get('index',default="CLUSTERED COLUMNSTORE INDEX")}}
+      DISTRIBUTION = {{dist}},
+      {{index}}
       )
     AS (SELECT * FROM {{ tmp_relation.schema }}.{{ tmp_relation.identifier }})
 
