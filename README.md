@@ -1,10 +1,8 @@
-# dbt-synapse
+# :construction:  dbt-synapse :construction:
 
-[dbt](https://www.getdbt.com) adapter for Azure Synapse.
+ [dbt](https://www.getdbt.com) adapter for [Azure Synapse](https://azure.microsoft.com/en-us/services/synapse-analytics/). an (in-progress) of @mikaelene's `sqlserver` custom adapter.
 
-## :construction: under construction :construction:
-
-slowly porting over @mikaelene's custom adapter.
+slowly porting over  custom adapter.
 
 outstanding work:
 - make sure the incremental materializations are working as they should be
@@ -24,7 +22,7 @@ Only supports dbt 0.14 and newer!
 
 Easiest install is to use pip:
 
-    pip install dbt-sqlserver
+   pip install git+https://github.com/swanderz/dbt-synapse
 
 On Ubuntu make sure you have the ODBC header files before installing
     
@@ -62,7 +60,6 @@ brings up the Azure AD prompt so you can MFA if need be.
 ```
 authentication: ActiveDirectoryInteractive
 user: bill.gates@microsoft.com
-password: i<3opensource?
 ```
 ##### ActiveDirectory Integrated (*Windows only*)
 uses your machine's credentials (might be disabled by your AAD admins)
