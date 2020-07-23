@@ -19,6 +19,8 @@ Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analyti
 Only supports dbt 0.14 and newer!
 - For dbt 0.14.x use dbt-sqlserver 0.14.x
 - For dbt 0.15.x use dbt-sqlserver 0.15.x
+- dbt 0.16.x is unsupported
+- dbt 0.17.x is unsupported  - development in progress
 
 Easiest install is to use pip:
 
@@ -27,7 +29,7 @@ Easiest install is to use pip:
 On Ubuntu make sure you have the ODBC header files before installing
     
     sudo apt install unixodbc-dev
- 
+
 ## Configure your profile
 `SqlPassword` is the default connection method, but you can also use the following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords)  to authenticate:
 - ActiveDirectory Password
