@@ -92,17 +92,26 @@ class SQLServerConnectionManager(SQLConnectionManager):
             con_str.append(f"DRIVER={{{credentials.driver}}}")
             con_str.append(f"SERVER={credentials.host}")
             con_str.append(f"Database={credentials.database}")
-            con_str.append(f"UID={{{credentials.UID}}}")
 
             type_auth = getattr(credentials, 'authentication', 'sql')
 
             if 'ActiveDirectory' in type_auth:
                 con_str.append(f"Authentication={credentials.authentication}")
-                # can't pase user w/ ADPassword
-                if type_auth == "ActiveDirectoryPassword":
-                    con_str.remove(f"UID={{{credentials.UID}}}")
 
-            if type_auth in ['sql', 'ActiveDirectoryPassword']:
+                if type_auth == "ActiveDirectoryPassword":
+                    con_str.append(f"UID={{{credentials.UID}}}")
+                    con_str.append(f"PWD={{{credentials.PWD}}}")
+                elif type_auth == "ActiveDirectoryInteractive":
+                    con_str.append(f"UID={{{credentials.UID}}}")
+                elif type_auth == "ActiveDirectoryIntegrated":
+                    # why is this necessary???
+                    con_str.remove("UID={None}")
+                elif type_auth == "ActiveDirectoryMsi":
+                    raise ValueError("ActiveDirectoryMsi is not supported yet")
+
+            elif type_auth == 'sql':
+                con_str.append("Authentication=SqlPassword")
+                con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
 
             if not getattr(credentials, 'encrypt', False):
@@ -110,7 +119,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             con_str_concat = ';'.join(con_str)
             logger.debug(f'Using connection string: {con_str_concat}')
-
             handle = pyodbc.connect(con_str_concat, autocommit=True)
 
             connection.state = 'open'
