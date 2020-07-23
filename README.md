@@ -29,25 +29,49 @@ On Ubuntu make sure you have the ODBC header files before installing
     sudo apt install unixodbc-dev
  
 ## Configure your profile
-Configure your dbt profile for using SQL Server authentication or Integrated Security:
+`SqlPassword` is the default connection method, but you can also use the following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords)  to authenticate:
+- ActiveDirectory Password
+- ActiveDirectory Interactive
+- ActiveDirectory Integrated
+- ActiveDirectory MSI (to be implemented)
+##### boilerplate
+this should be in every target definition
+```
+type: sqlserver
+driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
+server: server-host-name or ip
+port: 1433
+schema: schemaname
+```
 ##### SQL Server authentication 
-      type: sqlserver
-      driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
-      server: server-host-name or ip
-      port: 1433
-      user: username
-      password: password
-      database: databasename
-      schema: schemaname
-
-##### Integrated Security
-      type: sqlserver
-      driver: 'ODBC Driver 17 for SQL Server'
-      server: server-host-name or ip
-      port: 1433
-      user: username
-      schema: schemaname
-      windows_login: True
+```
+user: username
+password: password
+```  
+##### ActiveDirectory Password 
+Definitely not ideal, but available
+```
+authentication: ActiveDirectoryPassword
+user: bill.gates@microsoft.com
+password: i<3opensource?
+```  
+##### ActiveDirectory Interactive 
+brings up the Azure AD prompt so you can MFA if need be
+```
+authentication: ActiveDirectoryInteractive
+user: bill.gates@microsoft.com
+password: i<3opensource?
+```  
+##### ActiveDirectory Integrated 
+uses your machine's credentials (might be disabled by your AAD admins)
+```
+authentication: ActiveDirectoryIntegrated
+```  
+##### ActiveDirectory MSI 
+to be implemented
+ ```
+authentication: ActiveDirectoryMsi
+```  
 
 ## Supported features
 
