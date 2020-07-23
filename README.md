@@ -47,31 +47,31 @@ schema: schemaname
 ```
 user: username
 password: password
-```  
+```
 ##### ActiveDirectory Password 
 Definitely not ideal, but available
 ```
 authentication: ActiveDirectoryPassword
 user: bill.gates@microsoft.com
 password: i<3opensource?
-```  
-##### ActiveDirectory Interactive 
-brings up the Azure AD prompt so you can MFA if need be
+```
+##### ActiveDirectory Interactive (*Windows only*)
+brings up the Azure AD prompt so you can MFA if need be.
 ```
 authentication: ActiveDirectoryInteractive
 user: bill.gates@microsoft.com
 password: i<3opensource?
-```  
-##### ActiveDirectory Integrated 
+```
+##### ActiveDirectory Integrated (*Windows only*)
 uses your machine's credentials (might be disabled by your AAD admins)
 ```
 authentication: ActiveDirectoryIntegrated
-```  
+```
 ##### ActiveDirectory MSI 
 to be implemented
- ```
+```
 authentication: ActiveDirectoryMsi
-```  
+```
 
 ## Supported features
 
