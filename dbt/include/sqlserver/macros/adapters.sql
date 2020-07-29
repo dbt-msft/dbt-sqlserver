@@ -102,7 +102,7 @@
     {{ tmp_relation.schema }}.{{ tmp_relation.identifier }}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
-    
+
    {% if not temporary and as_columnstore -%}
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
@@ -140,7 +140,7 @@
           from INFORMATION_SCHEMA.COLUMNS
           where table_name = '{{ relation.identifier }}'
             and table_schema = '{{ relation.schema }}'
-          UNION ALL
+          UNION
           select
               ordinal_position,
               column_name,
