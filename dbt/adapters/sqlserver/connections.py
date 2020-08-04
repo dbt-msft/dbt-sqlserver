@@ -87,8 +87,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
         try:
             con_str = []
             con_str.append(f"DRIVER={{{credentials.driver}}}")
-            con_str.append(f"SERVER={credentials.host}")
-            con_str.append(f"PORT={credentials.port}")
+            con_str.append(f"SERVER={credentials.host},{credentials.port}")
             con_str.append(f"Database={credentials.database}")
 
             if not getattr(credentials, 'windows_login', False):
