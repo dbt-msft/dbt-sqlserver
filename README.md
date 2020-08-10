@@ -121,5 +121,11 @@ is turned into the relative form (minus `__dbt`'s `_backup` and `_tmp` tables)
 
 ## Changelog
 
+### v0.15.3
+
+#### Fixes:
+- Fix output of sql in the log files.
+- Limited the version of dbt to 0.15, since later versions are unsupported.
+
 ### v0.15.2
 Initial release
