@@ -100,6 +100,11 @@ Example of applying Unique clustered index on two columns, Ordinary index on one
 
 ## Changelog
 
+### v0.15.3.1
+
+#### Fixes:
+- Snapshots did not work on dbt v0.15.1 to v0.15.3
+
 ### v0.15.3
 
 #### Fixes:
