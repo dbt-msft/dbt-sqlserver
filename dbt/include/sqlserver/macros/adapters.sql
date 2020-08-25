@@ -39,7 +39,7 @@
 
 {% macro sqlserver__drop_schema(database_name, schema_name) -%}
   {% call statement('drop_schema') -%}
-    drop schema if exists {{ rrelation.without_identifier().schema }}
+    drop schema if exists {{ relation.without_identifier().schema }}
   {% endcall %}
 {% endmacro %}
 
