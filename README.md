@@ -15,29 +15,67 @@ Easiest install is to use pip:
     pip install dbt-sqlserver
 
 On Ubuntu make sure you have the ODBC header files before installing
-    
-    sudo apt install unixodbc-dev
 
-## Configure your profile
-Configure your dbt profile for using SQL Server authentication or Integrated Security:
-##### SQL Server authentication 
-      type: sqlserver
-      driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
-      server: server-host-name or ip
-      port: 1433
-      user: username
-      password: password
-      database: databasename
-      schema: schemaname
+```
+sudo apt install unixodbc-dev
+```
 
-##### Integrated Security
-      type: sqlserver
-      driver: 'ODBC Driver 17 for SQL Server'
-      server: server-host-name or ip
-      port: 1433
-      user: username
-      schema: schemaname
-      windows_login: True
+## Authentication
+`SqlPassword` is the default connection method, but you can also use the following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords)  to authenticate:
+- Integrated (i.e. Windows Login)
+- ActiveDirectory Password
+- ActiveDirectory Interactive
+- ActiveDirectory Integrated
+- ActiveDirectory MSI (to be implemented)
+- Service Principal (a.k.a. AAD Application)
+#### boilerplate
+this should be in every target definition
+```
+type: sqlserver
+driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
+server: server-host-name or ip
+port: 1433
+schema: schemaname
+```
+#### SQL Server authentication 
+```
+user: username
+password: password
+```
+
+#### Integrated Security
+```
+windows_login: True
+```
+#### ActiveDirectory Password 
+Definitely not ideal, but available
+```
+authentication: ActiveDirectoryPassword
+user: bill.gates@microsoft.com
+password: i<3opensource?
+```
+#### ActiveDirectory Interactive (*Windows only*)
+brings up the Azure AD prompt so you can MFA if need be.
+```
+authentication: ActiveDirectoryInteractive
+user: bill.gates@microsoft.com
+```
+##### ActiveDirectory Integrated (*Windows only*)
+uses your machine's credentials (might be disabled by your AAD admins)
+```
+authentication: ActiveDirectoryIntegrated
+```
+##### Service Principal
+`client_*` and `app_*` can be used interchangeably
+```
+tenant_id: ActiveDirectoryIntegrated
+client_id: clientid
+client_secret: ActiveDirectoryIntegrated
+```
+##### ActiveDirectory MSI (*to be implemented*)
+```
+authentication: ActiveDirectoryMsi
+```
 
 ## Supported features
 
