@@ -1,5 +1,5 @@
 
-{% macro sqlserver__get_catalog(information_schemas) -%}
+{% macro sqlserver__get_catalog(information_schema, schemas) -%}
 
   {%- call statement('catalog', fetch_result=True) -%}
 
