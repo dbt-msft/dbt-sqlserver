@@ -119,7 +119,14 @@ class SQLServerConnectionManager(SQLConnectionManager):
         try:
             con_str = []
             con_str.append(f"DRIVER={{{credentials.driver}}}")
-            con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            
+            if "\\" in credentials.host:
+                # if there is a backslash \ in the host name the host is a sql-server named instance
+                # in this case then port number has to be omitted
+                con_str.append(f"SERVER={credentials.host}")
+            else:
+                con_str.append(f"SERVER={credentials.host},{credentials.port}")
+
             con_str.append(f"Database={credentials.database}")
 
             type_auth = getattr(credentials, 'authentication', 'sql')
