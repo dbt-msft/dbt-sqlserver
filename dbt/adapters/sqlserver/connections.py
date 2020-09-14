@@ -142,7 +142,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 app_id = getattr(credentials, 'AppId', None)
                 app_secret = getattr(credentials, 'AppSecret', None)
 
-            elif getattr(credentials, 'windows_login', False)
+            elif getattr(credentials, 'windows_login', False):
                 con_str.append(f"trusted_connection=yes")
             elif type_auth == 'sql':
                 con_str.append("Authentication=SqlPassword")
