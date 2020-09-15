@@ -4,7 +4,7 @@ from distutils.core import setup
 
 package_name = "dbt-sqlserver"
 package_version = "0.15.3.1"
-description = """A sqlserver adpter plugin for dbt (data build tool)"""
+description = """A sqlserver adapter plugin for dbt (data build tool)"""
 
 setup(
     name=package_name,
@@ -12,8 +12,9 @@ setup(
     description=description,
     long_description=description,
     long_description_content_type='text/markdown',
+    license="MIT",
     author="Mikael Ene",
-    author_email="mikael.ene@gmail.com",
+    author_email="mikael.ene@eneanalytics.com",
     url="https://github.com/mikaelene/dbt-sqlserver",
     packages=find_packages(),
     package_data={
