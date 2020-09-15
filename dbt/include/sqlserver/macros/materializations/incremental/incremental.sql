@@ -1,4 +1,4 @@
-               {% macro dbt__incremental_delete(target_relation, tmp_relation) -%}
+{% macro dbt__incremental_delete(target_relation, tmp_relation) -%}
   {%- set unique_key = config.require('unique_key') -%}
 
   delete

@@ -1,4 +1,8 @@
-{% macro sqlserver__list_relations_without_caching(information_schema, schema) %}
+{% macro sqlserver__information_schema_name(database) -%}
+  information_schema
+{%- endmacro %}
+
+{% macro sqlserver__list_relations_without_caching(schema_relation) %}
   {% call statement('list_relations_without_caching', fetch_result=True) -%}
     select
       table_catalog as [database],
@@ -8,9 +12,10 @@
            when table_type = 'VIEW' then 'view'
            else table_type
       end as table_type
-    from {{ information_schema }}.tables
-    where table_schema like '{{ schema }}'
-      and table_catalog like '{{ information_schema.database }}'
+
+    from information_schema.tables
+    where table_schema like '{{ schema_relation.schema }}'
+      and table_catalog like '{{ schema_relation.database }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
 {% endmacro %}
@@ -23,19 +28,19 @@
   {{ return(load_result('list_schemas').table) }}
 {% endmacro %}
 
-{% macro sqlserver__create_schema(database_name, schema_name) -%}
+{% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
-    USE {{ database_name }}
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = {{ schema_name | replace('"', "'") }})
+    USE [{{ relation.database }}]
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA {{ schema_name | replace('"', "") }}')
+    EXEC('CREATE SCHEMA {{ relation.without_identifier().schema }}')
     END
   {% endcall %}
 {% endmacro %}
 
 {% macro sqlserver__drop_schema(database_name, schema_name) -%}
   {% call statement('drop_schema') -%}
-    drop schema if exists {{database_name}}.{{schema_name}}
+    drop schema if exists {{ relation.without_identifier().schema }}
   {% endcall %}
 {% endmacro %}
 
@@ -165,3 +170,8 @@
 
     {% do return(tmp_relation) %}
 {% endmacro %}
+
+{% macro sqlserver__snapshot_string_as_time(timestamp) -%}
+    {%- set result = "CONVERT(DATETIME2, '" ~ timestamp ~ "')" -%}
+    {{ return(result) }}
+{%- endmacro %}

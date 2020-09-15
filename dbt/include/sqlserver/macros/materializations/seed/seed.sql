@@ -1,4 +1,4 @@
-{% macro basic_load_csv_rows(model, batch_size, agate_table) %}
+{% macro sqlserver__basic_load_csv_rows(model, batch_size, agate_table) %}
     {% set cols_sql = get_seed_column_quoted_csv(model, agate_table.column_names) %}
     {% set bindings = [] %}
 
@@ -34,5 +34,5 @@
 {% endmacro %}
 
 {% macro sqlserver__load_csv_rows(model, agate_table) %}
-  {{ return(basic_load_csv_rows(model, 200, agate_table) )}}
+  {{ return(sqlserver__basic_load_csv_rows(model, 200, agate_table) )}}
 {% endmacro %}
