@@ -84,7 +84,9 @@ client_secret: ActiveDirectoryIntegrated
 
 ### Materializations
 - Table: 
-    - Will be materialized as columns store index by default (requires SQL Server 2017 as least). To override:
+    - Will be materialized as columns store index by default (requires SQL Server 2017 as least). 
+      (For Azure SQL requires Service Tier greater than S2)
+    To override:
 {{
   config(
     as_columnstore = false,
