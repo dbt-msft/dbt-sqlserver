@@ -22,11 +22,12 @@ def create_token(tenant_id, client_id, client_secret):
     os.environ['AZURE_CLIENT_ID'] = client_id
     os.environ['AZURE_CLIENT_SECRET'] = client_secret
 
-    token = DefaultAzureCredential().get_token('https://database.windows.net//.default')
+    token = DefaultAzureCredential().get_token(
+        'https://database.windows.net//.default')
     # convert to byte string interspersed with the 1-byte
     # TODO decide which is cleaner?
     # exptoken=b''.join([bytes({i})+bytes(1) for i in bytes(token.token, "UTF-8")])
-    exptoken = bytes(1).join([bytes(i, "UTF-8") for i in  token.token])+bytes(1)
+    exptoken = bytes(1).join([bytes(i, "UTF-8") for i in token.token])+bytes(1)
     # make c object with bytestring length prefix
     tokenstruct = struct.pack("=i", len(exptoken)) + exptoken
 
@@ -52,15 +53,7 @@ class SQLServerCredentials(Credentials):
     encrypt: Optional[str] = "yes"
 
     _ALIASES = {
-        'user': 'UID'
-        , 'username': 'UID'
-        , 'pass': 'PWD'
-        , 'password': 'PWD'
-        , 'server': 'host'
-        , 'trusted_connection': 'windows_login'
-        , 'auth': 'authentication'
-        , 'app_id': 'client_id'
-        , 'app_secret': 'client_secret'
+        'user': 'UID', 'username': 'UID', 'pass': 'PWD', 'password': 'PWD', 'server': 'host', 'trusted_connection': 'windows_login', 'auth': 'authentication', 'app_id': 'client_id', 'app_secret': 'client_secret'
     }
 
     @property
@@ -70,8 +63,12 @@ class SQLServerCredentials(Credentials):
     def _connection_keys(self):
         # return an iterator of keys to pretty-print in 'dbt debug'
         # raise NotImplementedError
+        if self.windows_login is True:
+            self.authentication = "Windows Login"
+        
+    
         return 'server', 'database', 'schema', 'port', 'UID', \
-                 'windows_login', 'authentication', 'encrypt'
+                 'authentication', 'encrypt'
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
