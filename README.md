@@ -21,15 +21,8 @@ sudo apt install unixodbc-dev
 ```
 
 ## Authentication
-`SqlPassword` is the default connection method, but you can also use the following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords)  to authenticate:
-- Integrated (i.e. Windows Login)
-- ActiveDirectory Password
-- ActiveDirectory Interactive
-- ActiveDirectory Integrated
-- ActiveDirectory MSI (to be implemented)
-- Service Principal (a.k.a. AAD Application)
-#### boilerplate
-this should be in every target definition
+
+the following is needed for every target definition for both SQL Server and Azure SQL.  The sections below details how to connect to SQL Server and Azure SQL specifically.
 ```
 type: sqlserver
 driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
@@ -37,16 +30,30 @@ server: server-host-name or ip
 port: 1433
 schema: schemaname
 ```
-#### SQL Server authentication 
+
+### standard SQL Server authentication
+SQL Server credentials are supported for on-prem as well as cloud, and it is the default authentication method for `dbt-sqlsever`
 ```
 user: username
 password: password
 ```
+### Windows Authentication (SQL Server-specific)
 
-#### Integrated Security
 ```
 windows_login: True
 ```
+alternatively
+```
+trusted_connection: True
+```
+### Azure SQL-specific auth
+The following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords) are available to authenticate to Azure SQL:
+- ActiveDirectory Password
+- ActiveDirectory Interactive
+- ActiveDirectory Integrated
+- Service Principal (a.k.a. AAD Application)
+- ~~ActiveDirectory MSI~~ (not implemented)
+
 #### ActiveDirectory Password 
 Definitely not ideal, but available
 ```
@@ -60,7 +67,7 @@ brings up the Azure AD prompt so you can MFA if need be.
 authentication: ActiveDirectoryInteractive
 user: bill.gates@microsoft.com
 ```
-##### ActiveDirectory Integrated (*Windows only*)
+#### ActiveDirectory Integrated (*Windows only*)
 uses your machine's credentials (might be disabled by your AAD admins)
 ```
 authentication: ActiveDirectoryIntegrated
@@ -71,10 +78,6 @@ authentication: ActiveDirectoryIntegrated
 tenant_id: ActiveDirectoryIntegrated
 client_id: clientid
 client_secret: ActiveDirectoryIntegrated
-```
-##### ActiveDirectory MSI (*to be implemented*)
-```
-authentication: ActiveDirectoryMsi
 ```
 
 ## Supported features
