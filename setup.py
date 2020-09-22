@@ -11,23 +11,19 @@ setup(
     version=package_version,
     description=description,
     long_description=description,
-    long_description_content_type='text/markdown',
-    license='MIT',
+    long_description_content_type="text/markdown",
+    license="MIT",
     author="Mikael Ene",
     author_email="mikael.ene@eneanalytics.com",
     url="https://github.com/mikaelene/dbt-sqlserver",
     packages=find_packages(),
     package_data={
-        'dbt': [
-            'include/sqlserver/dbt_project.yml',
-            'include/sqlserver/macros/*.sql',
-            'include/sqlserver/macros/**/*.sql',
-            'include/sqlserver/macros/**/**/*.sql',
+        "dbt": [
+            "include/sqlserver/dbt_project.yml",
+            "include/sqlserver/macros/*.sql",
+            "include/sqlserver/macros/**/*.sql",
+            "include/sqlserver/macros/**/**/*.sql",
         ]
     },
-    install_requires=[
-        'dbt-core~=0.18.0',
-        'pyodbc>=4.0.27',
-        'azure-identity>=1.4.0'
-    ]
+    install_requires=["dbt-core~=0.18.0", "pyodbc>=4.0.27", "azure-identity>=1.4.0"],
 )

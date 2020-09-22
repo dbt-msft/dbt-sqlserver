@@ -145,6 +145,13 @@ Example of applying Unique clustered index on two columns, Ordinary index on one
 
 ## Changelog
 
+### v0.18.0.1
+#### New Features:
+- Adds support for Azure Active Directory as authentication provider
+
+#### Fixes:
+- Fix deprecation warning
+
 ### v0.18.0
 #### New Features:
 - Adds support for dbt v0.18.0
