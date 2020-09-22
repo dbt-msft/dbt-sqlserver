@@ -3,7 +3,7 @@ from setuptools import find_packages
 from distutils.core import setup
 
 package_name = "dbt-sqlserver"
-package_version = "0.18.0"
+package_version = "0.18.0.1"
 description = """A sqlserver adapter plugin for dbt (data build tool)"""
 
 setup(
