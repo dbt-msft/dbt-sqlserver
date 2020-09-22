@@ -16,35 +16,78 @@ Easiest install is to use pip:
     pip install dbt-sqlserver
 
 On Ubuntu make sure you have the ODBC header files before installing
-    
-    sudo apt install unixodbc-dev
 
-## Configure your profile
-Configure your dbt profile for using SQL Server authentication or Integrated Security:
-##### SQL Server authentication 
-      type: sqlserver
-      driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
-      server: server-host-name or ip
-      port: 1433
-      user: username
-      password: password
-      database: databasename
-      schema: schemaname
+```
+sudo apt install unixodbc-dev
+```
 
-##### Integrated Security
-      type: sqlserver
-      driver: 'ODBC Driver 17 for SQL Server'
-      server: server-host-name or ip
-      port: 1433
-      user: username
-      schema: schemaname
-      windows_login: True
+## Authentication
+
+the following is needed for every target definition for both SQL Server and Azure SQL.  The sections below details how to connect to SQL Server and Azure SQL specifically.
+```
+type: sqlserver
+driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
+server: server-host-name or ip
+port: 1433
+schema: schemaname
+```
+
+### standard SQL Server authentication
+SQL Server credentials are supported for on-prem as well as cloud, and it is the default authentication method for `dbt-sqlsever`
+```
+user: username
+password: password
+```
+### Windows Authentication (SQL Server-specific)
+
+```
+windows_login: True
+```
+alternatively
+```
+trusted_connection: True
+```
+### Azure SQL-specific auth
+The following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords) are available to authenticate to Azure SQL:
+- ActiveDirectory Password
+- ActiveDirectory Interactive
+- ActiveDirectory Integrated
+- Service Principal (a.k.a. AAD Application)
+- ~~ActiveDirectory MSI~~ (not implemented)
+
+#### ActiveDirectory Password 
+Definitely not ideal, but available
+```
+authentication: ActiveDirectoryPassword
+user: bill.gates@microsoft.com
+password: i<3opensource?
+```
+#### ActiveDirectory Interactive (*Windows only*)
+brings up the Azure AD prompt so you can MFA if need be.
+```
+authentication: ActiveDirectoryInteractive
+user: bill.gates@microsoft.com
+```
+#### ActiveDirectory Integrated (*Windows only*)
+uses your machine's credentials (might be disabled by your AAD admins)
+```
+authentication: ActiveDirectoryIntegrated
+```
+##### Service Principal
+`client_*` and `app_*` can be used interchangeably
+```
+tenant_id: ActiveDirectoryIntegrated
+client_id: clientid
+client_secret: ActiveDirectoryIntegrated
+```
 
 ## Supported features
 
 ### Materializations
 - Table: 
-    - Will be materialized as columns store index by default (requires SQL Server 2017 as least). To override:
+    - Will be materialized as columns store index by default (requires SQL Server 2017 as least). 
+      (For Azure SQL requires Service Tier greater than S2)
+    To override:
 {{
   config(
     as_columnstore = false,
