@@ -11,21 +11,6 @@ Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analyti
 - external table creation via details from yaml.
   - must first create  `EXTERNAL DATA SOURCE` and `EXTERNAL FILE FORMAT`s.
 
-## Installation
-Easiest install is to use pip (not yet registered on PyPI).
-
-First install [ODBC Driver version 17](https://www.microsoft.com/en-us/download/details.aspx?id=56567).
-
-```bash
-pip install dbt-synapse
-```
-
-On Ubuntu make sure you have the ODBC header files before installing
-
-```
-sudo apt install unixodbc-dev
-```
-
 ## status & support
 as of now, only support for dbt `0.18.0`, support for forthcoming `0.18.0` in development
 
@@ -39,14 +24,22 @@ Passing all tests in [dbt-integration-tests](https://github.com/fishtown-analyti
 - [officially rename the adapter from `sqlserver` to `synapse`](https://github.com/swanderz/dbt-synapse/pull/6)
 - Use CTAS to create seeds?
 
+## Installation
+Easiest install is to use pip (not yet registered on PyPI).
+
+First install [ODBC Driver version 17](https://www.microsoft.com/en-us/download/details.aspx?id=56567).
+
+```bash
+pip install dbt-synapse
+```
+On Ubuntu make sure you have the ODBC header files before installing
+
+```
+sudo apt install unixodbc-dev
+```
+
 ## Authentication
-`SqlPassword` is the default connection method, but you can also use the following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords)  to authenticate:
-- ActiveDirectory Password
-- ActiveDirectory Interactive
-- ActiveDirectory Integrated
-- ActiveDirectory MSI (to be implemented)
-#### boilerplate
-this should be in every target definition
+the following is needed for every target definition for both SQL Server and Azure SQL.  The sections below details how to connect to SQL Server and Azure SQL specifically.
 ```
 type: sqlserver
 driver: 'ODBC Driver 17 for SQL Server' (The ODBC Driver installed on your system)
@@ -54,11 +47,20 @@ server: server-host-name or ip
 port: 1433
 schema: schemaname
 ```
-#### SQL Server authentication 
+### standard SQL Server authentication
+SQL Server credentials are supported for on-prem as well as cloud, and it is the default authentication method for `dbt-sqlsever`
 ```
 user: username
 password: password
 ```
+### Azure SQL-specific auth
+The following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords) are available to authenticate to Azure SQL:
+- ActiveDirectory Password
+- ActiveDirectory Interactive
+- ActiveDirectory Integrated
+- Service Principal (a.k.a. AAD Application)
+- ~~ActiveDirectory MSI~~ (not implemented)
+
 #### ActiveDirectory Password 
 Definitely not ideal, but available
 ```
@@ -72,14 +74,17 @@ brings up the Azure AD prompt so you can MFA if need be.
 authentication: ActiveDirectoryInteractive
 user: bill.gates@microsoft.com
 ```
-##### ActiveDirectory Integrated (*Windows only*)
+#### ActiveDirectory Integrated (*Windows only*)
 uses your machine's credentials (might be disabled by your AAD admins)
 ```
 authentication: ActiveDirectoryIntegrated
 ```
-##### ActiveDirectory MSI (*to be implemented*)
+##### Service Principal
+`client_*` and `app_*` can be used interchangeably
 ```
-authentication: ActiveDirectoryMsi
+tenant_id: ActiveDirectoryIntegrated
+client_id: clientid
+client_secret: ActiveDirectoryIntegrated
 ```
 
 ## Table Materializations

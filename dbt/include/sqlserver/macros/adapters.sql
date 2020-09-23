@@ -29,10 +29,9 @@
 
 {% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
-    {%- set schema_unquoted = relation.without_identifier().schema -%}
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ schema_unquoted }}')
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA {{ schema_unquoted }}')
+    EXEC('CREATE SCHEMA {{ relation.without_identifier().schema }}')
     END
   {% endcall %}
 {% endmacro %}
