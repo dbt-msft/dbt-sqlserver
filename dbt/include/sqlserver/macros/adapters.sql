@@ -51,9 +51,9 @@
    {%- else -%} invalid target name
    {% endif %}
   {% call statement('drop_relation', auto_begin=False) -%}
-    if object_id ('{{ relation.schema }}.{{ relation.identifier }}','{{ object_id_type }}') is not null
+    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
       begin
-      drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
+      drop {{ relation.type }} {{ relation.include(database=False) }}
       end
   {%- endcall %}
 {% endmacro %}
@@ -65,9 +65,9 @@
    {% set object_id_type = 'U' %}
    {%- else -%} invalid target name
    {% endif %}
-  if object_id ('{{ relation.schema }}.{{ relation.identifier }}','{{ object_id_type }}') is not null
+  if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
       begin
-      drop {{ relation.type }} {{ relation.schema }}.{{ relation.identifier }}
+      drop {{ relation.type }} {{ relation.include(database=False) }}
       end
 {% endmacro %}
 
@@ -79,12 +79,17 @@
   {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
 
+{% macro sqlserver__create_view_as(relation, sql) -%}
+  create view {{ relation.include(database=False) }} as
+    {{ sql }}
+{% endmacro %}
+
 {# TODO Actually Implement the rename index piece #}
 {# TODO instead of deleting it...  #}
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
   
-    rename object {{ from_relation.schema }}.{{ from_relation.identifier }} to {{ to_relation.identifier }}
+    rename object {{ from_relation.include(database=False) }} to {{ to_relation.identifier }}
   {%- endcall %}
 {% endmacro %}
 
@@ -117,7 +122,7 @@
     {{ temp_view_sql }}
     ');
 
-  CREATE TABLE {{ relation.schema }}.{{ relation.identifier }}
+  CREATE TABLE {{ relation.include(database=False) }}
     WITH(
       DISTRIBUTION = {{dist}},
       {{index}}
