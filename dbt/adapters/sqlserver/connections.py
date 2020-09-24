@@ -68,7 +68,7 @@ class SQLServerCredentials(Credentials):
         
     
         return 'server', 'database', 'schema', 'port', 'UID', \
-                 'authentication', 'encrypt'
+               'client_id','authentication', 'encrypt'
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
@@ -157,7 +157,18 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 con_str.append(f"Encrypt={credentials.encrypt}")
 
             con_str_concat = ';'.join(con_str)
-            logger.debug(f'Using connection string: {con_str_concat}')
+            
+            index = []
+            for i, elem in enumerate(con_str):
+                if 'pwd=' in elem.lower():
+                    index.append(i)
+                    
+            if len(index) !=0 :
+                con_str[index[0]]="PWD=***"
+
+            con_str_display = ';'.join(con_str)
+            
+            logger.debug(f'Using connection string: {con_str_display}')
 
             if type_auth != 'ServicePrincipal':
                 handle = pyodbc.connect(con_str_concat, autocommit=True)
