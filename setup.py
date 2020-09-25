@@ -4,7 +4,7 @@ from distutils.core import setup
 
 
 package_name = "dbt-synapse"
-package_version = "0.18.0rc3"
+package_version = "0.18.0.1"
 description = """A Azure Synapse adpter plugin for dbt (data build tool)"""
 
 authors_list = ["Nandan Hegde", "Anders Swanson"]

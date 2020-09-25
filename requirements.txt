@@ -1,3 +1,6 @@
-dbt-sqlserver==0.15.2
-dbt==0.15.3
+dbt-core~=0.18.0
+pyodbc>=4.0.27
+azure-identity>=1.4.0
+black~=20.8b1
+git+https://github.com/fishtown-analytics/dbt-adapter-tests.git
 .

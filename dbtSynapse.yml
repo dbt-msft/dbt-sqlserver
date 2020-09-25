@@ -1,8 +1,0 @@
-# 1) install this env with
-#    $ conda env create -f dbtSynapse.yml
-name: dbtSynapse
-dependencies:
-  - python=3.6.2
-  - pip=20.0.2
-  - pip:
-      - -r requirements.txt
