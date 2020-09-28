@@ -5,14 +5,17 @@ orbs:
 
 jobs:
   build-and-test:
+    docker: 
+      - image: mcr.microsoft.com/mssql/server:2019-latest
     executor: python/default
     steps:
       - checkout
-      - python/load-cache
-      - python/install-deps
-      - python/save-cache
+      - python/install-packages:
+          pkg-manager: pip
       - run:
-          command: ./manage.py test
+          command:
+          /bin/bash -c 'python -m pytest -v test/integration/sqlserver.dbtspec'
+          # /bin/bash -c 'python -m pytest --durations 0 -v -m profile_snowflake {posargs} -n4 test/integration/sqlserver.dbtspec'
           name: Test
 
 workflows:
