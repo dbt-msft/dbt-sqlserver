@@ -13,8 +13,7 @@ jobs:
       - python/install-packages:
           pkg-manager: pip
       - run:
-          command:
-          /bin/bash -c 'python -m pytest -v test/integration/sqlserver.dbtspec'
+          command: /bin/bash -c 'python -m pytest -v test/integration/sqlserver.dbtspec'
           # /bin/bash -c 'python -m pytest --durations 0 -v -m profile_snowflake {posargs} -n4 test/integration/sqlserver.dbtspec'
           name: Test
 
