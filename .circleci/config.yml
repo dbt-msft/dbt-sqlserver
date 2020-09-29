@@ -1,5 +1,13 @@
 version: 2.1
 
+workflows:
+  dummy-workflow:
+    jobs:
+      - build-and-test:
+          context:
+            - DBT_SYNAPSE_PROFILE
+
+
 orbs:
   python: circleci/python@1.1.0
 
