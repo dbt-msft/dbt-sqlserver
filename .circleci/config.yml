@@ -21,6 +21,6 @@ jobs:
 workflows:
   main:
     jobs:
-      - build-and-test
+      - build-and-test:
           context:
             - DBT_SYNAPSE_PROFILE
