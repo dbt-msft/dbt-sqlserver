@@ -20,10 +20,12 @@ RUN \
   pip install --upgrade pip
 
 RUN \
-  #
+  chmod +rwx /etc/ssl/openssl.cnf \
+  # change TLS back to version 1
+  sed -i 's/TLSv1.2/TLSv1/g' /etc/ssl/openssl.cnf \
   # allow weak certificates (certificate signed with SHA1)
   # by downgrading OpenSSL security level from 2 to 1
-  sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf
+  sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
 
 RUN \
   # Cleanup build dependencies
