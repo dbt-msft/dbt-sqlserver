@@ -6,7 +6,8 @@ orbs:
 jobs:
   build-and-test:
     docker: 
-      - image: dataders/dbtsynapse:1.0
+      - image: laudio/pyodbc
+      # - image: dataders/dbtsynapse:1.0
       # - image: mcr.microsoft.com/mssql/server:2019-latest # doesn't have git?!
     executor: python/default 
     steps:
