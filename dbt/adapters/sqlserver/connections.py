@@ -72,13 +72,14 @@ class SQLServerCredentials(Credentials):
         # raise NotImplementedError
         if self.windows_login is True:
             self.authentication = "Windows Login"
-
+    
         return (
             "server",
             "database",
             "schema",
             "port",
             "UID",
+            "client_id",
             "authentication",
             "encrypt",
         )
@@ -169,8 +170,19 @@ class SQLServerConnectionManager(SQLConnectionManager):
             if not getattr(credentials, "encrypt", False):
                 con_str.append(f"Encrypt={credentials.encrypt}")
 
-            con_str_concat = ";".join(con_str)
-            logger.debug(f"Using connection string: {con_str_concat}")
+            con_str_concat = ';'.join(con_str)
+            
+            index = []
+            for i, elem in enumerate(con_str):
+                if 'pwd=' in elem.lower():
+                    index.append(i)
+                    
+            if len(index) !=0 :
+                con_str[index[0]]="PWD=***"
+
+            con_str_display = ';'.join(con_str)
+            
+            logger.debug(f'Using connection string: {con_str_display}')
 
             if type_auth != "ServicePrincipal":
                 handle = pyodbc.connect(con_str_concat, autocommit=True)
