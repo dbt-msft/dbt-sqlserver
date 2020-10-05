@@ -8,7 +8,7 @@ class SQLServerAdapter(SQLAdapter):
 
     @classmethod
     def date_function(cls):
-        return 'getdate()'
+        return "getdate()"
 
     @classmethod
     def convert_text_type(cls, agate_table, col_idx):

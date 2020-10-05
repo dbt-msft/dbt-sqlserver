@@ -9,4 +9,5 @@ from dbt.include import sqlserver
 Plugin = AdapterPlugin(
     adapter=SQLServerAdapter,
     credentials=SQLServerCredentials,
-    include_path=sqlserver.PACKAGE_PATH)
+    include_path=sqlserver.PACKAGE_PATH,
+)
