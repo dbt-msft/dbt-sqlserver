@@ -72,13 +72,13 @@ class SQLServerCredentials(Credentials):
         # raise NotImplementedError
         if self.windows_login is True:
             self.authentication = "Windows Login"
-
         return (
             "server",
             "database",
             "schema",
             "port",
             "UID",
+            "client_id",
             "authentication",
             "encrypt",
         )
@@ -154,6 +154,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     con_str.remove("UID={None}")
                 elif type_auth == "ActiveDirectoryMsi":
                     raise ValueError("ActiveDirectoryMsi is not supported yet")
+            elif type_auth == "ServicePrincipal":
+                app_id = getattr(credentials, "AppId", None)
+                app_secret = getattr(credentials, "AppSecret", None)
 
             elif getattr(credentials, "windows_login", False):
                 con_str.append(f"trusted_connection=yes")
@@ -165,8 +168,19 @@ class SQLServerConnectionManager(SQLConnectionManager):
             if not getattr(credentials, "encrypt", False):
                 con_str.append(f"Encrypt={credentials.encrypt}")
 
-            con_str_concat = ";".join(con_str)
-            logger.debug(f"Using connection string: {con_str_concat}")
+            con_str_concat = ';'.join(con_str)
+            
+            index = []
+            for i, elem in enumerate(con_str):
+                if 'pwd=' in elem.lower():
+                    index.append(i)
+                    
+            if len(index) !=0 :
+                con_str[index[0]]="PWD=***"
+
+            con_str_display = ';'.join(con_str)
+            
+            logger.debug(f'Using connection string: {con_str_display}')
 
             if type_auth != "ServicePrincipal":
                 handle = pyodbc.connect(con_str_concat, autocommit=True)
@@ -222,17 +236,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         with self.exception_handler(sql):
             if abridge_sql_log:
-                logger.debug("On {}:\n{}....".format(connection.name, sql[0:512]))
+                logger.debug("On {}: {}....".format(connection.name, sql[0:512]))
             else:
-                logger.debug("On {}:\n{}".format(connection.name, sql))
-            pre = time.time()
-
-            cursor = connection.handle.cursor()
-
+                logger.debug("On {}: {}".format(connection.name, sql))
             # pyodbc does not handle a None type binding!
             if bindings is None:
                 cursor.execute(sql)
-            else:
                 cursor.execute(sql, bindings)
 
             logger.debug(
