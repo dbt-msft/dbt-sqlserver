@@ -14,6 +14,7 @@ setup(
     description=description,
     long_description=description,
     long_description_content_type="text/markdown",
+    license="MIT",
     author=", ".join(authors_list),
     author_email="swanson.anders@gmail.com",
     url="https://github.com/swanderz/dbt-synapse",
