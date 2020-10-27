@@ -239,9 +239,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 logger.debug("On {}: {}....".format(connection.name, sql[0:512]))
             else:
                 logger.debug("On {}: {}".format(connection.name, sql))
+            pre = time.time()
             # pyodbc does not handle a None type binding!
             if bindings is None:
                 cursor.execute(sql)
+            else:
                 cursor.execute(sql, bindings)
 
             logger.debug(
