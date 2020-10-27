@@ -14,6 +14,8 @@ RUN ACCEPT_EULA=Y apt-get install -y --allow-unauthenticated mssql-tools
 RUN echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
 RUN echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
 
+RUN chmod +rwx /etc/ssl/openssl.cnf
+RUN sed -i 's/TLSv1.2/TLSv1/g' /etc/ssl/openssl.cnf
 # allow weak certificates (certificate signed with SHA1)
 # by downgrading OpenSSL security level from 2 to 1
 RUN sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
