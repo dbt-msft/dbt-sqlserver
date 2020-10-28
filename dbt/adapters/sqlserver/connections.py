@@ -72,6 +72,7 @@ class SQLServerCredentials(Credentials):
         # raise NotImplementedError
         if self.windows_login is True:
             self.authentication = "Windows Login"
+    
         return (
             "server",
             "database",
@@ -154,6 +155,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     con_str.remove("UID={None}")
                 elif type_auth == "ActiveDirectoryMsi":
                     raise ValueError("ActiveDirectoryMsi is not supported yet")
+
             elif type_auth == "ServicePrincipal":
                 app_id = getattr(credentials, "AppId", None)
                 app_secret = getattr(credentials, "AppSecret", None)
