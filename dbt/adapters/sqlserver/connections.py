@@ -240,6 +240,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
             else:
                 logger.debug("On {}: {}".format(connection.name, sql))
             pre = time.time()
+            
+            cursor = connection.handle.cursor()
+
             # pyodbc does not handle a None type binding!
             if bindings is None:
                 cursor.execute(sql)
