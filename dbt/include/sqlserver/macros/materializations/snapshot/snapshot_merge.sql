@@ -1,7 +1,9 @@
 {% macro sqlserver__snapshot_merge_sql(target, source, insert_cols) -%}
       {%- set insert_cols_csv = insert_cols | join(', ') -%}
       
-      EXEC('update {{ target }}
+      EXEC('
+           BEGIN TRANSACTION
+           update {{ target }}
           set dbt_valid_to = TMP.dbt_valid_to
           from {{ source }} TMP
           where {{ target }}.dbt_scd_id = TMP.dbt_scd_id
@@ -13,6 +15,8 @@
                   )
             select {{ insert_cols_csv }}
             from {{ source }} 
-            where dbt_change_type = ''insert'' ; ');
+            where dbt_change_type = ''insert'' ; 
+           COMMIT TRANSACTION;
+           ');
 
 {% endmacro %}
