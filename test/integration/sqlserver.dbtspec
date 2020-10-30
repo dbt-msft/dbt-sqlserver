@@ -6,7 +6,7 @@ target:
   database: "{{ env_var('DBT_SYNAPSE_DB') }}"
   username: "{{ env_var('DBT_SYNAPSE_UID') }}"
   password: "{{ env_var('DBT_SYNAPSE_PWD') }}"
-  encrypt: no
+  # encrypt: no
   # trust_cert: yes
   port: 1433
   threads: 8
