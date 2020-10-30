@@ -49,7 +49,8 @@ class SQLServerCredentials(Credentials):
     # "sql", "ActiveDirectoryPassword" or "ActiveDirectoryInteractive", or
     # "ServicePrincipal"
     authentication: Optional[str] = "sql"
-    encrypt: Optional[str] = "yes"
+    encrypt: Optional[bool] = True
+    trust_cert: Optional[bool] = True
 
     _ALIASES = {
         "user": "UID",
@@ -61,6 +62,7 @@ class SQLServerCredentials(Credentials):
         "auth": "authentication",
         "app_id": "client_id",
         "app_secret": "client_secret",
+        "TrustServerCertificate": "trust_cert",
     }
 
     @property
@@ -81,6 +83,7 @@ class SQLServerCredentials(Credentials):
             "UID",
             "authentication",
             "encrypt",
+            "trust_cert"
         )
 
 
@@ -164,6 +167,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             if not getattr(credentials, "encrypt", False):
                 con_str.append(f"Encrypt={credentials.encrypt}")
+            if not getattr(credentials, "trust_cert", False):
+                con_str.append(f"TrustServerCertificate={credentials.trust_cert}")
+
+
+                
 
             con_str_concat = ";".join(con_str)
             logger.debug(f"Using connection string: {con_str_concat}")

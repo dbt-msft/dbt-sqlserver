@@ -46,6 +46,16 @@ server: server-host-name or ip
 port: 1433
 schema: schemaname
 ```
+
+### security settings
+
+You can configure the following MSSQL connection properties with the following options.
+
+```yml
+      encrypt: yes # -> Encrypt=True
+      trust_cert: yes # -> TrustServerCertificate=True
+```
+
 ### standard SQL Server authentication
 SQL Server credentials are supported for on-prem as well as cloud, and it is the default authentication method for `dbt-sqlsever`
 ```
