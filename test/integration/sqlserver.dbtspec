@@ -10,7 +10,6 @@ target:
   trust_cert: yes
   port: 1433
   threads: 8
-
 sequences:
   test_dbt_empty: empty
   test_dbt_base: base
