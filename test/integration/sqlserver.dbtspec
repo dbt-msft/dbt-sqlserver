@@ -2,11 +2,13 @@ target:
   type: sqlserver
   driver: "ODBC Driver 17 for SQL Server"
   schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
-  host: host
-  database: database
-  username: username
-  password: password
-  port: port
+  host: "{{ env_var('DBT_SYNAPSE_SERVER') }}"
+  database: "{{ env_var('DBT_SYNAPSE_DB') }}"
+  username: "{{ env_var('DBT_SYNAPSE_UID') }}"
+  password: "{{ env_var('DBT_SYNAPSE_PWD') }}"
+  encrypt: no
+  trust_cert: yes
+  port: 1433
   threads: 8
 sequences:
   test_dbt_empty: empty
