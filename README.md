@@ -145,6 +145,10 @@ Example of applying Unique clustered index on two columns, Ordinary index on one
 
 ## Changelog
 
+### v0.18.1
+#### New Features:
+- Adds support down to SQL Server 2012
+
 ### v0.18.0.1
 #### New Features:
 - Adds support for Azure Active Directory as authentication provider

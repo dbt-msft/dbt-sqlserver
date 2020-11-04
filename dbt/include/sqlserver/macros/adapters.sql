@@ -58,13 +58,31 @@
 {% endmacro %}
 
 {% macro sqlserver__drop_relation(relation) -%}
+  {% if relation.type == 'view' -%}
+   {% set object_id_type = 'V' %}
+   {% elif relation.type == 'table'%}
+   {% set object_id_type = 'U' %}
+   {%- else -%} invalid target name
+   {% endif %}
   {% call statement('drop_relation', auto_begin=False) -%}
-    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
+    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
+      begin
+      drop {{ relation.type }} {{ relation.include(database=False) }}
+      end
   {%- endcall %}
 {% endmacro %}
 
 {% macro sqlserver__drop_relation_script(relation) -%}
-    drop {{ relation.type }} if exists {{ relation.schema }}.{{ relation.identifier }}
+  {% if relation.type == 'view' -%}
+   {% set object_id_type = 'V' %}
+   {% elif relation.type == 'table'%}
+   {% set object_id_type = 'U' %}
+   {%- else -%} invalid target name
+   {% endif %}
+  if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
+      begin
+      drop {{ relation.type }} {{ relation.include(database=False) }}
+      end
 {% endmacro %}
 
 {% macro sqlserver__check_schema_exists(database, schema) -%}
