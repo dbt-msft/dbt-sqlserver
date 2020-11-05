@@ -16,7 +16,7 @@
             {% for row in chunk -%}
                 {{'SELECT'+' '}}
                 {%- for column in agate_table.column_names -%}
-                    '{{row[column] if row[column] is not None}}'
+                    '{{row[column] if row[column]}}'
                     {%- if not loop.last%}, {%- endif -%}
                 {%- endfor -%}
                 {%- if not loop.last-%} {{' '+'UNION ALL'+'\n'}} {%- endif -%}
