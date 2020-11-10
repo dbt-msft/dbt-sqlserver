@@ -153,6 +153,14 @@ sources:
 ```
 ## Changelog
 
+### v0.18.0.2
+
+- Add CI testing (#19)
+- Remove the external table macros in favor of pulling them directly from `dbt-external-tables`
+- Bundle the "`INSERT` & `UPDATE`" `MERGE` workaround into a transaction that can be rolled back (#23) 
+- Handle nulls in csv file for seeds (#20)
+- Verifed that adapter works with `dbt` version `v0.18.1`
+
 ### v0.18.0.1
 - pull AD auth directly from `dbt-sqlserver` (https://github.com/swanderz/dbt-synapse/pull/13)
 - hotfix for broken `create_view()` macro (https://github.com/swanderz/dbt-synapse/pull/14)
