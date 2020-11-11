@@ -1,0 +1,23 @@
+
+target:
+  type: sqlserver
+  driver: "ODBC Driver 17 for SQL Server"
+  schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
+  host: 0.0.0.0
+  database: msdb
+  username: SA
+  password: 5atyaNadella
+  encrypt: no
+#   trust_cert: yes
+  port: 1433
+  threads: 8
+sequences:
+  test_dbt_empty: empty
+#   test_dbt_base: base
+#   test_dbt_ephemeral: ephemeral
+#   test_dbt_incremental: incremental
+#   test_dbt_snapshot_strategy_timestamp: snapshot_strategy_timestamp
+#   test_dbt_snapshot_strategy_check_cols: snapshot_strategy_check_cols
+#   test_dbt_data_test: data_test
+#   test_dbt_schema_test: schema_test
+  # test_dbt_ephemeral_data_tests: data_test_ephemeral_models

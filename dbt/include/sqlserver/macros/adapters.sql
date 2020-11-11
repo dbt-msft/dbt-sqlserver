@@ -51,10 +51,24 @@
   {% endcall %}
 {% endmacro %}
 
-{% macro sqlserver__drop_schema(database_name, schema_name) -%}
+{% macro sqlserver__drop_schema(relation) -%}
+  {%- set tables_in_schema_query %}
+      SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_SCHEMA = '{{ relation.schema }}'
+  {% endset %}
+  {% set tables_to_drop = run_query(tables_in_schema_query).columns[0].values() %}
+  {% for table in tables_to_drop %}
+    {%- set schema_relation = adapter.get_relation(database=relation.database,
+                                               schema=relation.schema,
+                                               identifier=table) -%}
+    {% do drop_relation(schema_relation) %}
+  {%- endfor %}
+
   {% call statement('drop_schema') -%}
-    drop schema if exists {{ relation.without_identifier().schema }}
-  {% endcall %}
+      IF EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
+      BEGIN
+      EXEC('DROP SCHEMA {{ relation.schema }}')
+      END  {% endcall %}
 {% endmacro %}
 
 {% macro sqlserver__drop_relation(relation) -%}
@@ -85,7 +99,7 @@
       end
 {% endmacro %}
 
-{% macro sqlserver__check_schema_exists(database, schema) -%}
+{% macro sqlserver__check_schema_exists(information_schema, schema) -%}
   {% call statement('check_schema_exists', fetch_result=True, auto_begin=False) -%}
     --USE {{ database_name }}
     SELECT count(*) as schema_exist FROM sys.schemas WHERE name = '{{ schema }}'

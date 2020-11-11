@@ -49,7 +49,8 @@ class SQLServerCredentials(Credentials):
     # "sql", "ActiveDirectoryPassword" or "ActiveDirectoryInteractive", or
     # "ServicePrincipal"
     authentication: Optional[str] = "sql"
-    encrypt: Optional[str] = "yes"
+    encrypt: Optional[str] = 'false'
+    trust_cert: Optional[str] = 'false'
 
     _ALIASES = {
         "user": "UID",
@@ -61,6 +62,7 @@ class SQLServerCredentials(Credentials):
         "auth": "authentication",
         "app_id": "client_id",
         "app_secret": "client_secret",
+        "TrustServerCertificate": "trust_cert",
     }
 
     @property
