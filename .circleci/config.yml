@@ -15,6 +15,18 @@ jobs:
     executor: python/default 
     steps:
       - checkout
+      - run:
+          name: wait for SQLServer container to finish
+          command: |
+            let rc=1
+            while [[ $rc -eq 1 ]]; do
+              nc -z 0.0.0.0 1433
+              let rc=$?
+            done
+            if [[ $rc -ne 0 ]]; then
+              echo "Fatal: Could not connect to $PGHOST"
+              exit 1
+            fi
       - python/install-packages:
           pkg-manager: pip
       - run:
