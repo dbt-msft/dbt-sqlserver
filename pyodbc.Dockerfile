@@ -6,7 +6,7 @@ ADD requirements.txt ./
 # Setup dependencies for pyodbc
 RUN \
     apt-get update && \
-    apt-get install -y curl build-essential unixodbc-dev g++ apt-transport-https && \
+    apt-get install -y curl build-essential mssql-tools unixodbc-dev g++ apt-transport-https && \
     gpg --keyserver hkp://keys.gnupg.net --recv-keys 5072E1F5
 
 RUN \
