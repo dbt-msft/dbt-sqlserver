@@ -8,6 +8,10 @@ jobs:
     docker: 
       - image: dataders/pyodbc:1.2
       - image: mcr.microsoft.com/mssql/server:2019-latest
+        environment:
+          ACCEPT_EULA: 'yes'
+          MSSQL_SA_PASSWORD: 5atyaNadella
+          MSSQL_IP_ADDRESS: 0.0.0.0
     executor: python/default 
     steps:
       - checkout
