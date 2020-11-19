@@ -18,7 +18,7 @@ jobs:
       - run:
           name: wait for SQLServer container to finish
           command: |
-            sleep 30
+            sleep 60
             # let rc=1
             # while [[ $rc -eq 1 ]]; do
             #   nc -z 0.0.0.0 1433
@@ -28,6 +28,9 @@ jobs:
             #   echo "Fatal: Could not connect to $PGHOST"
             #   exit 1
             # fi
+      run:
+        name: test connection via SQL CMD
+        command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - python/install-packages:
           pkg-manager: pip
       - run:
