@@ -21,7 +21,7 @@ jobs:
       - python/install-packages:
           pkg-manager: pip
       - run:
-          name: Test
+          name: Test adapter against dbt-adapter-tests
           command: tox -e integration-synapse
 
 workflows:
