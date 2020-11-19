@@ -1,0 +1,25 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@1.1.0
+
+jobs:
+  build-and-test:
+    docker: 
+      - image: dataders/pyodbc:1.2
+      - image: mcr.microsoft.com/mssql/server:2019-latest
+    executor: python/default 
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - run:
+          name: Test
+          command: tox -e integration-synapse
+
+workflows:
+  main:
+    jobs:
+      - build-and-test:
+          context:
+            - DBT_SYNAPSE_PROFILE
