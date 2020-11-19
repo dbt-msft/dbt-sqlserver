@@ -6,7 +6,7 @@ orbs:
 jobs:
   build-and-test:
     docker: 
-      - image: dataders/pyodbc:1.2
+      - image: dataders/pyodbc:1.4
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
