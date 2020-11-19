@@ -9,6 +9,9 @@ RUN \
     apt-get install -y curl build-essential unixodbc-dev g++ apt-transport-https && \
     gpg --keyserver hkp://keys.gnupg.net --recv-keys 5072E1F5
 
+# install netcat (i.e. `nc` command)
+RUN apt install -y netcat
+
 RUN \
   export ACCEPT_EULA='Y' && \
   # Install pyodbc db drivers for MSSQL
