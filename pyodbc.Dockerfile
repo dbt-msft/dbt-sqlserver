@@ -17,6 +17,9 @@ RUN \
   apt-get update && \
   apt-get install -y msodbcsql17 odbc-postgresql mssql-tools
 
+# add sqlcmd to the path
+ENV PATH="$PATH:/opt/mssql-tools/bin"
+
 # Update odbcinst.ini to make sure full path to driver is listed
 RUN \
   sed 's/Driver=psql/Driver=\/usr\/lib\/x86_64-linux-gnu\/odbc\/psql/' /etc/odbcinst.ini > /tmp/temp.ini && \
