@@ -6,7 +6,7 @@ ADD requirements.txt ./
 # Setup dependencies for pyodbc
 RUN \
     apt-get update && \
-    apt-get install -y curl build-essential mssql-tools unixodbc-dev g++ apt-transport-https && \
+    apt-get install -y curl build-essential unixodbc-dev g++ apt-transport-https && \
     gpg --keyserver hkp://keys.gnupg.net --recv-keys 5072E1F5
 
 RUN \
@@ -15,7 +15,7 @@ RUN \
   curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
   curl https://packages.microsoft.com/config/debian/9/prod.list > /etc/apt/sources.list.d/mssql-release.list && \
   apt-get update && \
-  apt-get install -y msodbcsql17 odbc-postgresql
+  apt-get install -y msodbcsql17 odbc-postgresql mssql-tools
 
 # Update odbcinst.ini to make sure full path to driver is listed
 RUN \
