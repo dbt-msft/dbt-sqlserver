@@ -16,6 +16,9 @@ jobs:
     steps:
       - checkout
       - run:
+          name: wait for SQL Server container to set up
+          command: sleep 30
+      - run:
           name: test connection via SQL CMD
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - python/install-packages:
