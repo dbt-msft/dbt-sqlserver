@@ -49,8 +49,8 @@ class SQLServerCredentials(Credentials):
     # "sql", "ActiveDirectoryPassword" or "ActiveDirectoryInteractive", or
     # "ServicePrincipal"
     authentication: Optional[str] = "sql"
-    encrypt: Optional[str] = 'false'
-    trust_cert: Optional[str] = 'false'
+    encrypt: Optional[bool] = False
+    trust_cert: Optional[bool] = False
 
     _ALIASES = {
         "user": "UID",
@@ -84,6 +84,7 @@ class SQLServerCredentials(Credentials):
             "client_id",
             "authentication",
             "encrypt",
+            "trust_cert"
         )
 
 
@@ -169,10 +170,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
 
-            if not getattr(credentials, "encrypt", False):
-                con_str.append(f"Encrypt={credentials.encrypt}")
-            if not getattr(credentials, "trust_cert", False):
-                con_str.append(f"TrustServerCertificate={credentials.trust_cert}")
+            # still confused whether to use "Yes", "yes", "True", or "true"
+            if getattr(credentials, "encrypt", False):
+                con_str.append(f"Encrypt=Yes")
+            if getattr(credentials, "trust_cert", False):
+                con_str.append(f"TrustServerCertificate=Yes")
 
             con_str_concat = ';'.join(con_str)
             
