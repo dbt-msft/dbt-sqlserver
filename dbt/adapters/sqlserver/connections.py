@@ -171,6 +171,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             if not getattr(credentials, "encrypt", False):
                 con_str.append(f"Encrypt={credentials.encrypt}")
+            if not getattr(credentials, "trust_cert", False):
+                con_str.append(f"TrustServerCertificate={credentials.trust_cert}")
 
             con_str_concat = ';'.join(con_str)
             
