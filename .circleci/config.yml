@@ -29,8 +29,8 @@ jobs:
             #   exit 1
             # fi
       - run:
-        name: test connection via SQL CMD
-        command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
+          name: test connection via SQL CMD
+          command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - python/install-packages:
           pkg-manager: pip
       - run:
