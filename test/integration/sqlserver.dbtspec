@@ -3,7 +3,7 @@ target:
   type: sqlserver
   driver: "ODBC Driver 17 for SQL Server"
   schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
-  host: 0.0.0.0
+  host: localhost
   database: msdb
   username: SA
   password: 5atyaNadella
