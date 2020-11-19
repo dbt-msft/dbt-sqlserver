@@ -7,7 +7,7 @@ target:
   database: msdb
   username: SA
   password: 5atyaNadella
-  encrypt: no
+  encrypt: 'no'
 #   trust_cert: yes
   port: 1433
   threads: 8
