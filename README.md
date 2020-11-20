@@ -76,9 +76,10 @@ authentication: ActiveDirectoryIntegrated
 ##### Service Principal
 `client_*` and `app_*` can be used interchangeably
 ```
-tenant_id: ActiveDirectoryIntegrated
+authentication: ServicePrincipal
+tenant_id: tenatid
 client_id: clientid
-client_secret: ActiveDirectoryIntegrated
+client_secret: clientsecret
 ```
 
 ## Supported features
