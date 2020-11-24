@@ -32,6 +32,16 @@ port: 1433
 schema: schemaname
 ```
 
+### Security
+If not specified, Encryption is not enabled by default.
+
+To enable encryption, add the following to your target definition.
+```yaml
+encrypt: true # adds "Encrypt=Yes" to connection string
+trust_cert: false
+```
+For a fully-secure, encrypted connection, you must enable `trust_cert: false` because "TrustServerCertificate=Yes" is default in order to not break already defined targets. For more information see [this docs page](https://docs.microsoft.com/en-us/dotnet/framework/data/adonet/connection-string-syntax#using-trustservercertificate?WT.mc_id=DP-MVP-5003930)
+
 ### standard SQL Server authentication
 SQL Server credentials are supported for on-prem as well as cloud, and it is the default authentication method for `dbt-sqlsever`
 ```
