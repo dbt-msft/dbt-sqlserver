@@ -4,9 +4,11 @@ target:
   driver: "ODBC Driver 17 for SQL Server"
   schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
   host: localhost
-  database: msdb
+  #database: msdb
+  database: dbt_test
   username: SA
-  password: 5atyaNadella
+  #password: 5atyaNadella
+  password: "TheStrongestPass!"
   encrypt: true
   trust_cert: true
   port: 1433
