@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 from setuptools import find_packages
 from distutils.core import setup
-
+import os
+import re
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_directory, 'README.md')) as f:
