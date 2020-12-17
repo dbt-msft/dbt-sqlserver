@@ -4,7 +4,7 @@ orbs:
   python: circleci/python@1.1.0
 
 jobs:
-  build-and-test:
+  integration-sqlserver:
     docker: 
       - image: dataders/pyodbc:1.4
       - image: mcr.microsoft.com/mssql/server:2019-latest
@@ -24,12 +24,24 @@ jobs:
       - python/install-packages:
           pkg-manager: pip
       - run:
-          name: Test adapter against dbt-adapter-tests
-          command: tox -e integration-synapse
+          name: Test adapter on SQL Server against dbt-adapter-tests
+          command: tox -e integration-sqlserver
+  integration-azuresql:
+    docker: 
+      - image: dataders/pyodbc:1.4
+    executor: python/default 
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - run:
+          name: Test adapter on Azure SQL against dbt-adapter-tests
+          command: tox -e integration-azuresql
 
 workflows:
   main:
     jobs:
-      - build-and-test:
+      - integration-sqlserver
+      - integration-azuresql:
           context:
             - DBT_SYNAPSE_PROFILE
