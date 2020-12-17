@@ -1,0 +1,35 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@1.1.0
+
+jobs:
+  build-and-test:
+    docker: 
+      - image: dataders/pyodbc:1.4
+      - image: mcr.microsoft.com/mssql/server:2019-latest
+        environment:
+          ACCEPT_EULA: 'yes'
+          MSSQL_SA_PASSWORD: 5atyaNadella
+          MSSQL_IP_ADDRESS: 0.0.0.0
+    executor: python/default 
+    steps:
+      - checkout
+      - run:
+          name: wait for SQL Server container to set up
+          command: sleep 30
+      - run:
+          name: test connection via SQL CMD
+          command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
+      - python/install-packages:
+          pkg-manager: pip
+      - run:
+          name: Test adapter against dbt-adapter-tests
+          command: tox -e integration-synapse
+
+workflows:
+  main:
+    jobs:
+      - build-and-test:
+          context:
+            - DBT_SYNAPSE_PROFILE
