@@ -24,8 +24,11 @@ jobs:
       - python/install-packages:
           pkg-manager: pip
       - run:
-          name: Test adapter against dbt-adapter-tests
-          command: tox -e integration-synapse
+          name: Test adapter on SQL Server against dbt-adapter-tests
+          command: tox -e integration-sqlserver
+      - run:
+          name: Test adapter on Azure SQL against dbt-adapter-tests
+          command: tox -e integration-azuresql
 
 workflows:
   main:
