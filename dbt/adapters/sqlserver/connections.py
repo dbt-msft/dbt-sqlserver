@@ -49,7 +49,8 @@ class SQLServerCredentials(Credentials):
     # "sql", "ActiveDirectoryPassword" or "ActiveDirectoryInteractive", or
     # "ServicePrincipal"
     authentication: Optional[str] = "sql"
-    encrypt: Optional[str] = "yes"
+    encrypt: Optional[bool] = False
+    trust_cert: Optional[bool] = False
 
     _ALIASES = {
         "user": "UID",
@@ -61,6 +62,7 @@ class SQLServerCredentials(Credentials):
         "auth": "authentication",
         "app_id": "client_id",
         "app_secret": "client_secret",
+        "TrustServerCertificate": "trust_cert",
     }
 
     @property
@@ -82,6 +84,7 @@ class SQLServerCredentials(Credentials):
             "client_id",
             "authentication",
             "encrypt",
+            "trust_cert"
         )
 
 
@@ -163,12 +166,17 @@ class SQLServerConnectionManager(SQLConnectionManager):
             elif getattr(credentials, "windows_login", False):
                 con_str.append(f"trusted_connection=yes")
             elif type_auth == "sql":
-                con_str.append("Authentication=SqlPassword")
+                #con_str.append("Authentication=SqlPassword")
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
 
-            if not getattr(credentials, "encrypt", False):
-                con_str.append(f"Encrypt={credentials.encrypt}")
+            # still confused whether to use "Yes", "yes", "True", or "true"
+            # to learn more visit
+            # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
+            if getattr(credentials, "encrypt", False) is True:
+                con_str.append(f"Encrypt=Yes")
+                if getattr(credentials, "trust_cert", False) is True:
+                    con_str.append(f"TrustServerCertificate=Yes")
 
             con_str_concat = ';'.join(con_str)
             
