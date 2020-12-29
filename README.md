@@ -92,6 +92,30 @@ client_id: clientid
 client_secret: clientsecret
 ```
 
+##### CLI
+Use the authentication of the Azure command line interface (CLI). First log in:
+
+```bash
+az login
+```
+
+Then, set `authentication` in `profiles.yml` to `CLI`:
+
+```
+authentication: CLI
+```
+
+An alternative route for using a service principal is:
+
+```
+az login --service-principal --username $CLIENTID --password $SECRET --tenant $TENANTID
+```
+
+This avoids storing a secret as plain text in `profiles.yml`.
+
+Source: https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli#sign-in-using-a-service-principal
+
+
 ## Supported features
 
 ### Materializations
