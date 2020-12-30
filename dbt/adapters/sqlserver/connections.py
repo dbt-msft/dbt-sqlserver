@@ -253,10 +253,10 @@ class SQLServerConnectionManager(SQLConnectionManager):
             # still confused whether to use "Yes", "yes", "True", or "true"
             # to learn more visit
             # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
-            if not getattr(credentials, "encrypt", False):
+            if getattr(credentials, "encrypt", False) is True:
                 con_str.append(f"Encrypt=Yes")
-            if not getattr(credentials, "trust_cert", False):
-                con_str.append(f"TrustServerCertificate=Yes")
+                if getattr(credentials, "trust_cert", False) is True:
+                    con_str.append(f"TrustServerCertificate=Yes")
 
             con_str_concat = ";".join(con_str)
 
