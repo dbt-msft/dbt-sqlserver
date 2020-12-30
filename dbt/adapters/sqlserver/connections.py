@@ -1,18 +1,22 @@
-import os
-import struct
-import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+
+import pyodbc
+import os
+import time
+import struct
 from itertools import chain, repeat
-from typing import Callable, Mapping, Optional
+from typing import Callable, Mapping
 
 import dbt.exceptions
-import pyodbc
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
-from dbt.logger import GLOBAL_LOGGER as logger
 from azure.core.credentials import AccessToken
 from azure.identity import AzureCliCredential, DefaultAzureCredential
+
+from dbt.logger import GLOBAL_LOGGER as logger
+
+from dataclasses import dataclass
+from typing import Optional
 
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
