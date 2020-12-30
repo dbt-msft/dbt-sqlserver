@@ -265,7 +265,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 if 'pwd=' in elem.lower():
                     index.append(i)
 
-            if len(index) != 0 :
+            if len(index) !=0 :
                 con_str[index[0]]="PWD=***"
 
             con_str_display = ';'.join(con_str)
@@ -328,6 +328,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             self.begin()
 
         logger.debug('Using {} connection "{}".'.format(self.TYPE, connection.name))
+
         with self.exception_handler(sql):
             if abridge_sql_log:
                 logger.debug("On {}: {}....".format(connection.name, sql[0:512]))
