@@ -63,7 +63,6 @@ class SQLServerCredentials(Credentials):
         # raise NotImplementedError
         if self.windows_login is True:
             self.authentication = "Windows Login"
-
         return (
             "server",
             "database",
@@ -73,7 +72,7 @@ class SQLServerCredentials(Credentials):
             "client_id",
             "authentication",
             "encrypt",
-            "trust_cert",
+            "trust_cert"
         )
 
 
@@ -215,9 +214,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
             con_str.append(f"DRIVER={{{credentials.driver}}}")
 
             if "\\" in credentials.host:
-                # if there is a backslash \ in the host name the host is a
-                # sql-server named instance in this case then port number has
-                # to be omitted
+                # if there is a backslash \ in the host name the host is a sql-server named instance
+                # in this case then port number has to be omitted
                 con_str.append(f"SERVER={credentials.host}")
             else:
                 con_str.append(f"SERVER={credentials.host},{credentials.port}")
@@ -241,22 +239,25 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     raise ValueError("ActiveDirectoryMsi is not supported yet")
 
             elif getattr(credentials, "windows_login", False):
-                con_str.append("trusted_connection=Yes")
+                con_str.append(f"trusted_connection=yes")
             elif type_auth == "sql":
-                # con_str.append("Authentication=SqlPassword")
+                #con_str.append("Authentication=SqlPassword")
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
 
+            # still confused whether to use "Yes", "yes", "True", or "true"
+            # to learn more visit
+            # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
             if not getattr(credentials, "encrypt", False):
-                con_str.append("Encrypt=Yes")
+                con_str.append(f"Encrypt=Yes")
             if not getattr(credentials, "trust_cert", False):
-                con_str.append("TrustServerCertificate=Yes")
+                con_str.append(f"TrustServerCertificate=Yes")
 
             con_str_concat = ";".join(con_str)
 
             index = []
             for i, elem in enumerate(con_str):
-                if "pwd=" in elem.lower():
+                if 'pwd=' in elem.lower():
                     index.append(i)
 
             if len(index) != 0:
