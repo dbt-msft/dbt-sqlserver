@@ -265,12 +265,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 if 'pwd=' in elem.lower():
                     index.append(i)
 
-            if len(index) != 0:
-                con_str[index[0]] = "PWD=***"
+            if len(index) != 0 :
+                con_str[index[0]]="PWD=***"
 
             con_str_display = ";".join(con_str)
 
-            logger.debug(f"Using connection string: {con_str_display}")
+            logger.debug(f'Using connection string: {con_str_display}')
 
             if type_auth in AZURE_AUTH_FUNCTIONS.keys():
                 if cls.TOKEN is None:
