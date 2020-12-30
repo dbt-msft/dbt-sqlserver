@@ -273,6 +273,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             logger.debug(f'Using connection string: {con_str_display}')
 
             if type_auth in AZURE_AUTH_FUNCTIONS.keys():
+                # create token if it does not exist
                 if cls.TOKEN is None:
                     azure_auth_function = AZURE_AUTH_FUNCTIONS[type_auth]
                     token = azure_auth_function(credentials)
