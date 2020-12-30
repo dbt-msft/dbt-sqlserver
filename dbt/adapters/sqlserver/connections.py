@@ -258,7 +258,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 if getattr(credentials, "trust_cert", False) is True:
                     con_str.append(f"TrustServerCertificate=Yes")
 
-            con_str_concat = ";".join(con_str)
+            con_str_concat = ';'.join(con_str)
 
             index = []
             for i, elem in enumerate(con_str):
@@ -268,7 +268,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             if len(index) != 0 :
                 con_str[index[0]]="PWD=***"
 
-            con_str_display = ";".join(con_str)
+            con_str_display = ';'.join(con_str)
 
             logger.debug(f'Using connection string: {con_str_display}')
 
