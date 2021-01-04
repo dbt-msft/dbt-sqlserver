@@ -159,6 +159,14 @@ Example of applying Unique clustered index on two columns, Ordinary index on one
 ### v0.18.1
 #### New Features:
 - Adds support down to SQL Server 2012
+- The adapter is now automatically tested with Fishtowns official adapter-tests to increase stability when making 
+changes and upgrades to the adapter.
+
+#### Fixes:
+- Fix for lack of precision in the snapshot check strategy. Previously when executing two check snapshots the same
+second, there was inconsistent data as a result. This was mostly noted when running the automatic adapter tests. 
+NOTE: This fix will create a new snapshot version in the target table
+on first run after upgrade.
 
 ### v0.18.0.1
 #### New Features:
