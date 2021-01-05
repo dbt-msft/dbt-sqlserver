@@ -45,10 +45,12 @@ jobs:
       - run:
           name: cnxn -- SQL Server local sql cred
           command: |
+            cd test/integration
             dbt compile --target sqlserver_local_userpass
       - run:
           name: cnxn -- Azure SQL sql cred
           command: |
+            cd test/integration
             dbt compile --target azuresql_sqlcred
   integration-azuresql:
     docker: 
