@@ -43,20 +43,25 @@ jobs:
             cp sample.profiles.yml ~/.dbt/profiles.yml
             
       - run:
-          name: cnxn -- SQL Server local sql cred
+          name: cnxn -- SQL Server - local sql cred
           command: |
             cd test/integration
             dbt compile --target sqlserver_local_userpass
       - run:
-          name: cnxn -- Azure SQL sql cred
+          name: cnxn -- Azure SQL - sql cred
           command: |
             cd test/integration
             dbt compile --target azuresql_sqlcred
       - run:
-          name: cnxn -- Azure SQL sql cred
+          name: cnxn -- Azure SQL - SQL cred
           command: |
             cd test/integration
-            dbt compile --target sqlserver_local_encrypt
+            dbt compile --target azuresql_sqlcred
+      - run:
+          name: cnxn -- Azure SQL - AAD Password
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_aad
   integration-azuresql:
     docker: 
       - image: dataders/pyodbc:1.4
