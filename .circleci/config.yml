@@ -68,3 +68,6 @@ workflows:
       - integration-azuresql:
           context:
             - DBT_SYNAPSE_PROFILE
+      - connection-sqlserver:
+          context:
+            - DBT_SYNAPSE_PROFILE
