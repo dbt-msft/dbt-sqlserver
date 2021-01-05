@@ -10,7 +10,7 @@ integration_tests:
   target: sqlserver_local_userpass
   outputs:
   
-    sqlserver_local_userpass:
+    sqlserver_local_userpass: &basic
       type: sqlserver
       driver: "ODBC Driver 17 for SQL Server"
       schema: "dbt_cnxn_test"
@@ -21,14 +21,10 @@ integration_tests:
       port: 1433
       threads: 8
     azuresql_sqlcred:
-      type: sqlserver
-      driver: "ODBC Driver 17 for SQL Server"
-      schema: "dbt_cnxn_test"
-      port: 1433
+      <<: *basic
       host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
       database: "{{ env_var('DBT_AZURESQL_DB') }}"
       username: "{{ env_var('DBT_AZURESQL_UID') }}"
       password: "{{ env_var('DBT_AZURESQL_PWD') }}"
       encrypt: yes
       trust_cert: yes
-      threads: 1
