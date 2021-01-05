@@ -1,27 +1,29 @@
-
 # HEY! This file is used in the tsql_utils integrations tests with CircleCI.
 # You should __NEVER__ check credentials into version control. Thanks for reading :)
 
 config:
-    send_anonymous_usage_stats: False
-    use_colors: True
+  send_anonymous_usage_stats: False
+  use_colors: True
+
+defaults:
+  sqlserver: &sqlserver
+    type: sqlserver
+    driver: "ODBC Driver 17 for SQL Server"
+    schema: "dbt_cnxn_test"
+    port: 1433
+    threads: 8
 
 integration_tests:
   target: sqlserver_local_userpass
   outputs:
-  
-    sqlserver_local_userpass: &basic
-      type: sqlserver
-      driver: "ODBC Driver 17 for SQL Server"
-      schema: "dbt_cnxn_test"
+    sqlserver_local_userpass: &sqlserver-local
+      <<: *sqlserver
       host: localhost
       database: msdb
       username: SA
       password: 5atyaNadella
-      port: 1433
-      threads: 8
     azuresql_sqlcred:
-      <<: *basic
+      <<: *sqlserver
       host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
       database: "{{ env_var('DBT_AZURESQL_DB') }}"
       username: "{{ env_var('DBT_AZURESQL_UID') }}"
