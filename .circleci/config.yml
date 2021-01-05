@@ -49,6 +49,7 @@ jobs:
             dbt compile --target sqlserver_local_userpass
       - run:
           name: cnxn -- SQL Server - local sql cred encrypt
+          command: |
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
       - run:
