@@ -13,7 +13,7 @@ integration_tests:
     sqlserver_local_userpass:
       type: sqlserver
       driver: "ODBC Driver 17 for SQL Server"
-      schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
+      schema: "dbt_cnxn_test"
       host: localhost
       database: msdb
       username: SA
@@ -23,12 +23,12 @@ integration_tests:
     azuresql_sqlcred:
       type: sqlserver
       driver: "ODBC Driver 17 for SQL Server"
+      schema: "dbt_cnxn_test"
       port: 1433
       host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
       database: "{{ env_var('DBT_AZURESQL_DB') }}"
       username: "{{ env_var('DBT_AZURESQL_UID') }}"
       password: "{{ env_var('DBT_AZURESQL_PWD') }}"
-      schema: tsql_utils_integration_tests_azuresql
       encrypt: yes
       trust_cert: yes
       threads: 1
