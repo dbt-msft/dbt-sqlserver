@@ -52,6 +52,11 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target azuresql_sqlcred
+      - run:
+          name: cnxn -- Azure SQL sql cred
+          command: |
+            cd test/integration
+            dbt compile --target sqlserver_local_encrypt
   integration-azuresql:
     docker: 
       - image: dataders/pyodbc:1.4
