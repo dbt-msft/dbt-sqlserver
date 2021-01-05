@@ -26,7 +26,7 @@ integration_tests:
       <<: *sqlserver-local
       encrypt: yes
       trust_cert: yes
-    azuresql_sqlcred:
+    azuresql_sqlcred: &azuresql
       <<: *sqlserver
       host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
       database: "{{ env_var('DBT_AZURESQL_DB') }}"
@@ -34,3 +34,9 @@ integration_tests:
       password: "{{ env_var('DBT_AZURESQL_PWD') }}"
       encrypt: yes
       trust_cert: yes
+    azuresql_aad:
+      <<: *azuresql
+      authentication: ActiveDirectoryPassword
+      username: "{{ env_var('DBT_AZURESQL_AAD_USER') }}"
+      password: "{{ env_var('DBT_AZURESQL_AAD_PASS') }}"
+
