@@ -39,7 +39,7 @@ jobs:
           name: prep for connecting
           command: |
             mkdir -p ~/.dbt
-            cp integration_tests/ci/sample.profiles.yml ~/.dbt/profiles.yml
+            cp tests/integration/sample.profiles.yml ~/.dbt/profiles.yml
             cd test/integration
       - run:
           name: cnxn -- SQL Server local sql cred
