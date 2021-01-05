@@ -48,10 +48,9 @@ jobs:
             cd test/integration
             dbt compile --target sqlserver_local_userpass
       - run:
-          name: cnxn -- Azure SQL - sql cred
-          command: |
+          name: cnxn -- SQL Server - local sql cred encrypt
             cd test/integration
-            dbt compile --target azuresql_sqlcred
+            dbt compile --target sqlserver_local_encrypt
       - run:
           name: cnxn -- Azure SQL - SQL cred
           command: |
