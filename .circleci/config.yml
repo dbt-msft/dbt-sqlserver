@@ -77,10 +77,10 @@ jobs:
 workflows:
   main:
     jobs:
-      - integration-sqlserver
-      - integration-azuresql:
+      - connection-sqlserver:
           context:
             - DBT_SYNAPSE_PROFILE
-      - connection-sqlserver:
+      - integration-sqlserver
+      - integration-azuresql:
           context:
             - DBT_SYNAPSE_PROFILE
