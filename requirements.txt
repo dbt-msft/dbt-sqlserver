@@ -6,3 +6,4 @@ pytest-dbt-adapter~=0.3.0
 tox==3.2.0
 flake8>=3.5.0
 certifi==2020.6.20
+.
