@@ -57,11 +57,15 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target azuresql_sqlcred
-      - run:
-          name: cnxn -- Azure SQL - AAD Password
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_aad
+
+      # TODO drop support for this method in favor of
+      # https://github.com/dbt-msft/dbt-sqlserver/pull/71
+      # - run:
+      #     name: cnxn -- Azure SQL - AAD Password
+      #     command: |
+      #       cd test/integration
+      #       dbt compile --target azuresql_aad
+
   integration-azuresql:
     docker: 
       - image: dataders/pyodbc:1.4
