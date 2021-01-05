@@ -22,6 +22,10 @@ integration_tests:
       database: msdb
       username: SA
       password: 5atyaNadella
+    sqlserver_local_encrypt:
+      <<: *sqlserver-local
+      encrypt: yes
+      trust_cert: yes
     azuresql_sqlcred:
       <<: *sqlserver
       host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
