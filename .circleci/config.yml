@@ -4,7 +4,7 @@ orbs:
   python: circleci/python@1.1.0
 
 jobs:
-  integration-sqlserver:
+  integration-sqlserver: &sqlserver
     docker: 
       - image: dataders/pyodbc:1.4
       - image: mcr.microsoft.com/mssql/server:2019-latest
@@ -26,6 +26,29 @@ jobs:
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: tox -e integration-sqlserver
+  connection-sqlserver:
+    <<: *sqlserver
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - run:
+          name: wait for SQL Server container to set up
+          command: sleep 30
+      - run:
+          name: prep for connecting
+          command: |
+            mkdir -p ~/.dbt
+            cp integration_tests/ci/sample.profiles.yml ~/.dbt/profiles.yml
+            cd test/integration
+      - run:
+          name: cnxn -- SQL Server local sql cred
+          command: |
+            dbt compile --target sqlserver_local_userpass
+      - run:
+          name: cnxn -- Azure SQL sql cred
+          command: |
+            dbt compile --target azuresql_sqlcred
   integration-azuresql:
     docker: 
       - image: dataders/pyodbc:1.4
