@@ -86,11 +86,6 @@ jobs:
       - azure-cli/install
       - run: *prep=connect
       - run:
-          name: cnxn -- Azure SQL - SQL cred
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
-      - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
           command: |
             cd test/integration
