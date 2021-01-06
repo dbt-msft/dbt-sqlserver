@@ -4,11 +4,14 @@ import pyodbc
 import os
 import time
 import struct
+from itertools import chain, repeat
+from typing import Callable, Mapping
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
-from azure.identity import DefaultAzureCredential
+from azure.core.credentials import AccessToken
+from azure.identity import AzureCliCredential, DefaultAzureCredential
 
 from dbt.logger import GLOBAL_LOGGER as logger
 
@@ -16,21 +19,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-def create_token(tenant_id, client_id, client_secret):
-    # bc DefaultAzureCredential will look in env variables
-    os.environ["AZURE_TENANT_ID"] = tenant_id
-    os.environ["AZURE_CLIENT_ID"] = client_id
-    os.environ["AZURE_CLIENT_SECRET"] = client_secret
-
-    token = DefaultAzureCredential().get_token("https://database.windows.net//.default")
-    # convert to byte string interspersed with the 1-byte
-    # TODO decide which is cleaner?
-    # exptoken=b''.join([bytes({i})+bytes(1) for i in bytes(token.token, "UTF-8")])
-    exptoken = bytes(1).join([bytes(i, "UTF-8") for i in token.token]) + bytes(1)
-    # make c object with bytestring length prefix
-    tokenstruct = struct.pack("=i", len(exptoken)) + exptoken
-
-    return tokenstruct
+AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 
 
 @dataclass
@@ -74,7 +63,7 @@ class SQLServerCredentials(Credentials):
         # raise NotImplementedError
         if self.windows_login is True:
             self.authentication = "Windows Login"
-    
+
         return (
             "server",
             "database",
@@ -86,6 +75,97 @@ class SQLServerCredentials(Credentials):
             "encrypt",
             "trust_cert"
         )
+
+
+def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
+    """
+    Convert bytes to a Microsoft windows byte string.
+
+    Parameters
+    ----------
+    value : bytes
+        The bytes.
+
+    Returns
+    -------
+    out : bytes
+        The Microsoft byte string.
+    """
+    encoded_bytes = bytes(chain.from_iterable(zip(value, repeat(0))))
+    return struct.pack("<i", len(encoded_bytes)) + encoded_bytes
+
+
+def convert_access_token_to_mswindows_byte_string(token: AccessToken) -> bytes:
+    """
+    Convert an access token to a Microsoft windows byte string.
+
+    Parameters
+    ----------
+    token : AccessToken
+        The token.
+
+    Returns
+    -------
+    out : bytes
+        The Microsoft byte string.
+    """
+    value = bytes(token.token, "UTF-8")
+    return convert_bytes_to_mswindows_byte_string(value)
+
+
+def get_cli_access_token(credentials: SQLServerCredentials) -> AccessToken:
+    """
+    Get an Azure access token using the CLI credentials
+
+    First login with:
+
+    ```bash
+    az login
+    ```
+
+    Parameters
+    ----------
+    credentials: SQLServerConnectionManager
+        The credentials.
+
+    Returns
+    -------
+    out : AccessToken
+        Access token.
+    """
+    _ = credentials
+    token = AzureCliCredential().get_token(AZURE_CREDENTIAL_SCOPE)
+    return token
+
+
+def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
+    """
+    Get an Azure access token using the SP credentials.
+
+    Parameters
+    ----------
+    credentials : SQLServerCredentials
+        Credentials.
+
+    Returns
+    -------
+    out : AccessToken
+        The access token.
+    """
+    # bc DefaultAzureCredential will look in env variables
+    os.environ["AZURE_TENANT_ID"] = credentials.tenant_id
+    os.environ["AZURE_CLIENT_ID"] = credentials.client_id
+    os.environ["AZURE_CLIENT_SECRET"] = credentials.client_secret
+
+    token = DefaultAzureCredential().get_token(AZURE_CREDENTIAL_SCOPE)
+    return token
+
+
+AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials], AccessToken]
+AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
+    "ServicePrincipal": get_sp_access_token,
+    "CLI": get_cli_access_token,
+}
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
@@ -179,35 +259,41 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     con_str.append(f"TrustServerCertificate=Yes")
 
             con_str_concat = ';'.join(con_str)
-            
+
             index = []
             for i, elem in enumerate(con_str):
                 if 'pwd=' in elem.lower():
                     index.append(i)
-                    
+
             if len(index) !=0 :
                 con_str[index[0]]="PWD=***"
 
             con_str_display = ';'.join(con_str)
-            
+
             logger.debug(f'Using connection string: {con_str_display}')
 
-            if type_auth != "ServicePrincipal":
-                handle = pyodbc.connect(con_str_concat, autocommit=True)
-
-            elif type_auth == "ServicePrincipal":
-
+            if type_auth in AZURE_AUTH_FUNCTIONS.keys():
                 # create token if it does not exist
                 if cls.TOKEN is None:
-                    tenant_id = getattr(credentials, "tenant_id", None)
-                    client_id = getattr(credentials, "client_id", None)
-                    client_secret = getattr(credentials, "client_secret", None)
+                    azure_auth_function = AZURE_AUTH_FUNCTIONS[type_auth]
+                    token = azure_auth_function(credentials)
+                    cls.TOKEN = convert_access_token_to_mswindows_byte_string(
+                        token
+                    )
 
-                    cls.TOKEN = create_token(tenant_id, client_id, client_secret)
+                # Source:
+                # https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
+                SQL_COPT_SS_ACCESS_TOKEN = 1256
 
-                handle = pyodbc.connect(
-                    con_str_concat, attrs_before={1256: cls.TOKEN}, autocommit=True
-                )
+                attrs_before = {SQL_COPT_SS_ACCESS_TOKEN: cls.TOKEN}
+            else:
+                attrs_before = {}
+
+            handle = pyodbc.connect(
+                con_str_concat,
+                attrs_before=attrs_before,
+                autocommit=True,
+            )
 
             connection.state = "open"
             connection.handle = handle
