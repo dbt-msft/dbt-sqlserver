@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   python: circleci/python@1.1.0
+  azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
   integration-sqlserver: &sqlserver
@@ -77,10 +78,27 @@ jobs:
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -e integration-azuresql
+  connection-azuresql:
+    docker: 
+      - image: dataders/pyodbc:1.4
+    executor: python/default 
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - azure-cli/install
+      - azure-cli/login-with-user:
+          azure-username: DBT_AZURE_USERNAME
+          azure-password: DBT_AZURE_PASSWORD
+          alternate-tenant: true
+          azure-tenant: DBT_AZURE_TENANT
 
 workflows:
   main:
     jobs:
+      - connection-azuresql:
+          context:
+            - DBT_SYNAPSE_PROFILE
       - connection-sqlserver:
           context:
             - DBT_SYNAPSE_PROFILE
