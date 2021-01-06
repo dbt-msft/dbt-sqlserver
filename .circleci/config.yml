@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   python: circleci/python@1.1.0
+  azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
   integration-sqlserver: &sqlserver
@@ -35,13 +36,12 @@ jobs:
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
-      - run:
+      - run: &prep=connect
           name: prep for connecting
           command: |
             mkdir -p ~/.dbt
             cd test/integration
             cp sample.profiles.yml ~/.dbt/profiles.yml
-            
       - run:
           name: cnxn -- SQL Server - local sql cred
           command: |
@@ -75,12 +75,57 @@ jobs:
       - python/install-packages:
           pkg-manager: pip
       - run:
+          name: wake up serverless db
+          command: |
+            cd test/integration
+            dbt debug --target azuresql_sqlcred
+      - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -e integration-azuresql
+  connection-azuresql:
+    docker: 
+      - image: dataders/pyodbc:1.4
+    executor: python/default 
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - run:
+          name: install gnupg
+          command: apt-get install gnupg -y
+      - azure-cli/install
+      - run: *prep=connect
+      - run:
+          name: cnxn -- Azure SQL - SQL CRED user+pass
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_sqlcred
+      - azure-cli/login-with-user:
+          azure-username: DBT_AZURE_USERNAME
+          azure-password: DBT_AZURE_PASSWORD
+          alternate-tenant: true
+          azure-tenant: DBT_AZURE_TENANT
+      - run:
+          name: cnxn -- Azure SQL - AZ CLI User
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_azcli
+      - azure-cli/login-with-service-principal:
+          azure-sp: DBT_AZURE_SP_NAME
+          azure-sp-password: DBT_AZURE_SP_SECRET
+          azure-sp-tenant: DBT_AZURE_TENANT
+      - run:
+          name: cnxn -- Azure SQL - AZ CLI ServicePrincipal
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_azcli
 
 workflows:
   main:
     jobs:
+      - connection-azuresql:
+          context:
+            - DBT_SYNAPSE_PROFILE
       - connection-sqlserver:
           context:
             - DBT_SYNAPSE_PROFILE

@@ -6,37 +6,37 @@ config:
   use_colors: True
 
 defaults:
-  sqlserver: &sqlserver
+  basic: &basic
     type: sqlserver
     driver: "ODBC Driver 17 for SQL Server"
     schema: "dbt_cnxn_test"
     port: 1433
     threads: 8
+  basic-sqlserver: &basic-sqlserver
+    <<: *basic
+    host: localhost
+    database: msdb
+    username: SA
+    password: 5atyaNadella
+  azuresql: &azuresql-basic
+    <<: *basic
+    host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
+    database: "{{ env_var('DBT_AZURESQL_DB') }}"
+    encrypt: yes
+    trust_cert: yes
 
 integration_tests:
   target: sqlserver_local_userpass
   outputs:
-    sqlserver_local_userpass: &sqlserver-local
-      <<: *sqlserver
-      host: localhost
-      database: msdb
-      username: SA
-      password: 5atyaNadella
+    sqlserver_local_userpass: *basic-sqlserver
     sqlserver_local_encrypt:
-      <<: *sqlserver-local
+      <<: *basic-sqlserver
       encrypt: yes
       trust_cert: yes
-    azuresql_sqlcred: &azuresql
-      <<: *sqlserver
-      host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
-      database: "{{ env_var('DBT_AZURESQL_DB') }}"
+    azuresql_sqlcred:
+      <<: *azuresql-basic
       username: "{{ env_var('DBT_AZURESQL_UID') }}"
       password: "{{ env_var('DBT_AZURESQL_PWD') }}"
-      encrypt: yes
-      trust_cert: yes
-    azuresql_aad:
-      <<: *azuresql
-      authentication: ActiveDirectoryPassword
-      username: "{{ env_var('DBT_AZURESQL_AAD_USER') }}"
-      password: "{{ env_var('DBT_AZURESQL_AAD_PASS') }}"
-
+    azuresql_azcli:
+      <<: *azuresql-basic
+      authentication: CLI
