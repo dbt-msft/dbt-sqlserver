@@ -36,13 +36,12 @@ jobs:
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
-      - run:
+      - run: &prep=connect
           name: prep for connecting
           command: |
             mkdir -p ~/.dbt
             cd test/integration
             cp sample.profiles.yml ~/.dbt/profiles.yml
-            
       - run:
           name: cnxn -- SQL Server - local sql cred
           command: |
@@ -53,11 +52,6 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
-      - run:
-          name: cnxn -- Azure SQL - SQL cred
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
 
       # TODO drop support for this method in favor of
       # https://github.com/dbt-msft/dbt-sqlserver/pull/71
@@ -87,14 +81,30 @@ jobs:
       - python/install-packages:
           pkg-manager: pip
       - run:
+          name: cnxn -- Azure SQL - SQL cred
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_sqlcred
+      - run:
           name: install gnupg
           command: apt-get install gnupg -y
       - azure-cli/install
+      - run: *prep=connect
+      - run:
+          name: cnxn -- Azure SQL - SQL CRED user+pass
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_sqlcred
       - azure-cli/login-with-user:
           azure-username: DBT_AZURE_USERNAME
           azure-password: DBT_AZURE_PASSWORD
           alternate-tenant: true
           azure-tenant: DBT_AZURE_TENANT
+      - run:
+          name: cnxn -- Azure SQL - AZ CLI ServicePrincipal
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_azcli
       - azure-cli/login-with-service-principal:
           azure-sp: DBT_AZURE_SP_NAME
           azure-sp-password: DBT_AZURE_SP_SECRET
