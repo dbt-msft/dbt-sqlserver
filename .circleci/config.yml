@@ -87,8 +87,8 @@ jobs:
       - python/install-packages:
           pkg-manager: pip
       - run:
-        name: install gnupg
-        command: apt-get install gnupg
+          name: install gnupg
+          command: apt-get install gnupg
       - azure-cli/install
       - azure-cli/login-with-user:
           azure-username: DBT_AZURE_USERNAME
