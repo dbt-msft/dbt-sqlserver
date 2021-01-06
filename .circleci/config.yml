@@ -86,7 +86,7 @@ jobs:
       - checkout
       - python/install-packages:
           pkg-manager: pip
-      run:
+      - run:
         name: install gnupg
         commend: apt-get install gnupg
       - azure-cli/install
