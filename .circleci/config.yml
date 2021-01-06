@@ -95,6 +95,10 @@ jobs:
           azure-password: DBT_AZURE_PASSWORD
           alternate-tenant: true
           azure-tenant: DBT_AZURE_TENANT
+      - login-with-service-principal:
+          azure-sp: DBT_AZURE_SP_NAME
+          azure-sp-password: DBT_AZURE_SP_SECRET
+          azure-sp-tenant: DBT_AZURE_TENANT
 
 workflows:
   main:
