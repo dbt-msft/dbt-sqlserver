@@ -10,6 +10,7 @@ from typing import Callable, Mapping
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
+from dbt.contracts.connection import AdapterResponse
 from azure.core.credentials import AccessToken
 from azure.identity import AzureCliCredential, DefaultAzureCredential
 
@@ -347,7 +348,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             logger.debug(
                 "SQL status: {} in {:0.2f} seconds".format(
-                    self.get_status(cursor), (time.time() - pre)
+                    self.get_response(cursor), (time.time() - pre)
                 )
             )
 
@@ -358,16 +359,26 @@ class SQLServerConnectionManager(SQLConnectionManager):
         return credentials
 
     @classmethod
-    def get_status(cls, cursor):
-        if cursor.rowcount == -1:
-            status = "OK"
-        else:
-            status = str(cursor.rowcount)
-        return status
+    def get_response(cls, cursor) -> AdapterResponse:
+        #message = str(cursor.statusmessage)
+        message = 'OK'
+        rows = cursor.rowcount
+        #status_message_parts = message.split() if message is not None else []
+        #status_messsage_strings = [
+        #    part
+        #    for part in status_message_parts
+        #    if not part.isdigit()
+        #]
+        #code = ' '.join(status_messsage_strings)
+        return AdapterResponse(
+            _message=message,
+            #code=code,
+            rows_affected=rows
+        )
 
     def execute(self, sql, auto_begin=True, fetch=False):
         _, cursor = self.add_query(sql, auto_begin)
-        status = self.get_status(cursor)
+        status = self.get_response(cursor)
         if fetch:
             table = self.get_result_from_cursor(cursor)
         else:
