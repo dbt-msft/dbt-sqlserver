@@ -15,6 +15,10 @@ jobs:
           MSSQL_IP_ADDRESS: 0.0.0.0
     executor: python/default 
     steps:
+      - run: &install-git
+          name: "TEMP: install Git"
+          command: |
+            apt-get install -y git
       - checkout
       - run:
           name: wait for SQL Server container to set up
