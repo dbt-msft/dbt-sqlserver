@@ -1,5 +1,5 @@
 #dbt-core~=0.19.0
-git+https://github.com/mikaelene/dbt.git@10b33ccaf6a4db5fd89a80709579bbb46fe8de09#egg=dbt
+git+https://github.com/fishtown-analytics/dbt.git@10b33ccaf6a4db5fd89a80709579bbb46fe8de09#egg=dbt
 pyodbc>=4.0.27
 azure-identity>=1.4.0
 black~=20.8b1
