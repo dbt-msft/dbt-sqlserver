@@ -34,6 +34,7 @@ jobs:
   connection-sqlserver:
     <<: *sqlserver
     steps:
+      - run: *install-git
       - checkout
       - python/install-packages:
           pkg-manager: pip
@@ -75,6 +76,7 @@ jobs:
       - image: dataders/pyodbc:1.4
     executor: python/default 
     steps:
+      - run: *install-git
       - checkout
       - python/install-packages:
           pkg-manager: pip
@@ -91,6 +93,7 @@ jobs:
       - image: dataders/pyodbc:1.4
     executor: python/default 
     steps:
+      - run: *install-git
       - checkout
       - python/install-packages:
           pkg-manager: pip
