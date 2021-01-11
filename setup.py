@@ -57,8 +57,9 @@ setup(
         ]
     },
     install_requires=[
-        "dbt-core~=0.19.0rc1",
+        #"dbt-core~=0.19.0",
         "pyodbc>=4.0.27",
         "azure-identity>=1.4.0",
     ],
+    dependency_links=['git+https://github.com/mikaelene/dbt.git@10b33ccaf6a4db5fd89a80709579bbb46fe8de09#egg=dbt'],
 )
