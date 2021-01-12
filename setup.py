@@ -61,5 +61,5 @@ setup(
         "pyodbc>=4.0.27",
         "azure-identity>=1.4.0",
     ],
-    dependency_links=['git+https://github.com/fishtown-analytics/dbt.git@10b33ccaf6a4db5fd89a80709579bbb46fe8de09#egg=dbt'],
+    dependency_links=['-e git+https://github.com/fishtown-analytics/dbt.git'],
 )
