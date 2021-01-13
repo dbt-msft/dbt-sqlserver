@@ -259,6 +259,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 if getattr(credentials, "trust_cert", False) is True:
                     con_str.append(f"TrustServerCertificate=Yes")
 
+            application_name = f"dbt-{credentials.type}"
+            con_str.append(f"APP={application_name}")
+
             con_str_concat = ';'.join(con_str)
 
             index = []
