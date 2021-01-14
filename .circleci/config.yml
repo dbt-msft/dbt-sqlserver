@@ -28,6 +28,7 @@ jobs:
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - python/install-packages:
           pkg-manager: pip
+          pypi-cache: false
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: tox -e integration-sqlserver
