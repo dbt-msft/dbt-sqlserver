@@ -57,9 +57,8 @@ setup(
         ]
     },
     install_requires=[
-        #"dbt-core~=0.19.0",
+        'dbt-core==0.19.0rc2',
         "pyodbc>=4.0.27",
         "azure-identity>=1.4.0",
-    ],
-    dependency_links=['-e git+https://github.com/fishtown-analytics/dbt.git'],
+    ]
 )
