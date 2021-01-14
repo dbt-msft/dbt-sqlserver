@@ -28,6 +28,7 @@ jobs:
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - python/install-packages:
           pkg-manager: pip
+          pypi-cache: false
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: tox -e integration-sqlserver
@@ -38,6 +39,7 @@ jobs:
       - checkout
       - python/install-packages:
           pkg-manager: pip
+          pypi-cache: false
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -80,6 +82,7 @@ jobs:
       - checkout
       - python/install-packages:
           pkg-manager: pip
+          pypi-cache: false
       - run:
           name: wake up serverless db
           command: |
@@ -97,6 +100,7 @@ jobs:
       - checkout
       - python/install-packages:
           pkg-manager: pip
+          pypi-cache: false
       - run:
           name: install gnupg
           command: apt-get install gnupg -y
