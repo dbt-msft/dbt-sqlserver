@@ -193,8 +193,8 @@
           UNION ALL
           select
               ordinal_position,
-              column_name,
-              data_type,
+              column_name collate database_default,
+              data_type collate database_default,
               character_maximum_length,
               numeric_precision,
               numeric_scale
