@@ -44,9 +44,9 @@
 {% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
     USE [{{ relation.database }}]
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA {{ relation.without_identifier().schema }}')
+    EXEC('CREATE SCHEMA {{ relation.schema }}')
     END
   {% endcall %}
 {% endmacro %}
@@ -79,9 +79,9 @@
    {%- else -%} invalid target name
    {% endif %}
   {% call statement('drop_relation', auto_begin=False) -%}
-    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
+    if object_id ('{{ relation }}','{{ object_id_type }}') is not null
       begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
+      drop {{ relation.type }} {{ relation }}
       end
   {%- endcall %}
 {% endmacro %}
@@ -93,9 +93,9 @@
    {% set object_id_type = 'U' %}
    {%- else -%} invalid target name
    {% endif %}
-  if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
+  if object_id ('{{ relation }}','{{ object_id_type }}') is not null
       begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
+      drop {{ relation.type }} {{ relation }}
       end
 {% endmacro %}
 
@@ -108,19 +108,19 @@
 {% endmacro %}
 
 {% macro sqlserver__create_view_as(relation, sql) -%}
-  create view {{ relation.schema }}.{{ relation.identifier }} as
+  create view {{ relation }} as
     {{ sql }}
 {% endmacro %}
 
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
-    EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
+    EXEC sp_rename '{{ from_relation }}', '{{ to_relation.identifier }}'
     IF EXISTS(
     SELECT *
     FROM sys.indexes
-    WHERE name='{{ from_relation.schema }}_{{ from_relation.identifier }}_cci' and object_id = OBJECT_ID('{{ from_relation.schema }}.{{ to_relation.identifier }}'))
-    EXEC sp_rename N'{{ from_relation.schema }}.{{ to_relation.identifier }}.{{ from_relation.schema }}_{{ from_relation.identifier }}_cci', N'{{ from_relation.schema }}_{{ to_relation.identifier }}_cci', N'INDEX'
+    WHERE name='{{ from_relation.schema }}_{{ from_relation.identifier }}_cci' and object_id = OBJECT_ID('{{ from_relation }}'))
+    EXEC sp_rename N'{{ from_relation }}.{{ from_relation.schema }}_{{ from_relation.identifier }}_cci', N'{{ from_relation.schema }}_{{ to_relation.identifier }}_cci', N'INDEX'
   {%- endcall %}
 {% endmacro %}
 
@@ -133,9 +133,9 @@
         sys.indexes WHERE name = '{{cci_name}}'
         AND object_id=object_id('{{relation_name}}')
     )
-  DROP index {{full_relation}}.{{cci_name}}
+  DROP index {{relation}}.{{cci_name}}
   CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
-    ON {{full_relation}}
+    ON {{relation}}
 {% endmacro %}
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
@@ -149,12 +149,12 @@
 
    {{ sqlserver__drop_relation_script(relation) }}
 
-   EXEC('create view {{ tmp_relation.schema }}.{{ tmp_relation.identifier }} as
+   EXEC('create view {{ tmp_relation }} as
     {{ temp_view_sql }}
     ');
 
-   SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
-    {{ tmp_relation.schema }}.{{ tmp_relation.identifier }}
+   SELECT * INTO {{ relation }} FROM
+    {{ tmp_relation }}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
     
@@ -165,10 +165,8 @@
 {% endmacro %}_
 
 {% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
-  {%- set full_to_relation = to_relation.schema ~ '.' ~ to_relation.identifier -%}
-  {%- set full_from_relation = from_relation.schema ~ '.' ~ from_relation.identifier -%}
 
-  SELECT * INTO {{full_to_relation}} FROM {{full_from_relation}}
+  SELECT * INTO {{to_relation}} FROM {{from_relation}}
 
 {% endmacro %}
 
