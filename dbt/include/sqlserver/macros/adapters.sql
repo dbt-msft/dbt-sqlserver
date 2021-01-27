@@ -176,41 +176,59 @@
   getdate()
 {%- endmacro %}
 
-{% macro sqlserver__get_columns_in_relation(relation) -%}
+{% macro get_columns_in_relation_normal(relation) %}
+  {{ return(adapter.dispatch('get_columns_in_relation_normal')(relation)) }}
+{% endmacro %}
+
+{% macro default__get_columns_in_relation_normal(relation) %}
+  {{ exceptions.raise_not_implemented(
+    'get_columns_in_relation_normal macro not implemented for adapter '+adapter.type()) }}
+{% endmacro %}
+
+{% macro sqlserver__get_columns_in_relation_normal(relation) %}
   {% call statement('get_columns_in_relation', fetch_result=True) %}
-      SELECT
-          column_name,
-          data_type,
-          character_maximum_length,
-          numeric_precision,
-          numeric_scale
-      FROM
-          (select
-              ordinal_position,
-              column_name,
-              data_type,
-              character_maximum_length,
-              numeric_precision,
-              numeric_scale
-          from INFORMATION_SCHEMA.COLUMNS
-          where table_name = '{{ relation.identifier }}'
-            and table_schema = '{{ relation.schema }}'
-          UNION ALL
-          select
-              ordinal_position,
-              column_name collate database_default,
-              data_type collate database_default,
-              character_maximum_length,
-              numeric_precision,
-              numeric_scale
-          from tempdb.INFORMATION_SCHEMA.COLUMNS
-          where table_name like '{{ relation.identifier }}%') cols
-      order by ordinal_position
-
-
+  SELECT
+    column_name,
+    data_type,
+    character_maximum_length,
+    numeric_precision,
+    numeric_scale
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE table_name = '{{ relation.identifier }}'
+    AND table_schema = '{{ relation.schema }}'
   {% endcall %}
-  {% set table = load_result('get_columns_in_relation').table %}
-  {{ return(sql_convert_columns_in_relation(table)) }}
+  {{ return(sql_convert_columns_in_relation(load_result('get_columns_in_relation').table)) }}
+{% endmacro %}
+
+{% macro get_columns_in_relation_temp(relation) %}
+  {{ return(adapter.dispatch('get_columns_in_relation_temp')(relation)) }}
+{% endmacro %}
+
+{% macro default__get_columns_in_relation_temp(relation) %}
+  {{ exceptions.raise_not_implemented(
+    'get_columns_in_relation_temp macro not implemented for adapter '+adapter.type()) }}
+{% endmacro %}
+
+{% macro sqlserver__get_columns_in_relation_temp(relation) %}
+  {% call statement('get_columns_in_relation', fetch_result=True) %}
+  SELECT
+    column_name collate database_default,
+    data_type collate database_default,
+    character_maximum_length,
+    numeric_precision,
+    numeric_scale
+  from tempdb.INFORMATION_SCHEMA.COLUMNS
+  where table_name like '{{ relation.identifier }}%'
+  {% endcall %}
+  {{ return(sql_convert_columns_in_relation(load_result('get_columns_in_relation').table)) }}
+{% endmacro %}
+
+{% macro sqlserver__get_columns_in_relation(relation) -%}
+  {% if relation.identifier.startswith("#") %}
+    {{ return(get_columns_in_relation_temp(relation)) }}
+  {% else %}
+    {{ return(get_columns_in_relation_normal(relation)) }}
+  {% endif %}
 {% endmacro %}
 
 {% macro sqlserver__make_temp_relation(base_relation, suffix) %}
