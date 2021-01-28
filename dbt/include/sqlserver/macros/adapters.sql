@@ -128,7 +128,12 @@
   {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
   {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
   {%- set full_relation = relation.schema ~ '.' ~ relation.identifier -%}
-  DROP INDEX IF EXISTS {{relation_name}}.{{cci_name}}
+  if EXISTS (
+        SELECT * FROM
+        sys.indexes WHERE name = '{{cci_name}}'
+        AND object_id=object_id('{{relation_name}}')
+    )
+  DROP index {{full_relation}}.{{cci_name}}
   CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
     ON {{full_relation}}
 {% endmacro %}
@@ -193,8 +198,8 @@
           UNION ALL
           select
               ordinal_position,
-              column_name,
-              data_type,
+              column_name collate database_default,
+              data_type collate database_default,
               character_maximum_length,
               numeric_precision,
               numeric_scale
