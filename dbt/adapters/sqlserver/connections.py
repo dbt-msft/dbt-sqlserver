@@ -10,6 +10,7 @@ from typing import Callable, Mapping
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
+from dbt.adapters.sqlserver import __version__
 from dbt.contracts.connection import AdapterResponse
 from azure.core.credentials import AccessToken
 from azure.identity import AzureCliCredential, DefaultAzureCredential
@@ -259,8 +260,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 if getattr(credentials, "trust_cert", False) is True:
                     con_str.append(f"TrustServerCertificate=Yes")
 
-            application_name = f"dbt-{credentials.type}"
-            con_str.append(f"APP={application_name}")
+            plugin_version = __version__.version
+            application_name = f"dbt-{credentials.type}/{plugin_version}"
+            con_str.append(f"Application Name={application_name}")
 
             con_str_concat = ';'.join(con_str)
 
