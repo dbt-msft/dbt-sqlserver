@@ -5,15 +5,23 @@ orbs:
   azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
+  unit:
+    docker:
+      - image: fishtownanalytics/test-container:9
+        environment:
+          DBT_INVOCATION_ENV: circle
+    steps:
+      - checkout
+      - run: tox -e flake8,unit
   integration-sqlserver: &sqlserver
-    docker: 
+    docker:
       - image: dataders/pyodbc:1.4
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
-    executor: python/default 
+    executor: python/default
     steps:
       - run: &install-git
           name: "TEMP: install Git"
@@ -72,9 +80,9 @@ jobs:
       #       dbt compile --target azuresql_aad
 
   integration-azuresql:
-    docker: 
+    docker:
       - image: dataders/pyodbc:1.4
-    executor: python/default 
+    executor: python/default
     steps:
       - run: *install-git
       - checkout
@@ -89,9 +97,9 @@ jobs:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -e integration-azuresql
   connection-azuresql:
-    docker: 
+    docker:
       - image: dataders/pyodbc:1.4
-    executor: python/default 
+    executor: python/default
     steps:
       - run: *install-git
       - checkout
@@ -130,6 +138,7 @@ jobs:
 workflows:
   main:
     jobs:
+      - unit
       - connection-azuresql:
           context:
             - DBT_SYNAPSE_PROFILE
