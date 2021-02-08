@@ -184,4 +184,3 @@ Example of applying Unique clustered index on two columns, Ordinary index on one
 ## Changelog
 
 See [the changelog](CHANGELOG.md)
-
