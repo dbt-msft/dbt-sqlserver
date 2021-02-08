@@ -12,7 +12,7 @@ jobs:
           DBT_INVOCATION_ENV: circle
     steps:
       - checkout
-      - run: tox -e flake8,unit
+      - run: tox -e unit
   integration-sqlserver: &sqlserver
     docker:
       - image: dataders/pyodbc:1.4
