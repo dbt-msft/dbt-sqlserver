@@ -26,8 +26,6 @@ jobs:
       - run:
           name: test connection via SQL CMD
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
-      - python/install-packages:
-          pkg-manager: pip
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: tox -- -v test/integration/sqlserver.dbtspec
@@ -36,8 +34,6 @@ jobs:
     steps:
       - run: *install-git
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -78,8 +74,6 @@ jobs:
     steps:
       - run: *install-git
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
       - run:
           name: wake up serverless db
           command: |
@@ -95,8 +89,6 @@ jobs:
     steps:
       - run: *install-git
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
       - run:
           name: install gnupg
           command: apt-get install gnupg -y
