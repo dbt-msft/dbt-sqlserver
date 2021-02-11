@@ -30,7 +30,7 @@ jobs:
           pkg-manager: pip
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
-          command: tox -e integration-sqlserver
+          command: tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
     <<: *sqlserver
     steps:
@@ -87,7 +87,7 @@ jobs:
             dbt debug --target azuresql_sqlcred
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
-          command: tox -e integration-azuresql
+          command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
     docker: 
       - image: dataders/pyodbc:1.4
