@@ -132,9 +132,9 @@
    type='view')-%}
    {%- set temp_view_sql = sql.replace("'", "''") -%}
 
-   {{ sqlserver__drop_relation(tmp_relation) }}
+   {{ drop_relation(tmp_relation) }}
 
-   {{ sqlserver__drop_relation(relation) }}
+   {{ drop_relation(relation) }}
 
    EXEC('create view {{ tmp_relation }} as
     {{ temp_view_sql }}
@@ -143,7 +143,7 @@
    SELECT * INTO {{ relation }} FROM
     {{ tmp_relation }}
 
-   {{ sqlserver__drop_relation(tmp_relation) }}
+   {{ drop_relation(tmp_relation) }}
     
    {% if not temporary and as_columnstore -%}
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
