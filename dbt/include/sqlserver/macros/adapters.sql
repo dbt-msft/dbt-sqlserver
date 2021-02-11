@@ -86,19 +86,6 @@
   {%- endcall %}
 {% endmacro %}
 
-{% macro sqlserver__drop_relation_script(relation) -%}
-  {% if relation.type == 'view' -%}
-   {% set object_id_type = 'V' %}
-   {% elif relation.type == 'table'%}
-   {% set object_id_type = 'U' %}
-   {%- else -%} invalid target name
-   {% endif %}
-  if object_id ('{{ relation }}','{{ object_id_type }}') is not null
-      begin
-      drop {{ relation.type }} {{ relation }}
-      end
-{% endmacro %}
-
 {% macro sqlserver__check_schema_exists(information_schema, schema) -%}
   {% call statement('check_schema_exists', fetch_result=True, auto_begin=False) -%}
     --USE {{ database_name }}
@@ -145,9 +132,9 @@
    type='view')-%}
    {%- set temp_view_sql = sql.replace("'", "''") -%}
 
-   {{ sqlserver__drop_relation_script(tmp_relation) }}
+   {{ sqlserver__drop_relation(tmp_relation) }}
 
-   {{ sqlserver__drop_relation_script(relation) }}
+   {{ sqlserver__drop_relation(relation) }}
 
    EXEC('create view {{ tmp_relation }} as
     {{ temp_view_sql }}
@@ -156,7 +143,7 @@
    SELECT * INTO {{ relation }} FROM
     {{ tmp_relation }}
 
-   {{ sqlserver__drop_relation_script(tmp_relation) }}
+   {{ sqlserver__drop_relation(tmp_relation) }}
     
    {% if not temporary and as_columnstore -%}
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
