@@ -9,8 +9,6 @@ jobs:
     docker:
       - image: dataders/pyodbc:1.4
       - image: mcr.microsoft.com/mssql/server:2019-latest
-      - image: cimg/python:3.7
-      - image: cimg/python:3.8
         environment:
           ACCEPT_EULA: 'yes'
           MSSQL_SA_PASSWORD: 5atyaNadella
