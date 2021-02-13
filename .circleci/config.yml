@@ -76,7 +76,6 @@ jobs:
       #     command: |
       #       cd test/integration
       #       dbt compile --target azuresql_aad
-
   integration-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
