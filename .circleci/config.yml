@@ -10,7 +10,7 @@ jobs:
       - image: dataders/pyodbc:1.4
     steps:
       - checkout
-      - run: tox -e py37 -- -v test/unit
+      - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
       - image: dataders/pyodbc:1.4
@@ -34,7 +34,7 @@ jobs:
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
-          command: tox -e py37 -- -v test/integration/sqlserver.dbtspec
+          command: tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
     <<: *sqlserver
     steps:
@@ -50,13 +50,19 @@ jobs:
             cp test/integration/sample.profiles.yml ~/.dbt/profiles.yml
       - run:
           name: cnxn -- SQL Server - local sql cred
-          command: tox --workdir test/integration -e dbt -- compile --target sqlserver_local_userpass
+          command: |
+            cd test/integration
+            dbt compile --target sqlserver_local_userpass
       - run:
           name: cnxn -- SQL Server - local sql cred encrypt
-          command: tox --workdir test/integration -e dbt -- compile --target sqlserver_local_encrypt
+          command: |
+            cd test/integration
+            dbt compile --target sqlserver_local_encrypt
       - run:
           name: cnxn -- Azure SQL - SQL cred
-          command: tox --workdir test/integration -e dbt -- compile --target azuresql_sqlcred
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_sqlcred
 
       # TODO drop support for this method in favor of
       # https://github.com/dbt-msft/dbt-sqlserver/pull/71
@@ -74,10 +80,12 @@ jobs:
       - checkout
       - run:
           name: wake up serverless db
-          command: tox --workdir test/integration -e dbt -- debug --target azuresql_sqlcred
+          command: |
+            cd test/integration
+            dbt debug --target azuresql_sqlcred
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
-          command: tox -e py37 -- -v test/integration/azuresql.dbtspec
+          command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
@@ -92,7 +100,9 @@ jobs:
       - run: *prep=connect
       - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
-          command: tox --workdir test/integration -e dbt -- compile --target azuresql_sqlcred
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_azcli
       - azure-cli/login-with-user:
           azure-username: DBT_AZURE_USERNAME
           azure-password: DBT_AZURE_PASSWORD
@@ -100,7 +110,9 @@ jobs:
           azure-tenant: DBT_AZURE_TENANT
       - run:
           name: cnxn -- Azure SQL - AZ CLI User
-          command: tox --workdir test/integration -e dbt -- compile --target azuresql_azcli
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_azcli
       - azure-cli/login-with-service-principal:
           azure-sp: DBT_AZURE_SP_NAME
           azure-sp-password: DBT_AZURE_SP_SECRET
