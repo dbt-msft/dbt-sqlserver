@@ -10,7 +10,7 @@ jobs:
       - image: dataders/pyodbc:1.4
     steps:
       - checkout
-      - run: tox -- -v test/unit
+      - run: tox -e testenv -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
       - image: dataders/pyodbc:1.4
@@ -34,7 +34,7 @@ jobs:
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
-          command: tox -- -v test/integration/sqlserver.dbtspec
+          command: tox -e testenv -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
     <<: *sqlserver
     steps:
@@ -81,7 +81,8 @@ jobs:
             tox --workdir test/integration -e dbt -- debug --target azuresql_sqlcred
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
-          command: tox -- -v test/integration/azuresql.dbtspec
+          command: |
+            tox -e testenv -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
