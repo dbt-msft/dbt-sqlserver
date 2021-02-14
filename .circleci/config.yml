@@ -78,8 +78,7 @@ jobs:
       - run:
           name: wake up serverless db
           command: |
-            cd test/integration
-            dbt debug --target azuresql_sqlcred
+            tox --workdir test/integration -e dbt -- debug --target azuresql_sqlcred
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -- -v test/integration/azuresql.dbtspec
@@ -98,8 +97,7 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
           command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
+            tox --workdir test/integration -e dbt -- compile --target azuresql_sqlcred
       - azure-cli/login-with-user:
           azure-username: DBT_AZURE_USERNAME
           azure-password: DBT_AZURE_PASSWORD
@@ -108,8 +106,7 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - AZ CLI User
           command: |
-            cd test/integration
-            dbt compile --target azuresql_azcli
+            tox --workdir test/integration -e dbt -- compile --target azuresql_azcli
       - azure-cli/login-with-service-principal:
           azure-sp: DBT_AZURE_SP_NAME
           azure-sp-password: DBT_AZURE_SP_SECRET
@@ -117,8 +114,7 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - AZ CLI ServicePrincipal
           command: |
-            cd test/integration
-            dbt compile --target azuresql_azcli
+            tox --workdir test/integration -e dbt -- compile --target azuresql_azcli
 
 workflows:
   main:
