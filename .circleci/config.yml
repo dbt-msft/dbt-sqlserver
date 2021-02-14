@@ -47,8 +47,7 @@ jobs:
           name: prep for connecting
           command: |
             mkdir -p ~/.dbt
-            cd test/integration
-            cp sample.profiles.yml ~/.dbt/profiles.yml
+            cp test/integration/sample.profiles.yml ~/.dbt/profiles.yml
       - run:
           name: cnxn -- SQL Server - local sql cred
           command: |
@@ -56,13 +55,11 @@ jobs:
       - run:
           name: cnxn -- SQL Server - local sql cred encrypt
           command: |
-            cd test/integration
-            dbt compile --target sqlserver_local_encrypt
+            tox --workdir test/integration -e dbt -- compile --target sqlserver_local_encrypt
       - run:
           name: cnxn -- Azure SQL - SQL cred
           command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
+            tox --workdir test/integration -e dbt -- compile --target azuresql_sqlcred
 
       # TODO drop support for this method in favor of
       # https://github.com/dbt-msft/dbt-sqlserver/pull/71
