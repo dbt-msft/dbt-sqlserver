@@ -126,11 +126,14 @@
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
+   {%- set temp_view_sql = sql.replace("'", "''") -%}
 
    {% do adapter.drop_relation(tmp_relation) %}
    {% do adapter.drop_relation(relation) %}
 
-   {% do adapter.create_view_as(tmp_relation, temp_view_sql) %}
+   EXEC('create view {{ tmp_relation.schema }}.{{ tmp_relation.identifier }} as
+    {{ temp_view_sql }}
+    ');
 
    SELECT * INTO {{ relation }} FROM
     {{ tmp_relation }}
