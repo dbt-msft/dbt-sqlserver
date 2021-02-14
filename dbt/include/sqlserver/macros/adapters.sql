@@ -94,10 +94,6 @@
   {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
 
-{% macro sqlserver__create_view_as(relation, sql) -%}
-  create view {{ relation }} as
-    {{ sql }}
-{% endmacro %}
 
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
