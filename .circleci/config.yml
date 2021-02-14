@@ -21,6 +21,9 @@ jobs:
           MSSQL_IP_ADDRESS: 0.0.0.0
     executor: python/default
     steps:
+      - run:
+          name: "dbt version"
+          command: dbt --version
       - run: &install-git
           name: "TEMP: install Git"
           command: |
@@ -38,9 +41,6 @@ jobs:
   connection-sqlserver:
     <<: *sqlserver
     steps:
-      - run:
-          name: "dbt version"
-          command: dbt --version
       - run: *install-git
       - checkout
       - run: &install-dbt-sqlserver
