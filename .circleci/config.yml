@@ -22,8 +22,8 @@ jobs:
     executor: python/default
     steps:
       - run:
-          name: "uninstall dbt"
-          command: pip uninstall dbt
+          name: "run which dbt"
+          command: which dbt
       - run: &install-git
           name: "TEMP: install Git"
           command: |
