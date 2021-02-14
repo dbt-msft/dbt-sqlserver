@@ -75,6 +75,11 @@ jobs:
       - run: *install-git
       - checkout
       - run:
+          name: wake up serverless db
+          command: |
+            cd test/integration
+            dbt debug --target azuresql_sqlcred
+      - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
