@@ -94,7 +94,11 @@
   {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
 
-
+{% macro sqlserver__create_view_as(relation, sql) -%}
+  {# TSQL does not require parenthesizing SELECT statement #}
+  create view {{ relation }} as
+    {{ sql }}
+{% endmacro %}
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
