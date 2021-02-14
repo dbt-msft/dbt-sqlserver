@@ -7,6 +7,7 @@
 
 #### under the hood
 - dbt-sqlserver's incremental materialization is now 100% aligneed logically to dbt's global_project behavior! this makes maintaining `dbt-sqlserver` easier by decreasing code footprint. [#102](https://github.com/dbt-msft/dbt-sqlserver/pull/102)
+- clean up how relation objects are used in the adapter [#92](https://github.com/dbt-msft/dbt-sqlserver/pull/92)
 
 ### v0.19.0
 
