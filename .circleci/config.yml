@@ -38,8 +38,9 @@ jobs:
   connection-sqlserver:
     <<: *sqlserver
     steps:
-      - run: "dbt version"
-        command: dbt --version
+      - run:
+          name: "dbt version"
+          command: dbt --version
       - run: *install-git
       - checkout
       - run: &install-dbt-sqlserver
