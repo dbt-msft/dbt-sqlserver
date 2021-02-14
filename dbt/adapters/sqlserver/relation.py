@@ -24,4 +24,4 @@ class SQLServerIncludePolicy(Policy):
 class SQLServerRelation(BaseRelation):
     quote_policy: SQLServerQuotePolicy = SQLServerQuotePolicy()
     include_policy: SQLServerIncludePolicy = SQLServerIncludePolicy()
-    quote_character: str = '\''
+    quote_character: str = '"'
