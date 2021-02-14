@@ -10,7 +10,7 @@ jobs:
       - image: dataders/pyodbc:1.4
     steps:
       - checkout
-      - run: tox -e unit
+      - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
       - image: dataders/pyodbc:1.4
