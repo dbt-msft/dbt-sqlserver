@@ -61,7 +61,7 @@
     {%- set schema_relation = adapter.get_relation(database=relation.database,
                                                schema=relation.schema,
                                                identifier=table) -%}
-    {% do drop_relation(schema_relation) %}
+    {% do adapter.drop_relation(schema_relation) %}
   {%- endfor %}
 
   {% call statement('drop_schema') -%}
@@ -130,20 +130,16 @@
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
-   {%- set temp_view_sql = sql.replace("'", "''") -%}
 
-   {{ drop_relation(tmp_relation) }}
+   {% do adapter.drop_relation(tmp_relation) %}
+   {% do adapter.drop_relation(relation) %}
 
-   {{ drop_relation(relation) }}
-
-   EXEC('create view {{ tmp_relation }} as
-    {{ temp_view_sql }}
-    ');
+   {% do adapter.create_view_as(tmp_relation, temp_view_sql) %}
 
    SELECT * INTO {{ relation }} FROM
     {{ tmp_relation }}
 
-   {{ drop_relation(tmp_relation) }}
+   {% do adapter.drop_relation(tmp_relation) %}
     
    {% if not temporary and as_columnstore -%}
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
