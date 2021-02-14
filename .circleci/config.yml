@@ -26,6 +26,9 @@ jobs:
           command: |
             apt-get install -y git
       - checkout
+      - run: &install-dbt-sqlserver
+          name: "install dbt-sqlserver"
+          command: python setup.py install
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -40,6 +43,7 @@ jobs:
     steps:
       - run: *install-git
       - checkout
+      - run: *install-dbt-sqlserver
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -78,6 +82,7 @@ jobs:
     steps:
       - run: *install-git
       - checkout
+      - run: *install-dbt-sqlserver
       - run:
           name: wake up serverless db
           command: |
@@ -93,6 +98,7 @@ jobs:
     steps:
       - run: *install-git
       - checkout
+      - run: *install-dbt-sqlserver
       - run:
           name: install gnupg
           command: apt-get install gnupg -y
