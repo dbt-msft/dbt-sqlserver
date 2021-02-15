@@ -6,8 +6,6 @@ orbs:
 
 jobs:
   unit:
-    docker:
-      - image: dataders/pyodbc:1.4
     steps:
       - checkout
       - run: tox -- -v test/unit
