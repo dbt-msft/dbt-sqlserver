@@ -103,11 +103,6 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target azuresql_sqlcred
-      - run:
-          name: cnxn -- Azure SQL - SQL CRED user+pass
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_azcli
       - azure-cli/login-with-user:
           azure-username: DBT_AZURE_USERNAME
           azure-password: DBT_AZURE_PASSWORD
