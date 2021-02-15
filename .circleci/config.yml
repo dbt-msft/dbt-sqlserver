@@ -6,6 +6,8 @@ orbs:
 
 jobs:
   unit:
+    docker:
+      - image: circleci/python:3.7
     steps:
       - checkout
       - run: tox -- -v test/unit
