@@ -119,7 +119,7 @@ jobs:
           azure-sp-tenant: DBT_AZURE_TENANT
       - run:
           name: cnxn -- Azure SQL - AZ CLI ServicePrincipal
-          command: tox --workdir test/integration -e dbt -- compile --target azuresql_azcli
+          command: dbt compile --target azuresql_azcli
 
 workflows:
   main:
