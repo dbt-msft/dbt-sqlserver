@@ -13,7 +13,6 @@ jobs:
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
-      - image: dataders/pyodbc:1.4
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
