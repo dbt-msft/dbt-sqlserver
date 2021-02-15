@@ -8,6 +8,11 @@ jobs:
   unit:
     docker:
       - image: circleci/python:3.7
+      - image: mcr.microsoft.com/mssql/server:2019-latest
+        environment:
+          ACCEPT_EULA: 'yes'
+          MSSQL_SA_PASSWORD: 5atyaNadella
+          MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
       - checkout
       - run: pip install tox
