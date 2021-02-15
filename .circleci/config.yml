@@ -24,10 +24,6 @@ jobs:
           name: "TEMP: install Git"
           command: |
             apt-get install -y git
-      - run:
-          name: "TEMP: upgrade dbt"  # hot fix: dbt is installed in the pyodbc docker image, it should be removed there
-          command: |
-            pip install --upgrade dbt
       - checkout
       - run:
           name: wait for SQL Server container to set up
