@@ -19,7 +19,6 @@ jobs:
           ACCEPT_EULA: 'yes'
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
-    executor: python/default
     steps:
       - run: &install-git
           name: "TEMP: install Git"
@@ -70,7 +69,6 @@ jobs:
   integration-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
-    executor: python/default
     steps:
       - run: *install-git
       - run: *upgrade-dbt
@@ -87,7 +85,6 @@ jobs:
   connection-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
-    executor: python/default
     steps:
       - run: *install-git
       - run: *upgrade-dbt
