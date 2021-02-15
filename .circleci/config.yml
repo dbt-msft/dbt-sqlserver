@@ -21,9 +21,6 @@ jobs:
           MSSQL_IP_ADDRESS: 0.0.0.0
     executor: python/default
     steps:
-      - run:
-          name: "run which dbt"
-          command: which dbt
       - run: &install-git
           name: "TEMP: install Git"
           command: |
