@@ -21,9 +21,6 @@ jobs:
           MSSQL_IP_ADDRESS: 0.0.0.0
     executor: python/default
     steps:
-      - run:
-          name: "run which dbt"
-          command: which dbt
       - run: &install-git
           name: "TEMP: install Git"
           command: |
@@ -64,19 +61,7 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
-      - run:
-          name: cnxn -- Azure SQL - SQL cred
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
 
-      # TODO drop support for this method in favor of
-      # https://github.com/dbt-msft/dbt-sqlserver/pull/71
-      # - run:
-      #     name: cnxn -- Azure SQL - AAD Password
-      #     command: |
-      #       cd test/integration
-      #       dbt compile --target azuresql_aad
   integration-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
@@ -106,6 +91,11 @@ jobs:
           command: apt-get install gnupg -y
       - azure-cli/install
       - run: *prep=connect
+      - run:
+          name: cnxn -- Azure SQL - SQL cred
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_sqlcred
       - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
           command: |
