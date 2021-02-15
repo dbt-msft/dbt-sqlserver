@@ -5,7 +5,7 @@ orbs:
   azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
-  unit:
+  unit: &unit
     docker:
       - image: circleci/python:3.7
       - image: mcr.microsoft.com/mssql/server:2019-latest
@@ -15,7 +15,7 @@ jobs:
           MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
       - checkout
-      - run:
+      - run: &install-odbc
           name: "Install ODBC"
           command: |
             sudo apt-get update
@@ -23,20 +23,12 @@ jobs:
             sudo apt-get install unixodbc-dev
       - run: pip install tox
       - run: tox -- -v test/unit
-  integration-sqlserver: &sqlserver
-    docker:
-      - image: mcr.microsoft.com/mssql/server:2019-latest
-        environment:
-          ACCEPT_EULA: 'yes'
-          MSSQL_SA_PASSWORD: 5atyaNadella
-          MSSQL_IP_ADDRESS: 0.0.0.0
+  integration-sqlserver:
+    <<: *unit
     executor: python/default
     steps:
-      - run: &install-git
-          name: "TEMP: install Git"
-          command: |
-            apt-get install -y git
       - checkout
+      - run: *install-odbc
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -47,10 +39,10 @@ jobs:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
-    <<: *sqlserver
+    <<: *unit
     steps:
-      - run: *install-git
       - checkout
+      - run: *install-odbc
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: python setup.py install
@@ -72,15 +64,12 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
-
   integration-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
+    <<: *unit
     executor: python/default
     steps:
-      - run: *install-git
       - checkout
-      - run: *install-dbt-sqlserver
+      - run: *install-odbc
       - run:
           name: wake up serverless db
           command: |
@@ -90,13 +79,11 @@ jobs:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
+    <<: *unit
     executor: python/default
     steps:
-      - run: *install-git
       - checkout
-      - run: *install-dbt-sqlserver
+      - run: *install-odbc
       - run:
           name: install gnupg
           command: apt-get install gnupg -y
