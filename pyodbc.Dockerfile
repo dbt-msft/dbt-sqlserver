@@ -1,5 +1,5 @@
 
-FROM python:3.7-slim AS base
+FROM debian:latest
 
 ADD requirements.txt ./
 
