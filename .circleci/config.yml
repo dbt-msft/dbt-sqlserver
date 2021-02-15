@@ -25,7 +25,7 @@ jobs:
           name: "TEMP: install Git"
           command: |
             apt-get install -y git
-      - run:
+      - run: &upgrade-dbt
           name: "TEMP: upgrade dbt"  # hot fix: dbt is installed in the pyodbc docker image, it should be removed there
           command: |
             pip install --upgrade dbt
@@ -43,6 +43,7 @@ jobs:
     <<: *sqlserver
     steps:
       - run: *install-git
+      - run: *upgrade-dbt
       - checkout
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
@@ -72,6 +73,7 @@ jobs:
     executor: python/default
     steps:
       - run: *install-git
+      - run: *upgrade-dbt
       - checkout
       - run: *install-dbt-sqlserver
       - run:
@@ -88,6 +90,7 @@ jobs:
     executor: python/default
     steps:
       - run: *install-git
+      - run: *upgrade-dbt
       - checkout
       - run: *install-dbt-sqlserver
       - run:
