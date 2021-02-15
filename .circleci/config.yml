@@ -10,6 +10,7 @@ jobs:
       - image: circleci/python:3.7
     steps:
       - checkout
+      - run: pip install tox
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
