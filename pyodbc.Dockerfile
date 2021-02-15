@@ -1,5 +1,7 @@
 
-FROM debian:latest
+FROM python:3.7-slim AS base
+
+ADD requirements.txt ./
 
 # Setup dependencies for pyodbc
 RUN \
@@ -25,7 +27,11 @@ ENV PATH="$PATH:/opt/mssql-tools/bin"
 RUN \
   sed 's/Driver=psql/Driver=\/usr\/lib\/x86_64-linux-gnu\/odbc\/psql/' /etc/odbcinst.ini > /tmp/temp.ini && \
   mv -f /tmp/temp.ini /etc/odbcinst.ini
-
+# Install pip
+RUN \
+  pip install --upgrade pip && \
+  pip install -r requirements.txt && \
+  rm requirements.txt
 # permission management
 RUN \
   chmod +rwx /etc/ssl/openssl.cnf && \
