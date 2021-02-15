@@ -18,9 +18,9 @@ jobs:
       - run:
           name: "Install ODBC"
           command: |
-            apt-get update
-            apt-get install g++
-            apt-get install unixodbc-dev
+            sudo apt-get update
+            sudo apt-get install g++
+            sudo apt-get install unixodbc-dev
       - run: pip install tox
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
