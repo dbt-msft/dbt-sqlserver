@@ -135,7 +135,7 @@
    {% do adapter.drop_relation(tmp_relation) %}
    {% do adapter.drop_relation(relation) %}
 
-   EXEC('create view {{ tmp_relation.schema }}.{{ tmp_relation.identifier }} as
+   EXEC('create view {{ tmp_relation }} as
     {{ temp_view_sql }}
     ');
 
