@@ -126,26 +126,26 @@
 {% endmacro %}
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
-   {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
-   {% set tmp_relation = relation.incorporate(
-   path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
-   type='view')-%}
+  {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
+  {% set tmp_relation = relation.incorporate(
+    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
+    type='view') -%}
 
-   {% do adapter.drop_relation(tmp_relation) %}
-   {% do adapter.drop_relation(relation) %}
+  {% do adapter.drop_relation(tmp_relation) %}
+  {% do adapter.drop_relation(relation) %}
 
-   {% set view_sql = create_view_as(tmp_relation, sql) %}
-   {%- set view_sql_escpd = view_sql.replace("'", "''") -%}
-   EXEC('{{ view_sql_escpd }}');
+  {% set view_sql = create_view_as(tmp_relation, sql) %}
+  {%- set view_sql_escpd = view_sql.replace("'", "''") -%}
+  EXEC('{{ view_sql_escpd }}');
 
-   SELECT * INTO {{ relation }} FROM
-    {{ tmp_relation }}
+  SELECT * INTO {{ relation }} FROM
+  {{ tmp_relation }}
 
-   {% do adapter.drop_relation(tmp_relation) %}
-    
-   {% if not temporary and as_columnstore -%}
-   {{ sqlserver__create_clustered_columnstore_index(relation) }}
-   {% endif %}
+  {% do adapter.drop_relation(tmp_relation) %}
+  
+  {% if not temporary and as_columnstore -%}
+  {{ sqlserver__create_clustered_columnstore_index(relation) }}
+  {% endif %}
 
 {% endmacro %}
 
