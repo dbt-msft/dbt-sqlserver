@@ -1,5 +1,10 @@
 # Changelog
 
+### v0.19.0.2
+
+#### fixes
+- changing databases is now supported. [#110](https://github.com/dbt-msft/dbt-sqlserver/issues/110)
+
 ### v0.19.0.1
 
 #### fixes

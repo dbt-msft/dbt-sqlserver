@@ -72,31 +72,16 @@
 {% endmacro %}
 
 {% macro sqlserver__drop_relation(relation) -%}
-  {% if relation.type == 'view' -%}
-   {% set object_id_type = 'V' %}
-   {% elif relation.type == 'table'%}
-   {% set object_id_type = 'U' %}
-   {%- else -%} invalid target name
-   {% endif %}
-  {% call statement('drop_relation', auto_begin=False) -%}
-    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
-      begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
-      end
+  {% call statement('drop_relation', auto_begin=False) %}
+    USE [{{ relation.database }}]
+    DROP VIEW IF EXISTS {{ relation.include(database=False) }}
+    DROP TABLE IF EXISTS {{ relation.include(database=False) }}
   {%- endcall %}
 {% endmacro %}
 
 {% macro sqlserver__drop_relation_script(relation) -%}
-  {% if relation.type == 'view' -%}
-   {% set object_id_type = 'V' %}
-   {% elif relation.type == 'table'%}
-   {% set object_id_type = 'U' %}
-   {%- else -%} invalid target name
-   {% endif %}
-  if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
-      begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
-      end
+  DROP VIEW IF EXISTS {{ relation.include(database=False) }}
+  DROP TABLE IF EXISTS {{ relation.include(database=False) }}
 {% endmacro %}
 
 {% macro sqlserver__check_schema_exists(information_schema, schema) -%}
@@ -107,14 +92,26 @@
   {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
 
-{% macro sqlserver__create_view_as(relation, sql) -%}
-  create view {{ relation.schema }}.{{ relation.identifier }} as
-    {{ sql }}
+{% macro sqlserver__create_view_exec(relation, sql) -%}
+   {%- set temp_view_sql = sql.replace("'", "''") -%}
+
+   EXEC('create view {{ relation.schema }}.{{ relation.identifier }} as
+    {{ temp_view_sql }}
+    ');
 {% endmacro %}
 
+{% macro sqlserver__create_view_as(relation, sql) -%}
+  USE [{{ relation.database }}]
+  {{ sqlserver__create_view_exec(relation, sql) }}
+{% endmacro %}
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
+    {% if from_relation.database != to_relation.database %}
+      {{ exceptions.raise_compiler_error("Can't do cross-database rename {} -> {}".format(from_relation, to_relation)) }}
+    {% endif %}
+    USE [{{ from_relation.database }}]
+    {{ sqlserver__drop_relation_script(to_relation) }}
     EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
     IF EXISTS(
     SELECT *
@@ -143,15 +140,14 @@
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
-   {%- set temp_view_sql = sql.replace("'", "''") -%}
 
+   USE [{{ relation.database }}]
+   
    {{ sqlserver__drop_relation_script(tmp_relation) }}
 
    {{ sqlserver__drop_relation_script(relation) }}
-
-   EXEC('create view {{ tmp_relation.schema }}.{{ tmp_relation.identifier }} as
-    {{ temp_view_sql }}
-    ');
+    
+   {{ sqlserver__create_view_exec(tmp_relation, sql) }}
 
    SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
     {{ tmp_relation.schema }}.{{ tmp_relation.identifier }}
