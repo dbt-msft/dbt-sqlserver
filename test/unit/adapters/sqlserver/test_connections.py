@@ -24,13 +24,15 @@ def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
     assert attrs_before == dict()
 
 
-def test_get_pyodbc_attrs_before_contains_access_token_key(
+@pytest.mark.parametrize("authentication", ["CLI", "cli", "cLi"])
+def test_get_pyodbc_attrs_before_contains_access_token_key_for_cli_authentication(
     credentials: SQLServerCredentials,
+    authentication: str
 ) -> None:
     """
-    When the Azure authentication is used, the attrs before should contain an
+    When the cli authentication is used, the attrs before should contain an
     access token key.
     """
-    credentials.authentication = "CLI"
+    credentials.authentication = authentication
     attrs_before = connections.get_pyodbc_attrs_before(credentials)
     assert 1256 in attrs_before.keys()
