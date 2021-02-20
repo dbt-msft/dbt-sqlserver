@@ -311,25 +311,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             con_str_display = ';'.join(con_str)
 
-            logger.debug(f'Using connection string: {con_str_display}')
+            logger.debug(f"Using connection string: {con_str_display}")
 
-            if type_auth in AZURE_AUTH_FUNCTIONS.keys():
-                # create token if it does not exist
-                if cls.TOKEN is None:
-                    azure_auth_function = AZURE_AUTH_FUNCTIONS[type_auth]
-                    token = azure_auth_function(credentials)
-                    cls.TOKEN = convert_access_token_to_mswindows_byte_string(
-                        token
-                    )
-
-                # Source:
-                # https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
-                SQL_COPT_SS_ACCESS_TOKEN = 1256
-
-                attrs_before = {SQL_COPT_SS_ACCESS_TOKEN: cls.TOKEN}
-            else:
-                attrs_before = {}
-
+            attrs_before = get_pyodbc_attrs_before(credentials)
             handle = pyodbc.connect(
                 con_str_concat,
                 attrs_before=attrs_before,
