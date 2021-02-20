@@ -5,7 +5,7 @@ import os
 import time
 import struct
 from itertools import chain, repeat
-from typing import Callable, Mapping
+from typing import Callable, Dict, Mapping, Optional
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
@@ -22,6 +22,7 @@ from typing import Optional
 
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
+_TOKEN: Optional[bytes] = None
 
 
 @dataclass
@@ -182,6 +183,7 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     Authentication for SQL server with an access token:
     https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
     """
+    global _TOKEN
     attrs_before: Dict
 
     azure_auth_function_type = Callable[[SQLServerCredentials], AccessToken]
@@ -195,8 +197,8 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
         attrs_before = {}
     else:
         azure_auth_function = azure_auth_functions[authentication]
-        token = azure_auth_function(credentials)
-        token_bytes = convert_access_token_to_mswindows_byte_string(token)
+        _TOKEN = _TOKEN or azure_auth_function(credentials)
+        token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
 
         sql_copt_ss_access_token = 1256  # see source in docstring
         attrs_before = {sql_copt_ss_access_token: token_bytes}
