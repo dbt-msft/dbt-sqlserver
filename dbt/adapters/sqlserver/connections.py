@@ -183,8 +183,23 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     -------
     out : Dict
         The pyodbc attrs before.
+
+    Source
+    ------
+    Authentication for SQL server with an access token:
+    https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
     """
-    return {}
+    attrs_before: Dict
+    if credentials.authentication not in AZURE_AUTH_FUNCTIONS:
+        attrs_before = {}
+    else:
+        azure_auth_function = AZURE_AUTH_FUNCTIONS[credentials.authentication]
+        token = azure_auth_function(credentials)
+        token_bytes = convert_access_token_to_mswindows_byte_string(token)
+
+        sql_copt_ss_access_token = 1256  # see source in docstring
+        attrs_before = {sql_copt_ss_access_token: token_bytes}
+    return attrs_before
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
