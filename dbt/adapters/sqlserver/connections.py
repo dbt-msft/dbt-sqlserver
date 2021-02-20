@@ -170,6 +170,23 @@ AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
 }
 
 
+def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
+    """
+    Get the pyodbc attrs before.
+
+    Parameters
+    ----------
+    credentials : SQLServerCredentials
+        Credentials.
+
+    Returns
+    -------
+    out : Dict
+        The pyodbc attrs before.
+    """
+    return {}
+
+
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
     TOKEN = None
