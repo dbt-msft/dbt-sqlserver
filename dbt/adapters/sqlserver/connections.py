@@ -163,13 +163,6 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     return token
 
 
-AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials], AccessToken]
-AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
-    "ServicePrincipal": get_sp_access_token,
-    "CLI": get_cli_access_token,
-}
-
-
 def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     """
     Get the pyodbc attrs before.
@@ -190,10 +183,18 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
     """
     attrs_before: Dict
-    if credentials.authentication not in AZURE_AUTH_FUNCTIONS:
+
+    azure_auth_function_type = Callable[[SQLServerCredentials], AccessToken]
+    azure_auth_functions: Mapping[str, azure_auth_function_type] = {
+        "serviceprincipal": get_sp_access_token,
+        "cli": get_cli_access_token,
+    }
+
+    authentication = credentials.authentication.lower()
+    if authentication not in azure_auth_functions:
         attrs_before = {}
     else:
-        azure_auth_function = AZURE_AUTH_FUNCTIONS[credentials.authentication]
+        azure_auth_function = azure_auth_functions[authentication]
         token = azure_auth_function(credentials)
         token_bytes = convert_access_token_to_mswindows_byte_string(token)
 
