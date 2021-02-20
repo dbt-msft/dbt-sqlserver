@@ -22,7 +22,7 @@ from typing import Optional
 
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
-_TOKEN: Optional[bytes] = None
+_TOKEN: Optional[AccessToken] = None
 
 
 @dataclass
