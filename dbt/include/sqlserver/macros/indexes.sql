@@ -108,14 +108,23 @@ select @drop_remaining_indexes_last = (
 
 {{ log("Creating clustered index...") }}
 
+{% set idx_name = this.table + '__clustered_index_on_' + columns|join('_') %}
+
+if not exists(select * from sys.indexes 
+                where 
+                name = '{{ idx_name }}' and 
+                object_id = OBJECT_ID('{{ this }}')
+)
+begin
+
 create
 {% if unique -%}
 unique
 {% endif %}
 clustered index
-    {{ this.table }}__clustered_index_on_{{ columns|join("_") }}
+    {{ idx_name }}
       on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
-
+end
 {%- endmacro %}
 
 
@@ -123,11 +132,19 @@ clustered index
 
 {{ log("Creating nonclustered index...") }}
 
+{% set idx_name = this.table + '__index_on_' + columns|join('_') %}
+
+if not exists(select * from sys.indexes 
+                where 
+                name = '{{ idx_name }}' and 
+                object_id = OBJECT_ID('{{ this }}')
+)
+begin
 create nonclustered index
-    {{ this.table }}__index_on_{{ columns|join("_") }}
+    {{ idx_name }}
       on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
       {% if includes -%}
         include ({{ '[' + includes|join("], [") + ']' }})
       {% endif %}
-
+end
 {% endmacro %}
