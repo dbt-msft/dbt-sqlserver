@@ -173,7 +173,7 @@
 {% endmacro %}
 
 {% macro sqlserver__current_timestamp() -%}
-  getdate()
+  SYSDATETIME()
 {%- endmacro %}
 
 {% macro sqlserver__get_columns_in_relation(relation) -%}
