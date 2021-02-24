@@ -20,6 +20,7 @@
 #### Under the hood:
 - This adapter has separate CI tests to ensure all the connection methods are working as they should [#75](https://github.com/dbt-msft/dbt-sqlserver/pull/75)
 - This adapter has a CI job for running unit tests [#103](https://github.com/dbt-msft/dbt-sqlserver/pull/103)
+- Update the tox setup [#105](https://github.com/dbt-msft/dbt-sqlserver/pull/105)
 
 ### v0.18.1
 #### New Features:

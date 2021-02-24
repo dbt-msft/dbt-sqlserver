@@ -10,7 +10,7 @@ jobs:
       - image: dataders/pyodbc:1.4
     steps:
       - checkout
-      - run: tox -e unit
+      - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
       - image: dataders/pyodbc:1.4
@@ -19,12 +19,15 @@ jobs:
           ACCEPT_EULA: 'yes'
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
-    executor: python/default
     steps:
       - run: &install-git
           name: "TEMP: install Git"
           command: |
             apt-get install -y git
+      - run: &upgrade-dbt
+          name: "TEMP: upgrade dbt"  # hot fix: dbt is installed in the pyodbc docker image, it should be removed there
+          command: |
+            pip install --upgrade dbt
       - checkout
       - run:
           name: wait for SQL Server container to set up
@@ -32,18 +35,18 @@ jobs:
       - run:
           name: test connection via SQL CMD
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
-      - python/install-packages:
-          pkg-manager: pip
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
-          command: tox -e integration-sqlserver
+          command: tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
     <<: *sqlserver
     steps:
       - run: *install-git
+      - run: *upgrade-dbt
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
+      - run: &install-dbt-sqlserver
+          name: "install dbt-sqlserver"
+          command: python setup.py install
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -51,8 +54,7 @@ jobs:
           name: prep for connecting
           command: |
             mkdir -p ~/.dbt
-            cd test/integration
-            cp sample.profiles.yml ~/.dbt/profiles.yml
+            cp test/integration/sample.profiles.yml ~/.dbt/profiles.yml
       - run:
           name: cnxn -- SQL Server - local sql cred
           command: |
@@ -63,28 +65,15 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
-      - run:
-          name: cnxn -- Azure SQL - SQL cred
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
 
-      # TODO drop support for this method in favor of
-      # https://github.com/dbt-msft/dbt-sqlserver/pull/71
-      # - run:
-      #     name: cnxn -- Azure SQL - AAD Password
-      #     command: |
-      #       cd test/integration
-      #       dbt compile --target azuresql_aad
   integration-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
-    executor: python/default
     steps:
       - run: *install-git
+      - run: *upgrade-dbt
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
+      - run: *install-dbt-sqlserver
       - run:
           name: wake up serverless db
           command: |
@@ -92,16 +81,15 @@ jobs:
             dbt debug --target azuresql_sqlcred
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
-          command: tox -e integration-azuresql
+          command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
     docker:
       - image: dataders/pyodbc:1.4
-    executor: python/default
     steps:
       - run: *install-git
+      - run: *upgrade-dbt
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
+      - run: *install-dbt-sqlserver
       - run:
           name: install gnupg
           command: apt-get install gnupg -y
