@@ -20,7 +20,7 @@ jobs:
           name: install MSFT ODBC Driver
           command: |
             export ACCEPT_EULA='Y' && \
-            curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
+            curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add - && \
             curl https://packages.microsoft.com/config/debian/9/prod.list > /etc/apt/sources.list.d/mssql-release.list && \
             sudo apt-get update && \
             sudo apt-get install -y msodbcsql17 odbc-postgresql mssql-tools
