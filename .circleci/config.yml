@@ -62,6 +62,7 @@ jobs:
       - run:
           name: unit test
           command: |
+            sudo apt-get install unixodbc-dev
             . venv/bin/activate
             tox -- -v test/unit
   integration-sqlserver: &sqlserver
