@@ -38,9 +38,15 @@ jobs:
             # allow weak certificates (certificate signed with SHA1)
             # by downgrading OpenSSL security level from 2 to 1
             sudo sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
-      - python/install-packages:
-          pip-dependency-file: dev_requirements.txt
-          pkg-manager: pip
+      - run:
+          name: install python deps
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -r dev_requirements.txt
+      # - python/install-packages:
+      #     pip-dependency-file: dev_requirements.txt
+      #     pkg-manager: pip
       - persist_to_workspace:
           root: .
           paths:
@@ -51,7 +57,11 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run: tox -- -v test/unit
+      - run:
+          name:
+          command: |
+            . venv/bin/activate
+            tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
       - image: circleci/python:3.7.9
