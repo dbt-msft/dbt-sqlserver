@@ -32,7 +32,7 @@ jobs:
       - run:
           name: TEMP -- downgrade security
           command: |
-            chmod +rwx /etc/ssl/openssl.cnf && \
+            sudo chmod +rwx /etc/ssl/openssl.cnf && \
             # change TLS back to version 1
             sed -i 's/TLSv1.2/TLSv1/g' /etc/ssl/openssl.cnf && \
             # allow weak certificates (certificate signed with SHA1)
