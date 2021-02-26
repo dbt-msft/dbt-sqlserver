@@ -82,7 +82,7 @@ jobs:
       - run:
           name: test connection via SQL CMD
           command: |
-            export PATH="$PATH:/opt/mssql-tools/bin
+            export PATH="$PATH:/opt/mssql-tools/bin"
             sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
