@@ -7,11 +7,12 @@
 
 #### under the hood
 - dbt-sqlserver's incremental materialization is now 100% aligneed logically to dbt's global_project behavior! this makes maintaining `dbt-sqlserver` easier by decreasing code footprint. [#102](https://github.com/dbt-msft/dbt-sqlserver/pull/102)
+- clean up how relation objects are used in the adapter [#92](https://github.com/dbt-msft/dbt-sqlserver/pull/92)
 
 ### v0.19.0
 
 #### New Features:
-- dbt-sqlserver's snapshotting now 100% aligneed logically to dbt's snapshotting behavior! Users can now snapshot 'hard-deleted' record as mentioned in the [dbt v0.19.0 release notes](https://github.com/fishtown-analytics/dbt/releases/tag/v0.19.0). An added benefit is that it makes maintaining `dbt-sqlserver` by decreasing code footprint. [#81](https://github.com/dbt-msft/dbt-sqlserver/pull/81)  [fishtown-analytics/dbt#3003](https://github.com/fishtown-analytics/dbt/issues/3003)
+- dbt-sqlserver's snapshotting now 100% aligneed logically to dbt's snapshotting behavior! Users can now snapshot 'hard-deleted' record as mentioned in the [dbt v0.19.0 release notes](https://github.com/fishtown-analytics/dbt/releases/tag/v0.19.0). An added benefit is that it makes maintaining `dbt-sqlserver` easier by decreasing code footprint. [#81](https://github.com/dbt-msft/dbt-sqlserver/pull/81)  [fishtown-analytics/dbt#3003](https://github.com/fishtown-analytics/dbt/issues/3003)
 #### Fixes:
 - small snapshot bug addressed via [#81](https://github.com/dbt-msft/dbt-sqlserver/pull/81)
 - support for clustered columnstore index creation pre SQL Server 2016. [#88](https://github.com/dbt-msft/dbt-sqlserver/pull/88) thanks [@alangsbo](https://github.com/alangsbo)

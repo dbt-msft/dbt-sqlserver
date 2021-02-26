@@ -1,5 +1,6 @@
 from dbt.adapters.sqlserver.connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.connections import SQLServerCredentials
+from dbt.adapters.sqlserver.relation import SQLServerRelation
 from dbt.adapters.sqlserver.impl import SQLServerAdapter
 
 from dbt.adapters.base import AdapterPlugin

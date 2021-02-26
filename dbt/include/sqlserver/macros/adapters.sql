@@ -44,9 +44,9 @@
 {% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
     USE [{{ relation.database }}]
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA {{ relation.without_identifier().schema }}')
+    EXEC('CREATE SCHEMA {{ relation.schema }}')
     END
   {% endcall %}
 {% endmacro %}
@@ -61,7 +61,7 @@
     {%- set schema_relation = adapter.get_relation(database=relation.database,
                                                schema=relation.schema,
                                                identifier=table) -%}
-    {% do drop_relation(schema_relation) %}
+    {% do adapter.drop_relation(schema_relation) %}
   {%- endfor %}
 
   {% call statement('drop_schema') -%}
@@ -79,24 +79,11 @@
    {%- else -%} invalid target name
    {% endif %}
   {% call statement('drop_relation', auto_begin=False) -%}
-    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
+    if object_id ('{{ relation }}','{{ object_id_type }}') is not null
       begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
+      drop {{ relation.type }} {{ relation }}
       end
   {%- endcall %}
-{% endmacro %}
-
-{% macro sqlserver__drop_relation_script(relation) -%}
-  {% if relation.type == 'view' -%}
-   {% set object_id_type = 'V' %}
-   {% elif relation.type == 'table'%}
-   {% set object_id_type = 'U' %}
-   {%- else -%} invalid target name
-   {% endif %}
-  if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
-      begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
-      end
 {% endmacro %}
 
 {% macro sqlserver__check_schema_exists(information_schema, schema) -%}
@@ -108,19 +95,19 @@
 {% endmacro %}
 
 {% macro sqlserver__create_view_as(relation, sql) -%}
-  create view {{ relation.schema }}.{{ relation.identifier }} as
+  {# TSQL does not require parenthesizing SELECT statement #}
+  create view {{ relation }} as
     {{ sql }}
 {% endmacro %}
 
-
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
-    EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
+    EXEC sp_rename '{{ from_relation }}', '{{ to_relation.identifier }}'
     IF EXISTS(
     SELECT *
     FROM sys.indexes
-    WHERE name='{{ from_relation.schema }}_{{ from_relation.identifier }}_cci' and object_id = OBJECT_ID('{{ from_relation.schema }}.{{ to_relation.identifier }}'))
-    EXEC sp_rename N'{{ from_relation.schema }}.{{ to_relation.identifier }}.{{ from_relation.schema }}_{{ from_relation.identifier }}_cci', N'{{ from_relation.schema }}_{{ to_relation.identifier }}_cci', N'INDEX'
+    WHERE name='{{ from_relation.schema }}_{{ from_relation.identifier }}_cci' and object_id = OBJECT_ID('{{ from_relation }}'))
+    EXEC sp_rename N'{{ from_relation }}.{{ from_relation.schema }}_{{ from_relation.identifier }}_cci', N'{{ from_relation.schema }}_{{ to_relation.identifier }}_cci', N'INDEX'
   {%- endcall %}
 {% endmacro %}
 
@@ -133,42 +120,38 @@
         sys.indexes WHERE name = '{{cci_name}}'
         AND object_id=object_id('{{relation_name}}')
     )
-  DROP index {{full_relation}}.{{cci_name}}
+  DROP index {{relation}}.{{cci_name}}
   CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
-    ON {{full_relation}}
+    ON {{relation}}
 {% endmacro %}
 
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
-   {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
-   {% set tmp_relation = relation.incorporate(
-   path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
-   type='view')-%}
-   {%- set temp_view_sql = sql.replace("'", "''") -%}
+  {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
+  {% set tmp_relation = relation.incorporate(
+    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
+    type='view') -%}
 
-   {{ sqlserver__drop_relation_script(tmp_relation) }}
+  {% do adapter.drop_relation(tmp_relation) %}
+  {% do adapter.drop_relation(relation) %}
 
-   {{ sqlserver__drop_relation_script(relation) }}
+  {% set view_sql = create_view_as(tmp_relation, sql) %}
+  {%- set view_sql_escpd = view_sql.replace("'", "''") -%}
+  EXEC('{{ view_sql_escpd }}');
 
-   EXEC('create view {{ tmp_relation.schema }}.{{ tmp_relation.identifier }} as
-    {{ temp_view_sql }}
-    ');
+  SELECT * INTO {{ relation }} FROM
+  {{ tmp_relation }}
 
-   SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
-    {{ tmp_relation.schema }}.{{ tmp_relation.identifier }}
+  {% do adapter.drop_relation(tmp_relation) %}
+  
+  {% if not temporary and as_columnstore -%}
+  {{ sqlserver__create_clustered_columnstore_index(relation) }}
+  {% endif %}
 
-   {{ sqlserver__drop_relation_script(tmp_relation) }}
-    
-   {% if not temporary and as_columnstore -%}
-   {{ sqlserver__create_clustered_columnstore_index(relation) }}
-   {% endif %}
-
-{% endmacro %}_
+{% endmacro %}
 
 {% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
-  {%- set full_to_relation = to_relation.schema ~ '.' ~ to_relation.identifier -%}
-  {%- set full_from_relation = from_relation.schema ~ '.' ~ from_relation.identifier -%}
 
-  SELECT * INTO {{full_to_relation}} FROM {{full_from_relation}}
+  SELECT * INTO {{to_relation}} FROM {{from_relation}}
 
 {% endmacro %}
 

@@ -1,5 +1,6 @@
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.sqlserver import SQLServerConnectionManager
+from dbt.adapters.sqlserver import SQLServerRelation
 from dbt.adapters.base.relation import BaseRelation
 import agate
 from typing import (
@@ -10,7 +11,7 @@ from typing import (
 
 class SQLServerAdapter(SQLAdapter):
     ConnectionManager = SQLServerConnectionManager
-
+    Relation = SQLServerRelation
     @classmethod
     def date_function(cls):
         return "getdate()"
