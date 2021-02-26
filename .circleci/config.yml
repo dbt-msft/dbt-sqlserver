@@ -96,7 +96,9 @@ jobs:
           at: .
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
-          command: sudo python setup.py install
+          command: |
+            sudo apt-get install unixodbc-dev
+            sudo python setup.py install
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
