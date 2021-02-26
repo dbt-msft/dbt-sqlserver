@@ -8,8 +8,6 @@ jobs:
   build:
     docker: &python3-7
       - image: circleci/python:3.7.9
-        # environment:
-        #   ACCEPT_EULA: 'Y'
     steps:
       - checkout
       - run:
@@ -30,7 +28,7 @@ jobs:
           command: |
             export PATH="$PATH:/opt/mssql-tools/bin"
             sed 's/Driver=psql/Driver=\/usr\/lib\/x86_64-linux-gnu\/odbc\/psql/' /etc/odbcinst.ini > /tmp/temp.ini && \
-            mv -f /tmp/temp.ini /etc/odbcinst.ini
+            sudo mv -f /tmp/temp.ini /etc/odbcinst.ini
       - run:
           name: TEMP -- downgrade security
           command: |
