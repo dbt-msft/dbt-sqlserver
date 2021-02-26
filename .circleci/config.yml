@@ -34,10 +34,10 @@ jobs:
           command: |
             sudo chmod +rwx /etc/ssl/openssl.cnf && \
             # change TLS back to version 1
-            sed -i 's/TLSv1.2/TLSv1/g' /etc/ssl/openssl.cnf && \
+            sudo sed -i 's/TLSv1.2/TLSv1/g' /etc/ssl/openssl.cnf && \
             # allow weak certificates (certificate signed with SHA1)
             # by downgrading OpenSSL security level from 2 to 1
-            sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
+            sudo sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
       - python/install-packages:
           pip-dependency-file: dev_requirements.txt
           pkg-manager: pip
