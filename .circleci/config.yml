@@ -53,6 +53,8 @@ jobs:
           root: .
           paths:
             - .
+            - /usr
+            - /opt
   unit:
     docker:
       - image: circleci/python:3.7.9
@@ -62,7 +64,6 @@ jobs:
       - run:
           name: unit test
           command: |
-            sudo apt-get install unixodbc-dev
             . venv/bin/activate
             tox -- -v test/unit
   integration-sqlserver: &sqlserver
@@ -173,13 +174,15 @@ workflows:
   main:
     jobs:
       - build
-      - unit: &build_first
+      - unit:
           requires:
             - build
       - connection-azuresql: &build_and_profile
-          <<: *build_first
+          requires:
+            - build
+            - unit
           context:
             - DBT_SYNAPSE_PROFILE
       - connection-sqlserver: *build_and_profile
-      - integration-sqlserver: *build_first
+      - integration-sqlserver: *build_and_profile
       - integration-azuresql: *build_and_profile
