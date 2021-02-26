@@ -20,10 +20,6 @@ jobs:
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
-      - run: &install-git
-          name: "TEMP: install Git"
-          command: |
-            apt-get install -y git
       - run: &upgrade-dbt
           name: "TEMP: upgrade dbt"  # hot fix: dbt is installed in the pyodbc docker image, it should be removed there
           command: |
@@ -41,7 +37,6 @@ jobs:
   connection-sqlserver:
     <<: *sqlserver
     steps:
-      - run: *install-git
       - run: *upgrade-dbt
       - checkout
       - run: &install-dbt-sqlserver
@@ -70,7 +65,6 @@ jobs:
     docker:
       - image: dataders/pyodbc:1.4
     steps:
-      - run: *install-git
       - run: *upgrade-dbt
       - checkout
       - run: *install-dbt-sqlserver
@@ -86,7 +80,6 @@ jobs:
     docker:
       - image: dataders/pyodbc:1.4
     steps:
-      - run: *install-git
       - run: *upgrade-dbt
       - checkout
       - run: *install-dbt-sqlserver
