@@ -52,7 +52,6 @@ jobs:
       - persist_to_workspace:
           root: /.
           paths:
-            - .
             - usr
             - opt
   unit:
