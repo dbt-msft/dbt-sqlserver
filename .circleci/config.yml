@@ -53,8 +53,8 @@ jobs:
           root: /.
           paths:
             - .
-            - /usr
-            - /opt
+            - usr
+            - opt
   unit:
     docker:
       - image: circleci/python:3.7.9
