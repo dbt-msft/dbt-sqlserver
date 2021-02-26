@@ -52,8 +52,12 @@ jobs:
       - persist_to_workspace:
           root: /.
           paths:
-            - usr
-            - opt
+            - usr/bin/iusql
+            - usr/bin/isql
+            - opt/microsoft/msodbcsql17
+            - opt/microsoft/msodbcsql17/etc/odbcinst.ini
+            - usr/lib64/libmsodbcsql-17.so
+            - etc/odbcinst.ini
   unit:
     docker:
       - image: circleci/python:3.7.9
