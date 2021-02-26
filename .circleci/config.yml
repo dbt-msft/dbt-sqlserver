@@ -16,6 +16,7 @@ jobs:
             sudo apt-get update && \
             sudo apt-get install -y curl build-essential g++ apt-transport-https && \
             sudo apt-get install -y unixodbc-dev && \
+            sudo apt-get install gnupg -y && \
             gpg --keyserver hkp://keys.gnupg.net --recv-keys 5072E1F5
       - run:
           name: install MSFT ODBC Driver
@@ -136,9 +137,6 @@ jobs:
       - attach_workspace:
           at: .
       - run: *install-dbt-sqlserver
-      - run:
-          name: install gnupg
-          command: apt-get install gnupg -y
       - azure-cli/install
       - run: *prep=connect
       - run:
