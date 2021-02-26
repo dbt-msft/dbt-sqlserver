@@ -8,6 +8,8 @@ jobs:
   build:
     docker: &python3-7
       - image: circleci/python:3.7.9
+        environment:
+          ACCEPT_EULA: 'Y'
     steps:
       - checkout
       - run:
@@ -19,7 +21,6 @@ jobs:
       - run:
           name: install MSFT ODBC Driver
           command: |
-            export ACCEPT_EULA='Y' && \
             curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add - && \
             curl https://packages.microsoft.com/config/debian/9/prod.list | sudo tee -a /etc/apt/sources.list.d/mssql-release.list && \
             sudo apt-get update && \
