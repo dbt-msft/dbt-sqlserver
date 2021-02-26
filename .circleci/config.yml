@@ -50,7 +50,7 @@ jobs:
       #     pip-dependency-file: dev_requirements.txt
       #     pkg-manager: pip
       - persist_to_workspace:
-          root: .
+          root: /.
           paths:
             - .
             - /usr
@@ -60,7 +60,7 @@ jobs:
       - image: circleci/python:3.7.9
     steps:
       - attach_workspace:
-          at: .
+          at: /.
       - run:
           name: unit test
           command: |
@@ -76,7 +76,7 @@ jobs:
           MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
       - attach_workspace:
-          at: .
+          at: /.
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -94,7 +94,7 @@ jobs:
     <<: *sqlserver
     steps:
       - attach_workspace:
-          at: .
+          at: /.
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: |
@@ -124,7 +124,7 @@ jobs:
       - image: circleci/python:3.7.9
     steps:
       - attach_workspace:
-          at: .
+          at: /.
       - run: *install-dbt-sqlserver
       - run:
           name: wake up serverless db
@@ -141,7 +141,7 @@ jobs:
       - image: circleci/python:3.7.9
     steps:
       - attach_workspace:
-          at: .
+          at: /.
       - run: *install-dbt-sqlserver
       - azure-cli/install
       - run: *prep=connect
