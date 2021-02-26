@@ -81,7 +81,9 @@ jobs:
           command: sleep 30
       - run:
           name: test connection via SQL CMD
-          command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
+          command: |
+            export PATH="$PATH:/opt/mssql-tools/bin
+            sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: |
