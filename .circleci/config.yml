@@ -5,15 +5,23 @@ orbs:
   azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
-  unit:
-    docker:
-      - image: dataders/pyodbc:1.4
+  build:
+    docker: &python3-7
+      - image: circleci/python:3.7.9
     steps:
       - checkout
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+  unit:
+    docker:
+      - image: circleci/python:3.7.9
+    steps:
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker:
-      - image: dataders/pyodbc:1.4
+      - image: circleci/python:3.7.9
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
@@ -24,7 +32,6 @@ jobs:
           name: "TEMP: upgrade dbt"  # hot fix: dbt is installed in the pyodbc docker image, it should be removed there
           command: |
             pip install --upgrade dbt
-      - checkout
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -38,7 +45,6 @@ jobs:
     <<: *sqlserver
     steps:
       - run: *upgrade-dbt
-      - checkout
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: python setup.py install
@@ -63,10 +69,9 @@ jobs:
 
   integration-azuresql:
     docker:
-      - image: dataders/pyodbc:1.4
+      - image: circleci/python:3.7.9
     steps:
       - run: *upgrade-dbt
-      - checkout
       - run: *install-dbt-sqlserver
       - run:
           name: wake up serverless db
@@ -78,10 +83,9 @@ jobs:
           command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
     docker:
-      - image: dataders/pyodbc:1.4
+      - image: circleci/python:3.7.9
     steps:
       - run: *upgrade-dbt
-      - checkout
       - run: *install-dbt-sqlserver
       - run:
           name: install gnupg
@@ -116,14 +120,14 @@ jobs:
 workflows:
   main:
     jobs:
-      - unit
-      - connection-azuresql:
+      - build
+      - unit: &build_first
+          requires:
+            - build
+      - connection-azuresql: &build_and_profile
+          <<: *build_first
           context:
             - DBT_SYNAPSE_PROFILE
-      - connection-sqlserver:
-          context:
-            - DBT_SYNAPSE_PROFILE
-      - integration-sqlserver
-      - integration-azuresql:
-          context:
-            - DBT_SYNAPSE_PROFILE
+      - connection-sqlserver: *build_and_profile
+      - integration-sqlserver: *build_first
+      - integration-azuresql: *build_and_profile
