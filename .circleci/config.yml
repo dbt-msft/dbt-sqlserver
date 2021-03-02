@@ -26,8 +26,9 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run: . venv/bin/activate
-      - run: tox -- -v test/unit
+      - run: |
+          . venv/bin/activate
+          tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker: &msodbc_py_&_sqlserver
       - image: dbtmsft/msodbc_py:0.1
@@ -39,7 +40,6 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run: . venv/bin/activate
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -48,13 +48,14 @@ jobs:
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
-          command: tox -- -v test/integration/sqlserver.dbtspec
+          command: |
+            . venv/bin/activate
+            tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
     <<: *sqlserver
     steps:
       - attach_workspace:
           at: .
-      - run: . venv/bin/activate
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: python setup.py install
@@ -91,13 +92,14 @@ jobs:
             dbt debug --target azuresql_sqlcred
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
-          command: tox -- -v test/integration/azuresql.dbtspec
+          command: |
+            . venv/bin/activate
+            tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
     docker: *msodbc_py
     steps:
       - attach_workspace:
           at: .
-      - run: . venv/bin/activate
       - run: *install-dbt-sqlserver
       - azure-cli/install
       - run: *prep=connect
