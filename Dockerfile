@@ -1,5 +1,6 @@
 
-FROM circleci/python:3.7.9 AS base
+FROM cimg/base:2020.03 AS base
+USER root
 
 # Setup dependencies for pyodbc
 RUN \
