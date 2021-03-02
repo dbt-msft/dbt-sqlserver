@@ -1,5 +1,5 @@
 
-FROM python:3.7-slim AS base
+FROM circleci/python:3.7.9 AS base
 
 ADD requirements.txt ./
 
