@@ -57,7 +57,7 @@ jobs:
           at: .
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
-          command: python setup.py install
+          command: python3 setup.py install
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
