@@ -37,6 +37,10 @@ RUN \
   sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
 
 RUN \
+# install python linux packages
+  apt-get install python3-venv python3-distutils
+
+RUN \
   # Cleanup build dependencies
   apt-get remove -y curl apt-transport-https debconf-utils rsync build-essential gnupg2 && \
   apt-get autoremove -y && apt-get autoclean -y

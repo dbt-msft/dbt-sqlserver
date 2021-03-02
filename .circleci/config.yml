@@ -7,13 +7,12 @@ orbs:
 jobs:
   build:
     docker: &msodbc_py
-      - image: dbtmsft/msodbc_py:0.1
+      - image: dbtmsft/msodbc_py:0.2
     steps:
       - checkout
       - run:
           name: install python deps
           command: |
-            apt-get install python3-venv python3-distutils
             python3 -m venv venv
             . venv/bin/activate
             pip install -r dev_requirements.txt
@@ -27,12 +26,11 @@ jobs:
       - attach_workspace:
           at: .
       - run: |
-          apt-get install python3-distutils python-dev
           . venv/bin/activate
           tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker: &msodbc_py_&_sqlserver
-      - image: dbtmsft/msodbc_py:0.1
+      - image: dbtmsft/msodbc_py:0.2
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
@@ -50,7 +48,6 @@ jobs:
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: |
-            apt-get install python3-distutils --reinstall
             . venv/bin/activate
             tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
