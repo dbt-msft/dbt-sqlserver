@@ -5,11 +5,27 @@ orbs:
   azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
-  unit:
+  build:
     docker: &msodbc_py
       - image: dbtmsft/msodbc_py:0.1
     steps:
       - checkout
+      - run: tox -- -v test/unit
+      - run:
+          name: install python deps
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -r dev_requirements.txt
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+  unit:
+    docker: *msodbc_py
+    steps:
+      - attach_workspace:
+          at: .
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker: &msodbc_py_&_sqlserver
@@ -121,7 +137,10 @@ jobs:
 workflows:
   main:
     jobs:
-      - unit
+      - build
+      - unit:
+          requires:
+            - build
       - connection-azuresql:
           context:
             - DBT_SYNAPSE_PROFILE
