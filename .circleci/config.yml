@@ -27,7 +27,7 @@ jobs:
       - attach_workspace:
           at: .
       - run: |
-          apt-get install python3-distutils --reinstall
+          apt-get install python3-distutils python-dev
           . venv/bin/activate
           tox -- -v test/unit
   integration-sqlserver: &sqlserver
