@@ -10,7 +10,6 @@ jobs:
       - image: dbtmsft/msodbc_py:0.1
     steps:
       - checkout
-      - run: tox -- -v test/unit
       - run:
           name: install python deps
           command: |
@@ -26,6 +25,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
+      - run: . venv/bin/activate
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker: &msodbc_py_&_sqlserver
@@ -38,6 +38,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
+      - run: . venv/bin/activate
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -52,6 +53,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
+      - run: . venv/bin/activate
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: python setup.py install
@@ -79,6 +81,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
+      - run: . venv/bin/activate
       - run: *install-dbt-sqlserver
       - run:
           name: wake up serverless db
@@ -93,6 +96,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
+      - run: . venv/bin/activate
       - run: *install-dbt-sqlserver
       - azure-cli/install
       - run: *prep=connect
