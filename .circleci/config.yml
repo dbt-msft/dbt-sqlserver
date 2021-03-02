@@ -7,7 +7,7 @@ orbs:
 jobs:
   build:
     docker: &msodbc_py
-      - image: dbtmsft/msodbc_py:0.2
+      - image: dbtmsft/msodbc_py:0.3
     steps:
       - checkout
       - run:
@@ -30,7 +30,7 @@ jobs:
           tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker: &msodbc_py_&_sqlserver
-      - image: dbtmsft/msodbc_py:0.2
+      - image: dbtmsft/msodbc_py:0.3
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
