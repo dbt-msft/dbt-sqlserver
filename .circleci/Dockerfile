@@ -38,5 +38,5 @@ RUN \
 
 RUN \
   # Cleanup build dependencies
-  apt-get remove -y curl apt-transport-https debconf-utils g++ gcc rsync build-essential gnupg2 && \
+  apt-get remove -y curl apt-transport-https debconf-utils rsync build-essential gnupg2 && \
   apt-get autoremove -y && apt-get autoclean -y
