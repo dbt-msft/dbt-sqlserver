@@ -6,14 +6,14 @@ orbs:
 
 jobs:
   unit:
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: &msodbc_py
+      - image: dbtmsft/msodbc_py:0.1
     steps:
       - checkout
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: &msodbc_py_&_sqlserver
+      - image: dbtmsft/msodbc_py:0.1
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
@@ -67,8 +67,7 @@ jobs:
             dbt compile --target sqlserver_local_encrypt
 
   integration-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: *msodbc_py
     steps:
       - run: *install-git
       - run: *upgrade-dbt
@@ -83,8 +82,7 @@ jobs:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: *msodbc_py
     steps:
       - run: *install-git
       - run: *upgrade-dbt
