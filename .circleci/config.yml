@@ -27,6 +27,7 @@ jobs:
       - attach_workspace:
           at: .
       - run: |
+          apt-get install python3-distutils --reinstall
           . venv/bin/activate
           tox -- -v test/unit
   integration-sqlserver: &sqlserver
@@ -49,6 +50,7 @@ jobs:
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: |
+            apt-get install python3-distutils --reinstall
             . venv/bin/activate
             tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
