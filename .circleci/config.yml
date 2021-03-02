@@ -36,15 +36,8 @@ jobs:
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
-      - run: &install-git
-          name: "TEMP: install Git"
-          command: |
-            apt-get install -y git
-      - run: &upgrade-dbt
-          name: "TEMP: upgrade dbt"  # hot fix: dbt is installed in the pyodbc docker image, it should be removed there
-          command: |
-            pip install --upgrade dbt
-      - checkout
+      - attach_workspace:
+          at: .
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -57,9 +50,8 @@ jobs:
   connection-sqlserver:
     <<: *sqlserver
     steps:
-      - run: *install-git
-      - run: *upgrade-dbt
-      - checkout
+      - attach_workspace:
+          at: .
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: python setup.py install
@@ -85,9 +77,8 @@ jobs:
   integration-azuresql:
     docker: *msodbc_py
     steps:
-      - run: *install-git
-      - run: *upgrade-dbt
-      - checkout
+      - attach_workspace:
+          at: .
       - run: *install-dbt-sqlserver
       - run:
           name: wake up serverless db
@@ -100,13 +91,9 @@ jobs:
   connection-azuresql:
     docker: *msodbc_py
     steps:
-      - run: *install-git
-      - run: *upgrade-dbt
-      - checkout
+      - attach_workspace:
+          at: .
       - run: *install-dbt-sqlserver
-      - run:
-          name: install gnupg
-          command: apt-get install gnupg -y
       - azure-cli/install
       - run: *prep=connect
       - run:
@@ -141,13 +128,11 @@ workflows:
       - unit:
           requires:
             - build
-      - connection-azuresql:
+      - connection-azuresql: &unit_and_profile
           context:
             - DBT_SYNAPSE_PROFILE
-      - connection-sqlserver:
-          context:
-            - DBT_SYNAPSE_PROFILE
-      - integration-sqlserver
-      - integration-azuresql:
-          context:
-            - DBT_SYNAPSE_PROFILE
+          requires:
+            - unit
+      - connection-sqlserver: *unit_and_profile
+      - integration-sqlserver: *unit_and_profile
+      - integration-azuresql: *unit_and_profile
