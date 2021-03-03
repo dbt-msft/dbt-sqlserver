@@ -5,11 +5,8 @@ USER root
 # Setup dependencies for pyodbc
 RUN \
     apt-get update && \
-    apt-get install -y curl build-essential unixodbc-dev unixodbc g++ apt-transport-https && \
+    apt-get install -y unixodbc-dev unixodbc g++ apt-transport-https && \
     gpg --keyserver hkp://keys.gnupg.net:80 --recv-keys 5072E1F5
-
-# install netcat (i.e. `nc` command)
-RUN apt install -y netcat
 
 RUN \
   export ACCEPT_EULA='Y' && \
