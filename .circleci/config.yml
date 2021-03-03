@@ -83,13 +83,6 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run: . venv/bin/activate
-      - run: *install-dbt-sqlserver
-      - run:
-          name: wake up serverless db
-          command: |
-            cd test/integration
-            dbt debug --target azuresql_sqlcred
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: |
