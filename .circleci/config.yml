@@ -53,12 +53,10 @@ jobs:
   connection-sqlserver:
     <<: *sqlserver
     steps:
-      - attach_workspace:
-          at: .
+      - checkout
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
-          command: |
-            pip install .
+          command: pip install .
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -91,8 +89,7 @@ jobs:
   connection-azuresql:
     docker: *msodbc_py
     steps:
-      - attach_workspace:
-          at: .
+      - checkout
       - run: *install-dbt-sqlserver
       - azure-cli/install
       - run: *prep=connect
@@ -125,14 +122,15 @@ workflows:
   main:
     jobs:
       - build
-      - unit:
+      - unit: &build
           requires:
             - build
-      - connection-azuresql: &unit_and_profile
+      - connection-azuresql: &profile
           context:
             - DBT_SYNAPSE_PROFILE
-          requires:
-            - unit
-      - connection-sqlserver: *unit_and_profile
-      - integration-sqlserver: *unit_and_profile
-      - integration-azuresql: *unit_and_profile
+      - connection-sqlserver: *profile
+      - integration-sqlserver: &build_and_profile
+          <<: *build
+          context:
+              - DBT_SYNAPSE_PROFILE
+      - integration-azuresql: *build_and_profile
