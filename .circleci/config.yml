@@ -15,6 +15,7 @@ jobs:
           command: |
             python3 -m venv venv
             . venv/bin/activate
+            pip install --upgrade pip setuptools
             pip install -r dev_requirements.txt
       - persist_to_workspace:
           root: .
