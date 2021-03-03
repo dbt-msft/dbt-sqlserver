@@ -58,6 +58,7 @@ jobs:
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: |
+            . venv/bin/activate
             python3 setup.py install
       - run:
           name: wait for SQL Server container to set up
