@@ -27,16 +27,6 @@ RUN \
   sed 's/Driver=psql/Driver=\/usr\/lib\/x86_64-linux-gnu\/odbc\/psql/' /etc/odbcinst.ini > /tmp/temp.ini && \
   mv -f /tmp/temp.ini /etc/odbcinst.ini
 
-# permission management
-RUN \
-  chmod +rwx /etc/ssl/openssl.cnf && \
-  # change TLS back to version 1
-  sed -i 's/TLSv1.2/TLSv1/g' /etc/ssl/openssl.cnf && \
-  # allow weak certificates (certificate signed with SHA1)
-  # by downgrading OpenSSL security level from 2 to 1
-  sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
-
-
 RUN \
   # Cleanup build dependencies
   apt-get remove -y curl apt-transport-https debconf-utils rsync build-essential gnupg2 && \
