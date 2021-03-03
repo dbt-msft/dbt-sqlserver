@@ -7,7 +7,7 @@ orbs:
 jobs:
   build:
     docker: &msodbc_py
-      - image: &docker_image dbtmsft/msodbc_py:0.4
+      - image: &docker_image dbtmsft/msodbc_py:0.5
     steps:
       - checkout
       - run:

@@ -1,12 +1,12 @@
 
-FROM cimg/base:2020.03 AS base
+FROM cimg/python:3.7.10 AS base
 USER root
 
 # Setup dependencies for pyodbc
 RUN \
     apt-get update && \
-    apt-get install -y curl build-essential unixodbc-dev g++ apt-transport-https && \
-    gpg --keyserver hkp://keys.gnupg.net --recv-keys 5072E1F5
+    apt-get install -y curl build-essential unixodbc-dev unixodbc g++ apt-transport-https && \
+    gpg --keyserver hkp://keys.gnupg.net:80 --recv-keys 5072E1F5
 
 # install netcat (i.e. `nc` command)
 RUN apt install -y netcat
@@ -36,9 +36,6 @@ RUN \
   # by downgrading OpenSSL security level from 2 to 1
   sed -i 's/SECLEVEL=2/SECLEVEL=1/g' /etc/ssl/openssl.cnf 
 
-RUN \
-# install python linux packages
-  apt-get install python3-venv python3-distutils python3-dev python3-setuptools
 
 RUN \
   # Cleanup build dependencies
