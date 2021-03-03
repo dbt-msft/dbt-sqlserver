@@ -59,7 +59,7 @@ jobs:
           name: "install dbt-sqlserver"
           command: |
             . venv/bin/activate
-            python3 setup.py install
+            pip install .
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
