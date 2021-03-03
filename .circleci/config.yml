@@ -15,7 +15,6 @@ jobs:
           command: |
             python3 -m venv venv
             . venv/bin/activate
-            pip install --upgrade pip setuptools
             pip install -r dev_requirements.txt
       - persist_to_workspace:
           root: .
@@ -59,7 +58,6 @@ jobs:
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: |
-            . venv/bin/activate
             pip install .
       - run:
           name: wait for SQL Server container to set up
@@ -72,13 +70,11 @@ jobs:
       - run:
           name: cnxn -- SQL Server - local sql cred
           command: |
-            . venv/bin/activate
             cd test/integration
             dbt compile --target sqlserver_local_userpass
       - run:
           name: cnxn -- SQL Server - local sql cred encrypt
           command: |
-            . venv/bin/activate
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
 
@@ -103,7 +99,6 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
           command: |
-            . venv/bin/activate
             cd test/integration
             dbt compile --target azuresql_sqlcred
       - azure-cli/login-with-user:
@@ -114,7 +109,6 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - AZ CLI User
           command: |
-            . venv/bin/activate
             cd test/integration
             dbt compile --target azuresql_azcli
       - azure-cli/login-with-service-principal:
@@ -124,7 +118,6 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - AZ CLI ServicePrincipal
           command: |
-            . venv/bin/activate
             cd test/integration
             dbt compile --target azuresql_azcli
 
