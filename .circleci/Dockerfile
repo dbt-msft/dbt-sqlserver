@@ -38,7 +38,7 @@ RUN \
 
 RUN \
 # install python linux packages
-  apt-get install python3-venv python3-distutils python3-dev
+  apt-get install python3-venv python3-distutils python3-dev python3-setuptools
 
 RUN \
   # Cleanup build dependencies
