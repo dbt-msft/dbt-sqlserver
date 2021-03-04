@@ -1,5 +1,11 @@
 # Changelog
 
+### v0.19.0.2
+
+#### fixes
+- solved a bug in snapshots introduced in v0.19.0. Fixes: [#108](https://github.com/dbt-msft/dbt-sqlserver/issues/108), [#117](https://github.com/dbt-msft/dbt-sqlserver/issues/117). 
+
+
 ### v0.19.0.1
 
 #### fixes
