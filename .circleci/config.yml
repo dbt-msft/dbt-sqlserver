@@ -1,34 +1,32 @@
 version: 2.1
 
 orbs:
-  python: circleci/python@1.1.0
+  python: circleci/python@1.3
   azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
   unit:
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: &msodbc_py
+      - image: &docker_image dbtmsft/msodbc_py:0.5
     steps:
       - checkout
+      - python/install-packages:
+                pkg-manager: pip
+                pip-dependency-file: dev_requirements.txt
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: &msodbc_py_&_sqlserver
+      - image: *docker_image
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
-      - run: &install-git
-          name: "TEMP: install Git"
-          command: |
-            apt-get install -y git
-      - run: &upgrade-dbt
-          name: "TEMP: upgrade dbt"  # hot fix: dbt is installed in the pyodbc docker image, it should be removed there
-          command: |
-            pip install --upgrade dbt
       - checkout
+      - python/install-packages:
+                pkg-manager: pip
+                pip-dependency-file: dev_requirements.txt
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -41,12 +39,10 @@ jobs:
   connection-sqlserver:
     <<: *sqlserver
     steps:
-      - run: *install-git
-      - run: *upgrade-dbt
       - checkout
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
-          command: python setup.py install
+          command: pip install .
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -67,32 +63,20 @@ jobs:
             dbt compile --target sqlserver_local_encrypt
 
   integration-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: *msodbc_py
     steps:
-      - run: *install-git
-      - run: *upgrade-dbt
       - checkout
-      - run: *install-dbt-sqlserver
-      - run:
-          name: wake up serverless db
-          command: |
-            cd test/integration
-            dbt debug --target azuresql_sqlcred
+      - python/install-packages:
+                pkg-manager: pip
+                pip-dependency-file: dev_requirements.txt
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -- -v test/integration/azuresql.dbtspec
   connection-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: *msodbc_py
     steps:
-      - run: *install-git
-      - run: *upgrade-dbt
       - checkout
       - run: *install-dbt-sqlserver
-      - run:
-          name: install gnupg
-          command: apt-get install gnupg -y
       - azure-cli/install
       - run: *prep=connect
       - run:
@@ -124,13 +108,9 @@ workflows:
   main:
     jobs:
       - unit
-      - connection-azuresql:
+      - connection-azuresql: &profile
           context:
             - DBT_SYNAPSE_PROFILE
-      - connection-sqlserver:
-          context:
-            - DBT_SYNAPSE_PROFILE
-      - integration-sqlserver
-      - integration-azuresql:
-          context:
-            - DBT_SYNAPSE_PROFILE
+      - connection-sqlserver: *profile
+      - integration-sqlserver: *profile
+      - integration-azuresql: *profile
