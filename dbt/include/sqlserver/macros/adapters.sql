@@ -26,7 +26,7 @@
             when table_type = 'VIEW' then 'view'
             else table_type
         end as [type]
-    from {{ schema_relation.database }}.information_schema.tables
+    from [{{ schema_relation.database }}].information_schema.tables
     where table_schema = '{{ schema_relation.schema }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
@@ -36,7 +36,7 @@
 {% macro sqlserver__list_schemas(database) %}
     {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
     select name as [schema]
-    from {{ database }}.sys.schemas
+    from [{{ database }}].sys.schemas
     {% endcall %}
     {{ return(load_result('list_schemas').table) }}
 {% endmacro %}
@@ -220,7 +220,7 @@
               character_maximum_length,
               numeric_precision,
               numeric_scale
-          from {{ relation.database }}.INFORMATION_SCHEMA.COLUMNS
+          from [{{ relation.database }}].INFORMATION_SCHEMA.COLUMNS
           where table_name = '{{ relation.identifier }}'
             and table_schema = '{{ relation.schema }}'
           UNION ALL
