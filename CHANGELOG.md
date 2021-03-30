@@ -4,7 +4,7 @@
 
 #### fixes
 - solved a bug in snapshots introduced in v0.19.0. Fixes: [#108](https://github.com/dbt-msft/dbt-sqlserver/issues/108), [#117](https://github.com/dbt-msft/dbt-sqlserver/issues/117). 
-
+- changing databases is now supported. [#110](https://github.com/dbt-msft/dbt-sqlserver/issues/110)
 
 ### v0.19.0.1
 
