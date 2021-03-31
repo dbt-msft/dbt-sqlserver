@@ -24,17 +24,17 @@
       case when table_type = 'BASE TABLE' then 'table'
            when table_type = 'VIEW' then 'view'
            else table_type
-      end as table_type
+      end as [type]
 
-    from information_schema.tables
+    from [{{ schema_relation.database }}].information_schema.tables
     where table_schema like '{{ schema_relation.schema }}'
-      and table_catalog like '{{ schema_relation.database }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
 {% endmacro %}
 
 {% macro sqlserver__list_schemas(database) %}
   {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
+    use {{ database }};
     select  name as [schema]
     from sys.schemas
   {% endcall %}
@@ -43,7 +43,7 @@
 
 {% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
-    USE [{{ relation.database }}]
+    use [{{ relation.database }}];
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
     BEGIN
     EXEC('CREATE SCHEMA {{ relation.without_identifier().schema }}')
@@ -79,6 +79,7 @@
    {%- else -%} invalid target name
    {% endif %}
   {% call statement('drop_relation', auto_begin=False) -%}
+    use [{{ relation.database }}];
     if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
       begin
       drop {{ relation.type }} {{ relation.include(database=False) }}
@@ -93,6 +94,7 @@
    {% set object_id_type = 'U' %}
    {%- else -%} invalid target name
    {% endif %}
+  use [{{ relation.database }}];
   if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
       begin
       drop {{ relation.type }} {{ relation.include(database=False) }}
@@ -107,14 +109,27 @@
   {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
 
+
+{% macro sqlserver__create_view_exec(relation, sql) -%}
+    {%- set temp_view_sql = sql.replace("'", "''") -%}
+    execute('create view {{ relation.include(database=False) }} as
+    {{ temp_view_sql }}
+    ');
+{% endmacro %}
+
+
 {% macro sqlserver__create_view_as(relation, sql) -%}
-  create view {{ relation.schema }}.{{ relation.identifier }} as
-    {{ sql }}
+    use [{{ relation.database }}];
+    {{ sqlserver__create_view_exec(relation, sql) }}
 {% endmacro %}
 
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
+    {% if from_relation.database != to_relation.database %}
+    {{ exceptions.raise_compiler_error("Can't do cross-database rename {} -> {}".format(from_relation, to_relation)) }}
+    {% endif %}
+    use [{{ to_relation.database }}];
     EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
     IF EXISTS(
     SELECT *
@@ -128,6 +143,7 @@
   {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
   {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
   {%- set full_relation = relation.schema ~ '.' ~ relation.identifier -%}
+  use [{{ relation.database }}];
   if EXISTS (
         SELECT * FROM
         sys.indexes WHERE name = '{{cci_name}}'
@@ -149,12 +165,13 @@
 
    {{ sqlserver__drop_relation_script(relation) }}
 
-   EXEC('create view {{ tmp_relation.schema }}.{{ tmp_relation.identifier }} as
+   use [{{ relation.database }}];
+   EXEC('create view {{ tmp_relation.include(database=False) }} as
     {{ temp_view_sql }}
     ');
 
-   SELECT * INTO {{ relation.schema }}.{{ relation.identifier }} FROM
-    {{ tmp_relation.schema }}.{{ tmp_relation.identifier }}
+   SELECT * INTO {{ relation }} FROM
+    {{ tmp_relation }}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
     
@@ -165,11 +182,7 @@
 {% endmacro %}_
 
 {% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
-  {%- set full_to_relation = to_relation.schema ~ '.' ~ to_relation.identifier -%}
-  {%- set full_from_relation = from_relation.schema ~ '.' ~ from_relation.identifier -%}
-
-  SELECT * INTO {{full_to_relation}} FROM {{full_from_relation}}
-
+  SELECT * INTO {{ to_relation }} FROM {{ from_relation }}
 {% endmacro %}
 
 {% macro sqlserver__current_timestamp() -%}
@@ -192,7 +205,7 @@
               character_maximum_length,
               numeric_precision,
               numeric_scale
-          from INFORMATION_SCHEMA.COLUMNS
+          from [{{ relation.database }}].INFORMATION_SCHEMA.COLUMNS
           where table_name = '{{ relation.identifier }}'
             and table_schema = '{{ relation.schema }}'
           UNION ALL
