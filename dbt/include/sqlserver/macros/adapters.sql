@@ -24,7 +24,7 @@
       case when table_type = 'BASE TABLE' then 'table'
            when table_type = 'VIEW' then 'view'
            else table_type
-      end as [type]
+      end as table_type
 
     from [{{ schema_relation.database }}].information_schema.tables
     where table_schema like '{{ schema_relation.schema }}'
