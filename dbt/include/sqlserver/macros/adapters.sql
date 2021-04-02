@@ -126,9 +126,6 @@
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
-    {% if from_relation.database != to_relation.database %}
-    {{ exceptions.raise_compiler_error("Can't do cross-database rename {} -> {}".format(from_relation, to_relation)) }}
-    {% endif %}
     use [{{ to_relation.database }}];
     EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
     IF EXISTS(
