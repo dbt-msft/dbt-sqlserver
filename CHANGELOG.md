@@ -10,6 +10,7 @@
 
 #### fixes
 - we now use the correct connection string parameter so MSFT can montior dbt adoption in their telemetry. [#98](https://github.com/dbt-msft/dbt-sqlserver/pull/98)
+- cli authentication is case insensitive. [#100](https://github.com/dbt-msft/dbt-sqlserver/issues/100)
 
 #### under the hood
 - dbt-sqlserver's incremental materialization is now 100% aligneed logically to dbt's global_project behavior! this makes maintaining `dbt-sqlserver` easier by decreasing code footprint. [#102](https://github.com/dbt-msft/dbt-sqlserver/pull/102)
