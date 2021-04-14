@@ -3,7 +3,8 @@
 ### v0.19.0.3
 
 #### under the hood
-- cli authentication is case insensitive. [#100](https://github.com/dbt-msft/dbt-sqlserver/issues/100)
+- authentication now is case-insensitive and accepts both `CLI` and `cli` as options. [#100](https://github.com/dbt-msft/dbt-sqlserver/issues/100) thanks (@JCZuurmond)[https://github.com/JCZuurmond]
+- add unit tests for azure-identity related token fetching
 
 ### v0.19.0.2
 
