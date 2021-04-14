@@ -4,6 +4,7 @@
 
 #### under the hood
 - cli authentication is case insensitive. [#100](https://github.com/dbt-msft/dbt-sqlserver/issues/100)
+
 ### v0.19.0.2
 
 #### fixes
