@@ -4,3 +4,7 @@ version: '1.0'
 config-version: 2
 
 profile: 'integration_tests'
+
+models:
+  sqlserver_integration_tests:
+    +as_columnstore: false
