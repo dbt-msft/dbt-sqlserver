@@ -113,4 +113,7 @@ workflows:
             - DBT_SYNAPSE_PROFILE
       - connection-sqlserver: *profile
       - integration-sqlserver: *profile
-      - integration-azuresql: *profile
+      - integration-azuresql:
+          <<: *profile
+          requires:
+            - connection-azuresql
