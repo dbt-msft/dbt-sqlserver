@@ -113,9 +113,9 @@ workflows:
   main:
     jobs:
       # - unit
-      # - connection-azuresql: &profile
-      #     context:
-      #       - DBT_SYNAPSE_PROFILE
+      - connection-azuresql: &profile
+          context:
+            - DBT_SYNAPSE_PROFILE
       # - connection-sqlserver: *profile
       # - integration-sqlserver: *profile
       - integration-azuresql:
