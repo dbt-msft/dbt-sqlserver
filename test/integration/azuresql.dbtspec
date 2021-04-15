@@ -25,7 +25,7 @@ projects:
     dbt_project_yml: *override-project
   - overrides: snapshot_strategy_timestamp
     dbt_project_yml: *override-project
-  - overrides: schema_test
+  - overrides: schema_tests
     dbt_project_yml: *override-project
 sequences:
   test_dbt_empty: empty
