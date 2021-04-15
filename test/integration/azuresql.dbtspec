@@ -13,13 +13,17 @@ target:
   threads: 1
 projects:
   - overrides: base
-    dbt_project_yml: &override-project
-      name: dbt_test_project
-      config-version: 2
-      version: '1.0.0'
-      models:
-        dbt_test_project:
-          +as_columnstore: false
+    dbt_project_yml: | &override-project
+      {
+          "name":"dbt_test_project",
+          "config-version": 2,
+          "version": "1.0.0",
+          "models": {
+          "dbt_test_project": {
+            "as_columnstore": "false"
+            }
+          }
+      }
   - overrides: ephemeral
     dbt_project_yml: *override-project
   - overrides: incremental
