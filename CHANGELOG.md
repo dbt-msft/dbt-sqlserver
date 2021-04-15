@@ -1,5 +1,9 @@
 # Changelog
 
+### v0.19.0.3
+
+#### under the hood
+- allow CI to work with the lower-cost serverless Azure SQL [#132](https://github.com/dbt-msft/dbt-sqlserver/pull/132)
 ### v0.19.0.2
 
 #### fixes
