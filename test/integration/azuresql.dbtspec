@@ -19,7 +19,8 @@ projects:
       version: '1.0.0'
       models:
         dbt_test_project:
-          +as_columnstore: false  - overrides: ephemeral
+          +as_columnstore: false 
+  - overrides: ephemeral
     dbt_project_yml: *override-project
   - overrides: incremental
     dbt_project_yml: *override-project
