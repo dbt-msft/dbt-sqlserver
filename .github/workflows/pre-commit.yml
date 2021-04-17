@@ -1,0 +1,30 @@
+name: "Pre commit"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8]
+    steps:
+     - uses: actions/checkout@v2
+
+     - name: Set up Python ${{ matrix.python-version }}
+       uses: actions/setup-python@v2
+       with:
+         python-version: ${{ matrix.python-version }}
+
+     - name: Install pre-commit
+       shell: bash
+       run: pip3 install pre-commit
+
+     - name: Run pre-commit hooks
+       shell: bash
+       run: pre-commit run --all-file

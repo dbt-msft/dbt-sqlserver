@@ -1,0 +1,60 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+        args: [--unsafe]
+      - id: debug-statements
+      - id: detect-private-key
+      - id: end-of-file-fixer
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.790
+    hooks:
+      - id: mypy
+  - repo: https://github.com/ambv/black
+    rev: 20.8b1
+    hooks:
+      - id: black
+        name: Run black formatter
+        language_version: python3.8
+  - repo: https://gitlab.com/pycqa/flake8
+    rev: 3.8.4
+    hooks:
+      - id: flake8
+        name: Run flake8 linter
+        additional_dependencies: ["flake8-bugbear==20.1.4", "pep8-naming==0.11.1"]
+  - repo: https://github.com/timothycrosley/isort
+    rev: 5.6.4
+    hooks:
+      - id: isort
+        additional_dependencies: [toml]
+        name: Sort imports using isort
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v2.7.4
+    hooks:
+      - id: pyupgrade
+        name: Check for code that can use new Python features
+        args: [--py38-plus]
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-bandit
+    rev: v1.0.4
+    hooks:
+      - id: python-bandit-vulnerability-check
+        args: [-l, --recursive, -x, tests]
+        name: Check for vulnerabilities in code with bandit
+        files: .py$
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.1.3
+    hooks:
+      - id: python-safety-dependencies-check
+        name: Check for vulnerable dependencies
+  - repo: https://github.com/hukkinj1/mdformat
+    rev: 0.5.3
+    hooks:
+      - id: mdformat
+        name: Format Markdown files
