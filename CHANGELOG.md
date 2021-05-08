@@ -1,5 +1,4 @@
 # Changelog
-
 ### v0.19.1
 
 #### features:
@@ -9,6 +8,7 @@
 #### under the hood
 
 - abandon four-part version names (`v0.19.0.2`) in favor of three-part version names because it isn't [SemVer](https://semver.org/) and it causes problems with the `~=` pip operator used dbt-synapse, a pacakge that depends on dbt-sqlserver
+- allow CI to work with the lower-cost serverless Azure SQL [#132](https://github.com/dbt-msft/dbt-sqlserver/pull/132)
 
 ### v0.19.0.2
 

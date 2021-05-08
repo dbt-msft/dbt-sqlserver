@@ -80,6 +80,11 @@ jobs:
       - azure-cli/install
       - run: *prep=connect
       - run:
+          name: wake up server
+          command: |
+            cd test/integration
+            dbt debug --target azuresql_sqlcred
+      - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
           command: |
             cd test/integration
@@ -113,4 +118,7 @@ workflows:
             - DBT_SYNAPSE_PROFILE
       - connection-sqlserver: *profile
       - integration-sqlserver: *profile
-      - integration-azuresql: *profile
+      - integration-azuresql:
+          <<: *profile
+          requires:
+            - connection-azuresql
