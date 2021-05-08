@@ -72,18 +72,8 @@
 {% endmacro %}
 
 {% macro sqlserver__drop_relation(relation) -%}
-  {% if relation.type == 'view' -%}
-   {% set object_id_type = 'V' %}
-   {% elif relation.type == 'table'%}
-   {% set object_id_type = 'U' %}
-   {%- else -%} invalid target name
-   {% endif %}
   {% call statement('drop_relation', auto_begin=False) -%}
-    use [{{ relation.database }}];
-    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
-      begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
-      end
+    {{ sqlserver__drop_relation_script(relation) }}
   {%- endcall %}
 {% endmacro %}
 
