@@ -43,7 +43,7 @@
 
 {% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
-    use [{{ relation.database }}];
+    USE [{{ relation.database }}];
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
     BEGIN
     EXEC('CREATE SCHEMA {{ relation.without_identifier().schema }}')
@@ -84,7 +84,7 @@
    {% set object_id_type = 'U' %}
    {%- else -%} invalid target name
    {% endif %}
-  use [{{ relation.database }}];
+  USE [{{ relation.database }}];
   if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
       begin
       drop {{ relation.type }} {{ relation.include(database=False) }}
@@ -109,7 +109,7 @@
 
 
 {% macro sqlserver__create_view_as(relation, sql) -%}
-    use [{{ relation.database }}];
+    USE [{{ relation.database }}];
     {{ sqlserver__create_view_exec(relation, sql) }}
 {% endmacro %}
 
