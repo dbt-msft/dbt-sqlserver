@@ -34,7 +34,7 @@
 
 {% macro sqlserver__list_schemas(database) %}
   {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
-    use {{ database }};
+    USE {{ database }};
     select  name as [schema]
     from sys.schemas
   {% endcall %}
@@ -116,7 +116,7 @@
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
-    use [{{ to_relation.database }}];
+    USE [{{ to_relation.database }}];
     EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
     IF EXISTS(
     SELECT *
@@ -152,7 +152,7 @@
 
    {{ sqlserver__drop_relation_script(relation) }}
 
-   use [{{ relation.database }}];
+   USE [{{ relation.database }}];
    EXEC('create view {{ tmp_relation.include(database=False) }} as
     {{ temp_view_sql }}
     ');
