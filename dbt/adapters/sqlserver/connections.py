@@ -383,9 +383,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     def execute(self, sql, auto_begin=True, fetch=False):
         _, cursor = self.add_query(sql, auto_begin)
-        status = self.get_response(cursor)
+        response = self.get_response(cursor)
         if fetch:
             table = self.get_result_from_cursor(cursor)
         else:
             table = dbt.clients.agate_helper.empty_table()
-        return status, table
+        return response, table
