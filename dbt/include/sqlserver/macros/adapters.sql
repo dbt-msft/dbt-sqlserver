@@ -74,7 +74,7 @@
         FROM
             INFORMATION_SCHEMA.TABLES
         WHERE
-            TABLE_SCHEMA = '{{ relation.schema }}'
+            TABLE_SCHEMA = '{{ relation.schema }}';
     {% endset %}
     {% set tables_to_drop = run_query(tables_in_schema_query).columns[0].values() %}
     {% for table in tables_to_drop %}
@@ -116,7 +116,7 @@
     USE [{{ relation.database }}];
     IF object_id('{{ relation.include(database=False) }}','{{ object_id_type }}') IS NOT NULL
     BEGIN
-        DROP {{ relation.type }} {{ relation.include(database=False) }}
+        DROP {{ relation.type }} {{ relation.include(database=False) }};
     END
 {% endmacro %}
 
@@ -127,7 +127,7 @@
         FROM
             sys.schemas
         WHERE
-            name = '{{ schema }}'
+            name = '{{ schema }}';
     {%- endcall %}
     {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
