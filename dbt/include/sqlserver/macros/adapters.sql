@@ -228,7 +228,7 @@
 
 
 {% macro sqlserver__current_timestamp() -%}
-    SYSDATETIME()
+    sysdatetime()
 {%- endmacro %}
 
 
