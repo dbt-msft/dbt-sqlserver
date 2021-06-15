@@ -62,7 +62,7 @@
                 name = '{{ relation.without_identifier().schema }}'
         )
         BEGIN
-            EXECUTE('CREATE SCHEMA {{ relation.without_identifier().schema }}');
+            EXECUTE('CREATE SCHEMA {{ relation.without_identifier().schema }};');
         END
     {% endcall %}
 {% endmacro %}
@@ -93,7 +93,7 @@
                 name = '{{ relation.schema }}'
         )
         BEGIN
-            EXECUTE('DROP SCHEMA {{ relation.schema }}');
+            EXECUTE('DROP SCHEMA {{ relation.schema }};');
         END
     {% endcall %}
 {% endmacro %}
@@ -197,9 +197,7 @@
     {%- set temp_view_sql = sql.replace("'", "''") -%}
 
     {{ sqlserver__drop_relation_script(tmp_relation) }}
-
     {{ sqlserver__drop_relation_script(relation) }}
-
     USE [{{ relation.database }}];
     EXECUTE('create view {{ tmp_relation.include(database=False) }} as
     {{ temp_view_sql }}
@@ -211,13 +209,11 @@
         {{ relation }}
     FROM
         {{ tmp_relation }};
-
     {{ sqlserver__drop_relation_script(tmp_relation) }}
 
     {% if not temporary and as_columnstore -%}
         {{ sqlserver__create_clustered_columnstore_index(relation) }}
     {% endif %}
-
 {% endmacro %}
 
 
