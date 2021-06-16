@@ -116,7 +116,7 @@
     USE [{{ relation.database }}];
     IF object_id('{{ relation.include(database=False) }}','{{ object_id_type }}') IS NOT NULL
     BEGIN
-        DROP {{ relation.type }} {{ relation.include(database=False) }};
+        DROP {{ relation.type | upper }} {{ relation.include(database=False) }};
     END
 {% endmacro %}
 
