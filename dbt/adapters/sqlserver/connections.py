@@ -347,7 +347,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             # pyodbc does not handle a None type binding!
             if bindings is None:
-                cursor2 = cursor.execute(sql)
+                cursor.execute(sql)
             else:
                 cursor.execute(sql, bindings)
 
