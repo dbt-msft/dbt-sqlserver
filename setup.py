@@ -48,16 +48,9 @@ setup(
     author_email="mikael.ene@eneanalytics.com",
     url="https://github.com/mikaelene/dbt-sqlserver",
     packages=find_packages(),
-    package_data={
-        "dbt": [
-            "include/sqlserver/dbt_project.yml",
-            "include/sqlserver/macros/*.sql",
-            "include/sqlserver/macros/**/*.sql",
-            "include/sqlserver/macros/**/**/*.sql",
-        ]
-    },
+    include_package_data=True,
     install_requires=[
-        "dbt-core==0.20.0rc1",
+        "dbt-core~=0.20.0rc",
         "pyodbc>=4.0.27",
         "azure-identity>=1.4.0",
     ]
