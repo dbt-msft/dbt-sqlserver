@@ -97,6 +97,3 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
-# example credential information
-cxn.json
