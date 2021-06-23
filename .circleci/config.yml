@@ -42,7 +42,8 @@ jobs:
       - checkout
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
-          command: pip install .
+          command: |
+            pip install . git+https://github.com/fishtown-analytics/dbt.git
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
