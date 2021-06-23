@@ -375,7 +375,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     self.get_response(cursor), (time.time() - pre)
                 )
             )
-
+            
             return connection, cursor
 
     @classmethod
@@ -402,9 +402,16 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     def execute(self, sql, auto_begin=True, fetch=False):
         _, cursor = self.add_query(sql, auto_begin)
-        status = self.get_response(cursor)
+        response = self.get_response(cursor)
         if fetch:
+            # Get the result of the first non-empty result set (if any)
+            while cursor.description is None:
+                if not cursor.nextset(): 
+                    break
             table = self.get_result_from_cursor(cursor)
         else:
             table = dbt.clients.agate_helper.empty_table()
-        return status, table
+        # Step through all result sets so we process all errors
+        while cursor.nextset(): 
+            pass
+        return response, table
