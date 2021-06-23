@@ -1,9 +1,11 @@
 # Changelog
 ### v0.19.2
 
-#### features:
+#### under the hood:
 
 - hotfix for regression introduced by [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) that wouldn't surface syntax errors from the SQL engine [#140](https://github.com/dbt-msft/dbt-sqlserver/issues/140) thanks [@jeroen-mostert](https://github.com/jeroen-mostert)!
+- authentication now is case-insensitive and accepts both `CLI` and `cli` as options. [#100](https://github.com/dbt-msft/dbt-sqlserver/issues/100) thanks (@JCZuurmond)[https://github.com/JCZuurmond]
+- add unit tests for azure-identity related token fetching
 
 ### v0.19.1
 
@@ -20,7 +22,6 @@
 
 #### fixes
 - solved a bug in snapshots introduced in v0.19.0. Fixes: [#108](https://github.com/dbt-msft/dbt-sqlserver/issues/108), [#117](https://github.com/dbt-msft/dbt-sqlserver/issues/117). 
-
 
 ### v0.19.0.1
 
