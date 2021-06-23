@@ -4,6 +4,7 @@
 #### features:
 
 - hotfix for regression introduced by [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) that wouldn't surface syntax errors from the SQL engine [#140](https://github.com/dbt-msft/dbt-sqlserver/issues/140) thanks [@jeroen-mostert](https://github.com/jeroen-mostert)!
+- ensure that macros are not recreated for incremental models [#116](https://github.com/dbt-msft/dbt-sqlserver/issues/116) thanks [@infused-kim](https://github.com/infused-kim)
 
 ### v0.19.1
 
