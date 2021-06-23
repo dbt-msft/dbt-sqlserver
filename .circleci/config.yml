@@ -1,49 +1,48 @@
 version: 2.1
 
 orbs:
-  python: circleci/python@1.1.0
+  python: circleci/python@1.3
   azure-cli: circleci/azure-cli@1.1.0
 
 jobs:
   unit:
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: &msodbc_py
+      - image: &docker_image dbtmsft/msodbc_py:0.5
     steps:
       - checkout
-      - run: tox -e unit
+      - python/install-packages:
+                pkg-manager: pip
+                pip-dependency-file: dev_requirements.txt
+      - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
-    docker:
-      - image: dataders/pyodbc:1.4
+    docker: &msodbc_py_&_sqlserver
+      - image: *docker_image
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'yes'
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
-    executor: python/default
     steps:
-      - run: &install-git
-          name: "TEMP: install Git"
-          command: |
-            apt-get install -y git
       - checkout
+      - python/install-packages:
+                pkg-manager: pip
+                pip-dependency-file: dev_requirements.txt
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
       - run:
           name: test connection via SQL CMD
           command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
-      - python/install-packages:
-          pkg-manager: pip
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
-          command: tox -e integration-sqlserver
+          command: tox -- -v test/integration/sqlserver.dbtspec
   connection-sqlserver:
     <<: *sqlserver
     steps:
-      - run: *install-git
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
+      - run: &install-dbt-sqlserver
+          name: "install dbt-sqlserver"
+          command: pip install .
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -51,8 +50,7 @@ jobs:
           name: prep for connecting
           command: |
             mkdir -p ~/.dbt
-            cd test/integration
-            cp sample.profiles.yml ~/.dbt/profiles.yml
+            cp test/integration/sample.profiles.yml ~/.dbt/profiles.yml
       - run:
           name: cnxn -- SQL Server - local sql cred
           command: |
@@ -63,50 +61,29 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
-      - run:
-          name: cnxn -- Azure SQL - SQL cred
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
 
-      # TODO drop support for this method in favor of
-      # https://github.com/dbt-msft/dbt-sqlserver/pull/71
-      # - run:
-      #     name: cnxn -- Azure SQL - AAD Password
-      #     command: |
-      #       cd test/integration
-      #       dbt compile --target azuresql_aad
   integration-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
-    executor: python/default
+    docker: *msodbc_py
     steps:
-      - run: *install-git
       - checkout
       - python/install-packages:
-          pkg-manager: pip
+                pkg-manager: pip
+                pip-dependency-file: dev_requirements.txt
       - run:
-          name: wake up serverless db
+          name: Test adapter on Azure SQL against dbt-adapter-tests
+          command: tox -- -v test/integration/azuresql.dbtspec
+  connection-azuresql:
+    docker: *msodbc_py
+    steps:
+      - checkout
+      - run: *install-dbt-sqlserver
+      - azure-cli/install
+      - run: *prep=connect
+      - run:
+          name: wake up server
           command: |
             cd test/integration
             dbt debug --target azuresql_sqlcred
-      - run:
-          name: Test adapter on Azure SQL against dbt-adapter-tests
-          command: tox -e integration-azuresql
-  connection-azuresql:
-    docker:
-      - image: dataders/pyodbc:1.4
-    executor: python/default
-    steps:
-      - run: *install-git
-      - checkout
-      - python/install-packages:
-          pkg-manager: pip
-      - run:
-          name: install gnupg
-          command: apt-get install gnupg -y
-      - azure-cli/install
-      - run: *prep=connect
       - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
           command: |
@@ -136,13 +113,12 @@ workflows:
   main:
     jobs:
       - unit
-      - connection-azuresql:
+      - connection-azuresql: &profile
           context:
             - DBT_SYNAPSE_PROFILE
-      - connection-sqlserver:
-          context:
-            - DBT_SYNAPSE_PROFILE
-      - integration-sqlserver
+      - connection-sqlserver: *profile
+      - integration-sqlserver: *profile
       - integration-azuresql:
-          context:
-            - DBT_SYNAPSE_PROFILE
+          <<: *profile
+          requires:
+            - connection-azuresql

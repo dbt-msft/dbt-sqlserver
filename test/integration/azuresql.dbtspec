@@ -11,13 +11,32 @@ target:
   encrypt: yes
   trust_cert: yes
   threads: 1
+projects:
+  - overrides: base
+    dbt_project_yml: &override-project
+      name: schema_tests
+      config-version: 2
+      version: '1.0.0'
+      models:
+        dbt_test_project:
+          +as_columnstore: false 
+  - overrides: ephemeral
+    dbt_project_yml: *override-project
+  - overrides: incremental
+    dbt_project_yml: *override-project
+  - overrides: snapshot_strategy_timestamp
+    dbt_project_yml: *override-project
+  - overrides: snapshot_strategy_check_cols
+    dbt_project_yml: *override-project
+  - overrides: schema_tests
+    dbt_project_yml: *override-project
 sequences:
   test_dbt_empty: empty
   test_dbt_base: base
   test_dbt_ephemeral: ephemeral
   test_dbt_incremental: incremental
   test_dbt_snapshot_strategy_timestamp: snapshot_strategy_timestamp
-  # test_dbt_snapshot_strategy_check_cols: snapshot_strategy_check_cols
+  test_dbt_snapshot_strategy_check_cols: snapshot_strategy_check_cols
   test_dbt_data_test: data_test
   test_dbt_schema_test: schema_test
   # test_dbt_ephemeral_data_tests: data_test_ephemeral_models

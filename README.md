@@ -155,6 +155,11 @@ client_secret: clientsecret
 
 But, columns in source table can not have any constraints. If for example any column has a NOT NULL constraint, an error will be thrown.
 
+### DBT Utils
+Many DBT utils macros are supported, but they require the addition of the `tsql_utils` dbt package. 
+
+You can find the package and installation instructions in the [tsql-utils repo](https://github.com/dbt-msft/tsql-utils).
+
 ### Indexes
 There is now possible to define a regular sql server index on a table. 
 This is best used when the default clustered columnstore index materialisation is not suitable. 
