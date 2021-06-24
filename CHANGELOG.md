@@ -1,6 +1,10 @@
 # Changelog
 ### v0.19.2
 
+#### fixes
+
+- fixing and issue with empty seed table that dbt-redshift already addressed with [fishtown-analytics/dbt#2255](https://github.com/fishtown-analytics/dbt/pull/2255) [#147](https://github.com/dbt-msft/dbt-sqlserver/pull/147)
+
 #### under the hood:
 
 - hotfix for regression introduced by [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) that wouldn't surface syntax errors from the SQL engine [#140](https://github.com/dbt-msft/dbt-sqlserver/issues/140) thanks [@jeroen-mostert](https://github.com/jeroen-mostert)!
