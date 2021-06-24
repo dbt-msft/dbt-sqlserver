@@ -43,10 +43,6 @@ jobs:
       - run: &install-dbt-sqlserver
           name: "install dbt-sqlserver"
           command: |
-            cd ..
-            git clone https://github.com/fishtown-analytics/dbt.git
-            pip install dbt/core
-            cd dbt-sqlserver 
             pip install .
       - run:
           name: wait for SQL Server container to set up
