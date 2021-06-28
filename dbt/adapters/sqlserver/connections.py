@@ -270,9 +270,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     con_str.append(f"PWD={{{credentials.PWD}}}")
                 elif type_auth == "ActiveDirectoryInteractive":
                     con_str.append(f"UID={{{credentials.UID}}}")
-                elif type_auth == "ActiveDirectoryIntegrated":
-                    # why is this necessary???
-                    con_str.remove("UID={None}")
                 elif type_auth == "ActiveDirectoryMsi":
                     raise ValueError("ActiveDirectoryMsi is not supported yet")
 
