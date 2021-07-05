@@ -145,14 +145,26 @@
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
-   type='view')-%}
+   type='view') -%}
    {%- set temp_view_sql = sql.replace("'", "''") -%}
+
+   {# Processing for temporary tables #}   
+   {% if relation.identifier.startswith('#') -%}
+      {% set relation = relation.create(
+            database='tempdb', schema=relation.schema, identifier=relation.identifier, type='table') -%}
+   {% endif -%}
+
+   {# Assign default relation.type if None #}   
+   {% if relation.type == None -%}
+      {% set relation = relation.incorporate(type='table') -%}
+   {% endif -%}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
 
    {{ sqlserver__drop_relation_script(relation) }}
 
-   USE [{{ relation.database }}];
+   {# USE the database of tmp_relation because relation might be a temporary table in tempdb #}   
+   USE [{{ tmp_relation.database }}];
    EXEC('create view {{ tmp_relation.include(database=False) }} as
     {{ temp_view_sql }}
     ');
@@ -166,7 +178,7 @@
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
 
-{% endmacro %}_
+{% endmacro %}
 
 {% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
   SELECT * INTO {{ to_relation }} FROM {{ from_relation }}
