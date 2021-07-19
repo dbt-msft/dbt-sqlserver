@@ -10,6 +10,20 @@
 
 - `sqlserver__load_csv_rows` now has a safety provided by `calc_batch_size()` to ensure the insert statements won't exceed SQL Server's 2100 parameter limit. [#127](https://github.com/dbt-msft/dbt-sqlserver/issues/127) and [#151](https://github.com/dbt-msft/dbt-sqlserver/pull/151) thanks [@jacobm001](https://github.com/jacobm001)
 
+### v0.19.2
+
+#### fixes
+
+- fixing and issue with empty seed table that dbt-redshift already addressed with [fishtown-analytics/dbt#2255](https://github.com/fishtown-analytics/dbt/pull/2255) [#147](https://github.com/dbt-msft/dbt-sqlserver/pull/147)
+- drop unneeded debugging code that only was run when "Active Directory integrated" was given as the auth method [#149](https://github.com/dbt-msft/dbt-sqlserver/pull/149)
+- hotfix for regression introduced by [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) that wouldn't surface syntax errors from the SQL engine [#140](https://github.com/dbt-msft/dbt-sqlserver/issues/140) thanks [@jeroen-mostert](https://github.com/jeroen-mostert)!
+
+#### under the hood:
+
+- ensure that macros are not recreated for incremental models [#116](https://github.com/dbt-msft/dbt-sqlserver/issues/116) thanks [@infused-kim](https://github.com/infused-kim)
+- authentication now is case-insensitive and accepts both `CLI` and `cli` as options. [#100](https://github.com/dbt-msft/dbt-sqlserver/issues/100) thanks (@JCZuurmond)[https://github.com/JCZuurmond]
+- add unit tests for azure-identity related token fetching
+
 ### v0.19.1
 
 #### features:
@@ -25,7 +39,6 @@
 
 #### fixes
 - solved a bug in snapshots introduced in v0.19.0. Fixes: [#108](https://github.com/dbt-msft/dbt-sqlserver/issues/108), [#117](https://github.com/dbt-msft/dbt-sqlserver/issues/117). 
-
 
 ### v0.19.0.1
 
