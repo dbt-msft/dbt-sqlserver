@@ -1,14 +1,17 @@
 # Changelog
+
 ### v0.20.0
 
 #### features:
 
 - dbt-sqlserver will now work with dbt `v0.20.0`. Please see dbt's [upgrading to `v0.20.0` docs](https://docs.getdbt.com/docs/guides/migration-guide/upgrading-to-0-20-0) for more info.
+- users can now declare a custom `max_batch_size` in the project configuration to set the batch size used by the seed file loader. [#127](https://github.com/dbt-msft/dbt-sqlserver/issues/127) and [#151](https://github.com/dbt-msft/dbt-sqlserver/pull/151) thanks [@jacobm001](https://github.com/jacobm001)
 
 #### under the hood
 
+- `sqlserver__load_csv_rows` now has a safety provided by `calc_batch_size()` to ensure the insert statements won't exceed SQL Server's 2100 parameter limit. [#127](https://github.com/dbt-msft/dbt-sqlserver/issues/127) and [#151](https://github.com/dbt-msft/dbt-sqlserver/pull/151) thanks [@jacobm001](https://github.com/jacobm001)
 - switched to using a `MANIFEST.in` to declare which files should be included
-- updated `pyodbc` and `azure-identity` dependencies to their latest versions
+- updated `pyodbc` and `azure-identity` dependencies to their latest versions 
 ### v0.19.2
 
 #### fixes
