@@ -50,7 +50,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        "dbt-core~=0.20.0rc",
+        "dbt-core~=0.20.0",
         "pyodbc>=4.0.27",
         "azure-identity>=1.4.0",
     ]
