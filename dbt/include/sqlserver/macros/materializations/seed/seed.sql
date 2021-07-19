@@ -50,5 +50,6 @@
 {% endmacro %}
 
 {% macro sqlserver__load_csv_rows(model, agate_table) %}
-  {{ return(sqlserver__basic_load_csv_rows(model, 200, agate_table) )}}
+  {% set max_batch_size = var("max_batch_size", 400) %}
+  {{ return(sqlserver__basic_load_csv_rows(model, max_batch_size, agate_table) )}}
 {% endmacro %}
