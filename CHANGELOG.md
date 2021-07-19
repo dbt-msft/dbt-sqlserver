@@ -3,7 +3,12 @@
 
 #### features:
 
-TBD!
+- dbt-sqlserver will now work with dbt `v0.20.0`. Please see dbt's [upgrading to `v0.20.0` docs](https://docs.getdbt.com/docs/guides/migration-guide/upgrading-to-0-20-0) for more info.
+
+#### under the hood
+
+- switched to using a `MANIFEST.in` to declare which files should be included
+- updated `pyodbc` and `azure-identity` dependencies to their latest versions
 
 ### v0.19.1
 
