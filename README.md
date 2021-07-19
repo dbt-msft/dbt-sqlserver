@@ -143,7 +143,7 @@ To set a different default seed value, you can set the variable `max_batch_size`
 
 ```yaml
 vars:
-  max_batch_size: 200 # Any integer will do.
+  max_batch_size: 200 # Any integer less than  or equal to 2100 will do.
 ```
 
 ### Hooks
