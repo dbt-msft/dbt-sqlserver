@@ -5,7 +5,7 @@ import os
 import time
 import struct
 from itertools import chain, repeat
-from typing import Callable, Mapping
+from typing import Callable, Dict, Mapping, Optional
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
@@ -22,6 +22,7 @@ from typing import Optional
 
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
+_TOKEN: Optional[AccessToken] = None
 
 
 @dataclass
@@ -162,12 +163,47 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     token = DefaultAzureCredential().get_token(AZURE_CREDENTIAL_SCOPE)
     return token
 
-MAX_QUERY_TIME_IN_SECONDS = 3300
-AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials], AccessToken]
-AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
-    "ServicePrincipal": get_sp_access_token,
-    "CLI": get_cli_access_token,
-}
+
+def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
+    """
+    Get the pyodbc attrs before.
+
+    Parameters
+    ----------
+    credentials : SQLServerCredentials
+        Credentials.
+
+    Returns
+    -------
+    out : Dict
+        The pyodbc attrs before.
+
+    Source
+    ------
+    Authentication for SQL server with an access token:
+    https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
+    """
+    global _TOKEN
+    attrs_before: Dict
+    MAX_QUERY_TIME_IN_SECONDS = 3300
+
+    azure_auth_function_type = Callable[[SQLServerCredentials], AccessToken]
+    azure_auth_functions: Mapping[str, azure_auth_function_type] = {
+        "serviceprincipal": get_sp_access_token,
+        "cli": get_cli_access_token,
+    }
+
+    authentication = credentials.authentication.lower()
+    if authentication not in azure_auth_functions:
+        attrs_before = {}
+    elif _TOKEN is None or (_TOKEN.expires_on - time.time()) < MAX_QUERY_TIME_IN_SECONDS:
+        azure_auth_function = azure_auth_functions[authentication]
+        _TOKEN = _TOKEN or azure_auth_function(credentials)
+        token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
+
+        sql_copt_ss_access_token = 1256  # see source in docstring
+        attrs_before = {sql_copt_ss_access_token: token_bytes}
+    return attrs_before
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
@@ -235,9 +271,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     con_str.append(f"PWD={{{credentials.PWD}}}")
                 elif type_auth == "ActiveDirectoryInteractive":
                     con_str.append(f"UID={{{credentials.UID}}}")
-                elif type_auth == "ActiveDirectoryIntegrated":
-                    # why is this necessary???
-                    con_str.remove("UID={None}")
                 elif type_auth == "ActiveDirectoryMsi":
                     raise ValueError("ActiveDirectoryMsi is not supported yet")
 
@@ -276,25 +309,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             con_str_display = ';'.join(con_str)
 
-            logger.debug(f'Using connection string: {con_str_display}')
+            logger.debug(f"Using connection string: {con_str_display}")
 
-            if type_auth in AZURE_AUTH_FUNCTIONS.keys():
-                # create token if it does not exist
-                if cls.TOKEN is None or (cls.TOKEN.expires_on - time.time()) < MAX_QUERY_TIME_IN_SECONDS:
-                    azure_auth_function = AZURE_AUTH_FUNCTIONS[type_auth]
-                    token = azure_auth_function(credentials)
-                    cls.TOKEN = convert_access_token_to_mswindows_byte_string(
-                        token
-                    )
-
-                # Source:
-                # https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
-                SQL_COPT_SS_ACCESS_TOKEN = 1256
-
-                attrs_before = {SQL_COPT_SS_ACCESS_TOKEN: cls.TOKEN}
-            else:
-                attrs_before = {}
-
+            attrs_before = get_pyodbc_attrs_before(credentials)
             handle = pyodbc.connect(
                 con_str_concat,
                 attrs_before=attrs_before,
@@ -356,7 +373,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     self.get_response(cursor), (time.time() - pre)
                 )
             )
-
+            
             return connection, cursor
 
     @classmethod
@@ -383,9 +400,16 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     def execute(self, sql, auto_begin=True, fetch=False):
         _, cursor = self.add_query(sql, auto_begin)
-        status = self.get_response(cursor)
+        response = self.get_response(cursor)
         if fetch:
+            # Get the result of the first non-empty result set (if any)
+            while cursor.description is None:
+                if not cursor.nextset(): 
+                    break
             table = self.get_result_from_cursor(cursor)
         else:
             table = dbt.clients.agate_helper.empty_table()
-        return status, table
+        # Step through all result sets so we process all errors
+        while cursor.nextset(): 
+            pass
+        return response, table
