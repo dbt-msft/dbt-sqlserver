@@ -162,7 +162,7 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     token = DefaultAzureCredential().get_token(AZURE_CREDENTIAL_SCOPE)
     return token
 
-
+MAX_QUERY_TIME_IN_SECONDS = 3300
 AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials], AccessToken]
 AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
     "ServicePrincipal": get_sp_access_token,
@@ -280,12 +280,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             if type_auth in AZURE_AUTH_FUNCTIONS.keys():
                 # create token if it does not exist
-                #if cls.TOKEN is None:
-                azure_auth_function = AZURE_AUTH_FUNCTIONS[type_auth]
-                token = azure_auth_function(credentials)
-                cls.TOKEN = convert_access_token_to_mswindows_byte_string(
-                    token
-                )
+                if cls.TOKEN is None or (cls.TOKEN.expires_on - time.time()) < MAX_QUERY_TIME_IN_SECONDS:
+                    azure_auth_function = AZURE_AUTH_FUNCTIONS[type_auth]
+                    token = azure_auth_function(credentials)
+                    cls.TOKEN = convert_access_token_to_mswindows_byte_string(
+                        token
+                    )
 
                 # Source:
                 # https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#authenticating-with-an-access-token
