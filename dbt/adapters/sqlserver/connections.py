@@ -185,6 +185,7 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     """
     global _TOKEN
     attrs_before: Dict
+    MAX_REMAINING_TIME = 300
 
     azure_auth_function_type = Callable[[SQLServerCredentials], AccessToken]
     azure_auth_functions: Mapping[str, azure_auth_function_type] = {
@@ -193,21 +194,24 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     }
 
     authentication = credentials.authentication.lower()
-    if authentication not in azure_auth_functions:
-        attrs_before = {}
-    else:
-        azure_auth_function = azure_auth_functions[authentication]
-        _TOKEN = _TOKEN or azure_auth_function(credentials)
-        token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
+    if authentication in azure_auth_functions:
+        time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
 
+        if _TOKEN is None or (time_remaining < MAX_REMAINING_TIME):
+            azure_auth_function = azure_auth_functions[authentication]
+            _TOKEN = azure_auth_function(credentials)
+
+        token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
         sql_copt_ss_access_token = 1256  # see source in docstring
         attrs_before = {sql_copt_ss_access_token: token_bytes}
+    else:
+        attrs_before = {}
+
     return attrs_before
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
-    TOKEN = None
 
     @contextmanager
     def exception_handler(self, sql):
