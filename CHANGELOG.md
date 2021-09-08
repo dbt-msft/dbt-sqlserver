@@ -1,4 +1,9 @@
 # Changelog
+### v0.19.3
+
+#### fixes
+
+- workaround for Azure CLI token expires after one hour. Now we get new tokens for every transaction. [#156](https://github.com/dbt-msft/dbt-sqlserver/issue/156)
 ### v0.19.2
 
 #### fixes
