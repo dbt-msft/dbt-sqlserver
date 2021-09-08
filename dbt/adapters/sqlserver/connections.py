@@ -208,7 +208,6 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
 
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
-    TOKEN = None
 
     @contextmanager
     def exception_handler(self, sql):
