@@ -185,6 +185,7 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     """
     global _TOKEN
     attrs_before: Dict
+    MAX_QUERY_TIME_IN_SECONDS = 3300
 
     azure_auth_function_type = Callable[[SQLServerCredentials], AccessToken]
     azure_auth_functions: Mapping[str, azure_auth_function_type] = {
@@ -195,7 +196,7 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     authentication = credentials.authentication.lower()
     if authentication not in azure_auth_functions:
         attrs_before = {}
-    else:
+    elif _TOKEN is None or (_TOKEN.expires_on - time.time()) < MAX_QUERY_TIME_IN_SECONDS:
         azure_auth_function = azure_auth_functions[authentication]
         _TOKEN = _TOKEN or azure_auth_function(credentials)
         token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
