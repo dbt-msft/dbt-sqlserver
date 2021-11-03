@@ -1,5 +1,15 @@
 # Changelog
 
+### v0.21.0
+
+Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core/releases/tag/v0.21.0) for upstream changes
+ 
+#### fixes
+
+- in dbt-sqlserver v0.20.0, users couldn't use some out of the box tests, such as accepted_values. users can now also use CTEs in their ~bespoke~ custom data tests
+- fixes issue with changing column types in incremental table column type [#152](https://github.com/dbt-msft/dbt-sqlserver/issue/152) [#169](https://github.com/dbt-msft/dbt-sqlserver/pull/169)
+- workaround for Azure CLI token expires after one hour. Now we get new tokens for every transaction. [#156](https://github.com/dbt-msft/dbt-sqlserver/issue/156) [#158](https://github.com/dbt-msft/dbt-sqlserver/pull/158)
+
 ### v0.20.1
 
 #### fixes:
