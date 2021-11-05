@@ -79,6 +79,10 @@ class SQLServerCredentials(Credentials):
             "trust_cert"
         )
 
+    @property
+    def unique_field(self):
+        return self.host
+
 
 def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
     """
