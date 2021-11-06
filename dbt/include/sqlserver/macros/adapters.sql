@@ -166,7 +166,7 @@
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
 
-{% endmacro %}_
+{% endmacro %}
 
 {% macro sqlserver__insert_into_from(to_relation, from_relation) -%}
   SELECT * INTO {{ to_relation }} FROM {{ from_relation }}
