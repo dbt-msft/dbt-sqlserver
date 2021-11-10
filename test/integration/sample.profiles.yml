@@ -40,3 +40,9 @@ integration_tests:
     azuresql_azcli:
       <<: *azuresql-basic
       authentication: CLI
+    azuresql_azauto:
+      <<: *azuresql-basic
+      authentication: auto
+    azuresql_azenv:
+      <<: *azuresql-basic
+      authentication: environment
