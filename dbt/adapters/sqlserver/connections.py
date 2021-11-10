@@ -9,8 +9,13 @@ from typing import Optional
 import dbt.exceptions
 import pyodbc
 from azure.core.credentials import AccessToken
-from azure.identity import AzureCliCredential, ManagedIdentityCredential, ClientSecretCredential, \
-    DefaultAzureCredential, EnvironmentCredential
+from azure.identity import (
+    AzureCliCredential,
+    ManagedIdentityCredential,
+    ClientSecretCredential,
+    DefaultAzureCredential,
+    EnvironmentCredential,
+)
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import AdapterResponse
@@ -73,7 +78,7 @@ class SQLServerCredentials(Credentials):
             "client_id",
             "authentication",
             "encrypt",
-            "trust_cert"
+            "trust_cert",
         )
 
     @property
@@ -210,8 +215,9 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     out : AccessToken
         The access token.
     """
-    token = ClientSecretCredential(credentials.tenant_id, credentials.client_id, credentials.client_secret).get_token(
-        AZURE_CREDENTIAL_SCOPE)
+    token = ClientSecretCredential(
+        credentials.tenant_id, credentials.client_id, credentials.client_secret
+    ).get_token(AZURE_CREDENTIAL_SCOPE)
     return token
 
 
@@ -244,12 +250,14 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
         "cli": get_cli_access_token,
         "msi": get_msi_access_token,
         "auto": get_auto_access_token,
-        "environment": get_environment_access_token
+        "environment": get_environment_access_token,
     }
 
     authentication = credentials.authentication.lower()
     if authentication in azure_auth_functions:
-        time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        time_remaining = (
+            (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        )
 
         if _TOKEN is None or (time_remaining < MAX_REMAINING_TIME):
             azure_auth_function = azure_auth_functions[authentication]
@@ -347,17 +355,17 @@ class SQLServerConnectionManager(SQLConnectionManager):
             application_name = f"dbt-{credentials.type}/{plugin_version}"
             con_str.append(f"Application Name={application_name}")
 
-            con_str_concat = ';'.join(con_str)
+            con_str_concat = ";".join(con_str)
 
             index = []
             for i, elem in enumerate(con_str):
-                if 'pwd=' in elem.lower():
+                if "pwd=" in elem.lower():
                     index.append(i)
 
-            if len(index) !=0 :
-                con_str[index[0]]="PWD=***"
+            if len(index) != 0:
+                con_str[index[0]] = "PWD=***"
 
-            con_str_display = ';'.join(con_str)
+            con_str_display = ";".join(con_str)
 
             logger.debug(f"Using connection string: {con_str_display}")
 
@@ -423,7 +431,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     self.get_response(cursor), (time.time() - pre)
                 )
             )
-            
+
             return connection, cursor
 
     @classmethod
@@ -432,20 +440,20 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def get_response(cls, cursor) -> AdapterResponse:
-        #message = str(cursor.statusmessage)
-        message = 'OK'
+        # message = str(cursor.statusmessage)
+        message = "OK"
         rows = cursor.rowcount
-        #status_message_parts = message.split() if message is not None else []
-        #status_messsage_strings = [
+        # status_message_parts = message.split() if message is not None else []
+        # status_messsage_strings = [
         #    part
         #    for part in status_message_parts
         #    if not part.isdigit()
-        #]
-        #code = ' '.join(status_messsage_strings)
+        # ]
+        # code = ' '.join(status_messsage_strings)
         return AdapterResponse(
             _message=message,
-            #code=code,
-            rows_affected=rows
+            # code=code,
+            rows_affected=rows,
         )
 
     def execute(self, sql, auto_begin=True, fetch=False):
@@ -454,12 +462,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
         if fetch:
             # Get the result of the first non-empty result set (if any)
             while cursor.description is None:
-                if not cursor.nextset(): 
+                if not cursor.nextset():
                     break
             table = self.get_result_from_cursor(cursor)
         else:
             table = dbt.clients.agate_helper.empty_table()
         # Step through all result sets so we process all errors
-        while cursor.nextset(): 
+        while cursor.nextset():
             pass
         return response, table
