@@ -120,7 +120,7 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - AZ SP auto
           command: |
-            export AZURE_CLIENT_ID="$DBT_AZURE_NAME"
+            export AZURE_CLIENT_ID="$DBT_AZURE_SP_NAME"
             export AZURE_CLIENT_SECRET="$DBT_AZURE_SECRET"
             export AZURE_TENANT_ID="$DBT_AZURE_TENANT"
             cd test/integration
