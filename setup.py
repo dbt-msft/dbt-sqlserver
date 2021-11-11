@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-from setuptools import find_packages
-from distutils.core import setup
+from setuptools import find_namespace_packages, setup
 import os
 import re
 
@@ -47,7 +46,7 @@ setup(
     author="Mikael Ene",
     author_email="mikael.ene@eneanalytics.com",
     url="https://github.com/mikaelene/dbt-sqlserver",
-    packages=find_packages(),
+    packages=find_namespace_packages(include=['dbt', 'dbt.*']),
     include_package_data=True,
     install_requires=[
         "dbt-core==0.21.1rc1",
