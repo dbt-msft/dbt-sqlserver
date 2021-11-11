@@ -20,8 +20,11 @@
   {% set target_relation = api.Relation.create(
       identifier=identifier, schema=schema, database=database, type='table') -%} %}
 
+
   {% if old_relation %}
-      {% do adapter.drop_relation(old_relation) %}
+    {% do adapter.drop_relation(old_relation) %}
+  {% elif not old_relation %}
+    {% do adapter.create_schema(target_relation) %}
   {% endif %}
 
   {% call statement(auto_begin=True) %}
