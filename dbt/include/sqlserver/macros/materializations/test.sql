@@ -23,7 +23,7 @@
   {% if old_relation %}
       {% do adapter.drop_relation(old_relation) %}
   {% endif %}
-  
+
   {% call statement(auto_begin=True) %}
       {{ create_table_as(False, target_relation, sql) }}
   {% endcall %}
@@ -32,9 +32,9 @@
       select *
       from {{ target_relation }}
   {% endset %}
-  
+
   {{ adapter.commit() }}
-  
+
 
   {% set limit = config.get('limit') %}
   {% set fail_calc = config.get('fail_calc') %}
@@ -52,7 +52,7 @@
   {% elif not should_store_failures() %}
     {% do adapter.drop_relation(target_relation) %}
   {% endif %}
-  
+
   {{ return({'relations': relations}) }}
 
 {%- endmaterialization -%}
