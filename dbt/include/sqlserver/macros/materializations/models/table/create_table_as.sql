@@ -1,4 +1,4 @@
-{% macro sqlserver__get_create_table_as_sql(temporary, relation, sql) -%}
+{% macro sqlserver__create_table_as(temporary, relation, sql) -%}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},

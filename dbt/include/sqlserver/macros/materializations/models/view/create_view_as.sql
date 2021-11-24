@@ -6,7 +6,7 @@
 {% endmacro %}
 
 
-{% macro sqlserver__get_create_view_as_sql(relation, sql) -%}
+{% macro sqlserver__create_view_as(relation, sql) -%}
     USE [{{ relation.database }}];
     {{ sqlserver__create_view_exec(relation, sql) }}
 {% endmacro %}
