@@ -1,5 +1,11 @@
 # Changelog
 
+### v0.21.1
+
+#### features
+
+- Added support for more authentication methods: automatic, environment variables, managed identity. All of them are documented in the readme. [#178](https://github.com/dbt-msft/dbt-sqlserver/pull/178) contributed by [@sdebruyn](https://github.com/sdebruyn)
+
 ### v0.21.0
 
 Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core/releases/tag/v0.21.0) for upstream changes
