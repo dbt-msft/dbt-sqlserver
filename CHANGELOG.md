@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.21.1
+
+- fix for [#186](https://github.com/dbt-msft/dbt-sqlserver/issues/186) where new columns weren't being added when snapshotting [#188]((https://github.com/dbt-msft/dbt-sqlserver/pull/188))
 ### v0.21.0
 
 Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core/releases/tag/v0.21.0) for upstream changes
