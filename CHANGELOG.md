@@ -8,7 +8,7 @@
 
 #### fixes
 
-- fix for [#186](https://github.com/dbt-msft/dbt-sqlserver/issues/186) where new columns weren't being added when snapshotting [#188]((https://github.com/dbt-msft/dbt-sqlserver/pull/188))
+- fix for [#186](https://github.com/dbt-msft/dbt-sqlserver/issues/186) where new columns weren't being added when snapshotting [#188](https://github.com/dbt-msft/dbt-sqlserver/pull/188)
 
 ### v0.21.0
 
