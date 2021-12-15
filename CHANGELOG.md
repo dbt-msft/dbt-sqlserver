@@ -1,5 +1,11 @@
 # Changelog
 
+
+### v1.0.0
+
+### Under the Hood
+
+- re-organize macros to match new structure [#184](https://github.com/dbt-msft/dbt-sqlserver/pull/184)
 ### v0.21.0
 
 Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core/releases/tag/v0.21.0) for upstream changes
