@@ -3,7 +3,10 @@
 
 ### v1.0.0
 
-### Under the Hood
+#### Fixes
+
+- fix index naming when columns contain spaces [#175](https://github.com/dbt-msft/dbt-sqlserver/pull/175)
+#### Under the Hood
 
 - re-organize macros to match new structure [#184](https://github.com/dbt-msft/dbt-sqlserver/pull/184)
 ### v0.21.0
