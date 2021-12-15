@@ -9,10 +9,10 @@
   {{ default__get_merge_sql(target, source, unique_key, dest_columns, predicates) }};
 {% endmacro %}
 
-{% macro sqlserver__get_insert_overwrite_merge_sql(target, source, dest_columns, predicates, include_sql_header) %}
-  {{ default__get_insert_overwrite_merge_sql(target, source, dest_columns, predicates, include_sql_header) }};
+{% macro sqlserver__get_delete_insert_merge_sql(target, source, unique_key, dest_columns) %}
+  {{ default__get_delete_insert_merge_sql(target, source, unique_key, dest_columns) }};
 {% endmacro %}
 
-{% macro sqlserver__snapshot_merge_sql(target, source, insert_cols) %}
-  {{ default__snapshot_merge_sql(target, source, insert_cols) }};
+{% macro sqlserver__get_insert_overwrite_merge_sql(target, source, dest_columns, predicates, include_sql_header) %}
+  {{ default__get_insert_overwrite_merge_sql(target, source, dest_columns, predicates, include_sql_header) }};
 {% endmacro %}
