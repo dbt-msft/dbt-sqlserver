@@ -59,14 +59,35 @@ trusted_connection: True
 ```
 ### Azure SQL-specific auth
 The following [`pyodbc`-supported ActiveDirectory methods](https://docs.microsoft.com/en-us/sql/connect/odbc/using-azure-active-directory?view=sql-server-ver15#new-andor-modified-dsn-and-connection-string-keywords) are available to authenticate to Azure SQL:
+- Auto
 - Azure CLI
+- Environment-based authentication
 - ActiveDirectory Password
 - ActiveDirectory Interactive
 - ActiveDirectory Integrated
 - Service Principal (a.k.a. AAD Application)
-- ~~ActiveDirectory MSI~~ (not implemented)
+- Managed Identity
 
-However, the Azure CLI is the ideal way to authenticate instead of using the built-in ODBC ActiveDirectory methods, for reasons detailed below.
+Usually the automatic option is the easiest one to use since it will work with any configuration already present in your environment, as explained below.
+
+#### Auto
+
+This will try to authenticate by using the following methods one by one until it finds a valid way to authenticate:
+
+1. Read credentials from environment variables (see environment-based authentication below)
+2. Use the managed identity of the system (see MSI below)
+3. VS Code: use the account used to log in to the VS Code Azure extension if installed
+4. Use the logged account in the Azure CLI if installed (see below)
+5. Azure PowerShell: use the account used with `Connect-AzAccount` in the Azure PowerShell module if installed
+
+To use automatic authentication, set `authentication` in `profiles.yml` to `Auto`:
+
+```yaml
+authentication: Auto
+```
+
+This is the recommended way for authenticating to databases on Azure because it avoids storing credentials in your
+profile and can resort to different authentication mechanisms depending on the system you're running dbt on.
 
 #### Azure CLI
 Use the authentication of the Azure command line interface (CLI). First, [install the Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli), then, log in:
@@ -77,47 +98,72 @@ az login
 
 Then, set `authentication` in `profiles.yml` to `CLI`:
 
-```
+```yaml
 authentication: CLI
 ```
 
-This is also the preferred route for using a service principal:
+#### Environment-based authentication
+You can let dbt dynamically use credentials from your environment variables by configuring
+your profile with environment-based authentication:
 
+```yaml
+authenticaton: environment
 ```
-az login --service-principal --username $CLIENTID --password $SECRET --tenant $TENANTID
-```
 
-This avoids storing a secret as plain text in `profiles.yml`.
+You can configure the following environment variables:
 
-Source: https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli#sign-in-using-a-service-principal
+**Service principal authentication**:
+* AZURE_CLIENT_ID
+* AZURE_TENANT_ID
+* AZURE_CLIENT_SECRET or AZURE_CLIENT_CERTIFICATE_PATH
+
+**User authenticaton**:
+* AZURE_USERNAME
+* AZURE_PASSWORD
+* AZURE_CLIENT_ID
 
 #### ActiveDirectory Password 
 Definitely not ideal, but available
-```
+
+```yaml
 authentication: ActiveDirectoryPassword
 user: bill.gates@microsoft.com
 password: i<3opensource?
 ```
+
 #### ActiveDirectory Interactive (*Windows only*)
-brings up the Azure AD prompt so you can MFA if need be. The downside to this approach is that you must log in each time you run a dbt command!
-```
+Brings up the Azure AD prompt so you can MFA if need be. The downside to this approach is that you must log in each time you run a dbt command!
+
+```yaml
 authentication: ActiveDirectoryInteractive
 user: bill.gates@microsoft.com
 ```
+
 #### ActiveDirectory Integrated (*Windows only*)
-uses your machine's credentials (might be disabled by your AAD admins), also requires that you have Active Directory Federation Services (ADFS) installed and running, which is only the case if you have an on-prem Active Directory linked to your Azure AD... 
-```
+Uses your machine's credentials (might be disabled by your AAD admins), also requires that you have Active Directory Federation Services (ADFS) installed and running, which is only the case if you have an on-prem Active Directory linked to your Azure AD... 
+
+```yaml
 authentication: ActiveDirectoryIntegrated
 ```
+
 ##### Service Principal
-`client_*` and `app_*` can be used interchangeably. Again, it is not recommended to store a service principal secret in plain text in your `dbt_profile.yml`. The CLI auth method is preferred.
-```
+`client_*` and `app_*` can be used interchangeably. Again, it is not recommended to store a service principal secret in plain text in your `dbt_profile.yml`. The auto, environment or CLI auth methods are preferred over this one.
+
+```yaml
 authentication: ServicePrincipal
 tenant_id: tenatid
 client_id: clientid
 client_secret: clientsecret
 ```
 
+#### Managed Identity
+
+If the system you're running dbt on has a [managed identity](https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview),
+then you can configure the authentication like so:
+
+```yaml
+authentication: MSI
+```
 
 ## Supported features
 

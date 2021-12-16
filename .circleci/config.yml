@@ -109,6 +109,27 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target azuresql_azcli
+      - run:
+          name: cnxn -- Azure SQL - AZ CLI auto
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_azauto
+      - run:
+          name: az logout
+          command: az logout
+      - run:
+          name: cnxn -- Azure SQL - AZ SP auto
+          command: |
+            export AZURE_CLIENT_ID="$DBT_AZURE_SP_NAME"
+            export AZURE_CLIENT_SECRET="$DBT_AZURE_SP_SECRET"
+            export AZURE_TENANT_ID="$DBT_AZURE_TENANT"
+            cd test/integration
+            dbt compile --target azuresql_azauto
+      - run:
+          name: cnxn -- Azure SQL - AZ SP env
+          command: |
+            cd test/integration
+            dbt compile --target azuresql_azenv
 
 workflows:
   main:

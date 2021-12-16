@@ -1,25 +1,27 @@
-from contextlib import contextmanager
-
-import pyodbc
-import os
-import time
 import struct
-from itertools import chain, repeat
-from typing import Callable, Dict, Mapping, Optional
-
-import dbt.exceptions
-from dbt.adapters.base import Credentials
-from dbt.adapters.sql import SQLConnectionManager
-from dbt.adapters.sqlserver import __version__
-from dbt.contracts.connection import AdapterResponse
-from azure.core.credentials import AccessToken
-from azure.identity import AzureCliCredential, DefaultAzureCredential
-
-from dbt.logger import GLOBAL_LOGGER as logger
-
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
+from itertools import chain, repeat
+from typing import Callable, Dict, Mapping
 from typing import Optional
 
+import dbt.exceptions
+import pyodbc
+from azure.core.credentials import AccessToken
+from azure.identity import (
+    AzureCliCredential,
+    ManagedIdentityCredential,
+    ClientSecretCredential,
+    DefaultAzureCredential,
+    EnvironmentCredential,
+)
+from dbt.adapters.base import Credentials
+from dbt.adapters.sql import SQLConnectionManager
+from dbt.contracts.connection import AdapterResponse
+from dbt.logger import GLOBAL_LOGGER as logger
+
+from dbt.adapters.sqlserver import __version__
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 _TOKEN: Optional[AccessToken] = None
@@ -76,7 +78,7 @@ class SQLServerCredentials(Credentials):
             "client_id",
             "authentication",
             "encrypt",
-            "trust_cert"
+            "trust_cert",
         )
 
     @property
@@ -145,6 +147,60 @@ def get_cli_access_token(credentials: SQLServerCredentials) -> AccessToken:
     return token
 
 
+def get_msi_access_token(credentials: SQLServerCredentials) -> AccessToken:
+    """
+    Get an Azure access token from the system's managed identity
+
+    Parameters
+    -----------
+    credentials: SQLServerCredentials
+        Credentials.
+
+    Returns
+    -------
+    out : AccessToken
+        The access token.
+    """
+    token = ManagedIdentityCredential().get_token(AZURE_CREDENTIAL_SCOPE)
+    return token
+
+
+def get_auto_access_token(credentials: SQLServerCredentials) -> AccessToken:
+    """
+    Get an Azure access token automatically through azure-identity
+
+    Parameters
+    -----------
+    credentials: SQLServerCredentials
+        Credentials.
+
+    Returns
+    -------
+    out : AccessToken
+        The access token.
+    """
+    token = DefaultAzureCredential().get_token(AZURE_CREDENTIAL_SCOPE)
+    return token
+
+
+def get_environment_access_token(credentials: SQLServerCredentials) -> AccessToken:
+    """
+    Get an Azure access token by reading environment variables
+
+    Parameters
+    -----------
+    credentials: SQLServerCredentials
+        Credentials.
+
+    Returns
+    -------
+    out : AccessToken
+        The access token.
+    """
+    token = EnvironmentCredential().get_token(AZURE_CREDENTIAL_SCOPE)
+    return token
+
+
 def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     """
     Get an Azure access token using the SP credentials.
@@ -159,12 +215,9 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     out : AccessToken
         The access token.
     """
-    # bc DefaultAzureCredential will look in env variables
-    os.environ["AZURE_TENANT_ID"] = credentials.tenant_id
-    os.environ["AZURE_CLIENT_ID"] = credentials.client_id
-    os.environ["AZURE_CLIENT_SECRET"] = credentials.client_secret
-
-    token = DefaultAzureCredential().get_token(AZURE_CREDENTIAL_SCOPE)
+    token = ClientSecretCredential(
+        credentials.tenant_id, credentials.client_id, credentials.client_secret
+    ).get_token(AZURE_CREDENTIAL_SCOPE)
     return token
 
 
@@ -195,11 +248,16 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     azure_auth_functions: Mapping[str, azure_auth_function_type] = {
         "serviceprincipal": get_sp_access_token,
         "cli": get_cli_access_token,
+        "msi": get_msi_access_token,
+        "auto": get_auto_access_token,
+        "environment": get_environment_access_token,
     }
 
     authentication = credentials.authentication.lower()
     if authentication in azure_auth_functions:
-        time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        time_remaining = (
+            (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        )
 
         if _TOKEN is None or (time_remaining < MAX_REMAINING_TIME):
             azure_auth_function = azure_auth_functions[authentication]
@@ -278,17 +336,10 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     con_str.append(f"PWD={{{credentials.PWD}}}")
                 elif type_auth == "ActiveDirectoryInteractive":
                     con_str.append(f"UID={{{credentials.UID}}}")
-                elif type_auth == "ActiveDirectoryMsi":
-                    raise ValueError("ActiveDirectoryMsi is not supported yet")
-
-            elif type_auth == "ServicePrincipal":
-                app_id = getattr(credentials, "AppId", None)
-                app_secret = getattr(credentials, "AppSecret", None)
 
             elif getattr(credentials, "windows_login", False):
                 con_str.append(f"trusted_connection=yes")
             elif type_auth == "sql":
-                #con_str.append("Authentication=SqlPassword")
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
 
@@ -304,17 +355,17 @@ class SQLServerConnectionManager(SQLConnectionManager):
             application_name = f"dbt-{credentials.type}/{plugin_version}"
             con_str.append(f"Application Name={application_name}")
 
-            con_str_concat = ';'.join(con_str)
+            con_str_concat = ";".join(con_str)
 
             index = []
             for i, elem in enumerate(con_str):
-                if 'pwd=' in elem.lower():
+                if "pwd=" in elem.lower():
                     index.append(i)
 
-            if len(index) !=0 :
-                con_str[index[0]]="PWD=***"
+            if len(index) != 0:
+                con_str[index[0]] = "PWD=***"
 
-            con_str_display = ';'.join(con_str)
+            con_str_display = ";".join(con_str)
 
             logger.debug(f"Using connection string: {con_str_display}")
 
@@ -380,7 +431,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     self.get_response(cursor), (time.time() - pre)
                 )
             )
-            
+
             return connection, cursor
 
     @classmethod
@@ -389,20 +440,20 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def get_response(cls, cursor) -> AdapterResponse:
-        #message = str(cursor.statusmessage)
-        message = 'OK'
+        # message = str(cursor.statusmessage)
+        message = "OK"
         rows = cursor.rowcount
-        #status_message_parts = message.split() if message is not None else []
-        #status_messsage_strings = [
+        # status_message_parts = message.split() if message is not None else []
+        # status_messsage_strings = [
         #    part
         #    for part in status_message_parts
         #    if not part.isdigit()
-        #]
-        #code = ' '.join(status_messsage_strings)
+        # ]
+        # code = ' '.join(status_messsage_strings)
         return AdapterResponse(
             _message=message,
-            #code=code,
-            rows_affected=rows
+            # code=code,
+            rows_affected=rows,
         )
 
     def execute(self, sql, auto_begin=True, fetch=False):
@@ -411,12 +462,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
         if fetch:
             # Get the result of the first non-empty result set (if any)
             while cursor.description is None:
-                if not cursor.nextset(): 
+                if not cursor.nextset():
                     break
             table = self.get_result_from_cursor(cursor)
         else:
             table = dbt.clients.agate_helper.empty_table()
         # Step through all result sets so we process all errors
-        while cursor.nextset(): 
+        while cursor.nextset():
             pass
         return response, table
