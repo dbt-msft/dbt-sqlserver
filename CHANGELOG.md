@@ -3,6 +3,8 @@
 
 ### v1.0.0
 
+Please see [dbt-core v1.0.0 release notes](https://github.com/dbt-labs/dbt-core/releases/tag/v1.0.0) for upstream changes
+
 #### Fixes
 
 - fix index naming when columns contain spaces [#175](https://github.com/dbt-msft/dbt-sqlserver/pull/175)
