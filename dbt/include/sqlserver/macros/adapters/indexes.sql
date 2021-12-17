@@ -1,4 +1,26 @@
+{% macro sqlserver__create_clustered_columnstore_index(relation) -%}
+  {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
+  {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
+  {%- set full_relation = relation.schema ~ '.' ~ relation.identifier -%}
+  use [{{ relation.database }}];
+  if EXISTS (
+        SELECT * FROM
+        sys.indexes WHERE name = '{{cci_name}}'
+        AND object_id=object_id('{{relation_name}}')
+    )
+  DROP index {{full_relation}}.{{cci_name}}
+  CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
+    ON {{full_relation}}
+{% endmacro %}
+
+
+{# TODO
+  move to dbt-postgres's index implementation strategy
+  https://github.com/dbt-msft/dbt-sqlserver/issues/163
+ #}
+
 {# most of this code is from https://github.com/jacobm001/dbt-mssql/blob/master/dbt/include/mssql/macros/indexes.sql        #}
+
 
 {% macro drop_xml_indexes() -%}
 {# Altered from https://stackoverflow.com/q/1344401/10415173 #}
