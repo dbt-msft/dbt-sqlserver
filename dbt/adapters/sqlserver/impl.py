@@ -88,17 +88,17 @@ class SQLServerIndexConfig(dbtClassMixin):
                 )
             # Check data compression parameter
             elif (ix_config.data_compression
-                and ix_data_compression not in ['page', 'row', 'columnstore', 'columnstore_archive']):
+                and ix_data_compression not in ['row', 'page', 'columnstore', 'columnstore_archive']):
                 dbt.exceptions.raise_compiler_error(
                     f'Invalid data compression:\n'
                     f'  Got: {ix_config.data_compression}\n'
-                    f'  data compression should be either: "page", "row", "columnstore", "columnstore_archive"'
+                    f'  data compression should be either: "row", "page", "columnstore", "columnstore_archive"'
                 )
             # Data compression for row-store indexes
-            elif (ix_data_compression in ['page', 'row']
+            elif (ix_data_compression in ['row', 'page']
                 and ix_type not in ['clustered', 'nonclustered']):
                 dbt.exceptions.raise_compiler_error(
-                    f'PAGE and ROW data compression works only with row-store indexes.\n'
+                    f'ROW and PAGE data compression works only with row-store indexes.\n'
                     f'  Remove or fix the "data_compression" parameter.'
                 )
             # Data compression for columnstore indexes

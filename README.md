@@ -216,6 +216,42 @@ Many DBT utils macros are supported, but they require the addition of the `tsql_
 You can find the package and installation instructions in the [tsql-utils repo](https://github.com/dbt-msft/tsql-utils).
 
 ### Indexes
+There is now possible to define a regular sql server index on a table in `indexes` section of model configuration.
+To use that way for creating indexes you need to disable `as_columnstore` in model configuration.
+You can do this in `dbt_project.yml` for the whole project or for the model personally.
+```yaml
+models:
+  my_project:
+    +as_columnstore: false
+```
+
+Supported parameters:
+- `type`: index type, accepted values: `clustered`, `nonclustered`, `clustered columnstore`, `nonclustered columnstore`
+- `columns`: columns list in index
+- `unique`: index uniquiness
+- `include_columns`: include columns list for nonclustered indexes
+- `partition_schema`: partition schema name for partitioning
+- `partition_column`: partition column name for partitioning
+- `data_compression`: data compression for indexes, accepted values: `row`, `page`, `columnstore`, `columnstore_archive` 
+
+Examples:
+```sql
+{{ config(
+    materialized = 'table',
+    as_columnstore: false,
+    indexes=[
+        {'type': 'clustered', 'columns': ['customer_id'], 'unique': True},
+        {'type': 'nonclustered', 'columns': ['number_of_orders'], 'include_columns': ['first_order']},
+        {'type': 'clustered columnstore'},
+        {'type': 'nonclustered columnstore', 'columns': ['customer_id', 'first_name', 'last_name']}
+        {'type': 'nonclustered', 'columns': ['customer_id'], 'partition_schema': 'ps_by_month',
+          'partition_column': 'order_date', 'data_compression': 'page'}
+    ]
+)}}
+```
+
+### Indexes (old-way)
+
 There is now possible to define a regular sql server index on a table. 
 This is best used when the default clustered columnstore index materialisation is not suitable. 
 One reason would be that you need a large table that usually is queried one row at a time.
