@@ -27,6 +27,12 @@
     {%- endif %}
     {% if index_config.include_columns -%}
       include ({{ "[" + index_config.include_columns|join("], [") + "]" }})
+    {%- endif %}
+    {% if index_config.data_compression -%}
+      with (data_compression = {{ data_compression }})
+    {%- endif %}
+    {% if index_config.partition_schema and index_config.partition_column -%}
+      on [{{ index_config.partition_schema }}] ({{ "[" + index_config.partition_column + "]" }})
     {%- endif %};
 {%- endmacro %}
 

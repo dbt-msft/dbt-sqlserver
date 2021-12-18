@@ -20,6 +20,9 @@ class SQLServerIndexConfig(dbtClassMixin):
     columns: Optional[List[str]] = None
     unique: Optional[bool] = None
     include_columns: Optional[List[str]] = None
+    partition_schema: Optional[str] = None
+    partition_column: Optional[str] = None
+    data_compression: Optional[str] = None
 
     def render(self, relation):
         """
@@ -46,12 +49,64 @@ class SQLServerIndexConfig(dbtClassMixin):
             return None
         try:
             cls.validate(raw_index)
-            index_config = cls.from_dict(raw_index)
-            if index_config.type.lower() not in ['clustered', 'nonclustered', 'clustered columnstore', 'nonclustered columnstore']:
+            ix_config = cls.from_dict(raw_index)
+            ix_type = ix_config.type.lower()
+            if ix_config.data_compression:
+                ix_data_compression = ix_config.data_compression.lower()
+            else:
+                ix_data_compression = None
+            # Check index type
+            if ix_type not in ['clustered', 'nonclustered', 'clustered columnstore', 'nonclustered columnstore']:
                 dbt.exceptions.raise_compiler_error(
                     f'Invalid index type:\n'
-                    f'  Got: {index_config.type}\n'
+                    f'  Got: {ix_config.type}\n'
                     f'  type should be either: "clustered", "nonclustered", "clustered columnstore", "nonclustered columnstore"'
+                )
+            # Columns parameter doesn't work with clustered columnstore indexes
+            elif ix_type in ['clustered columnstore'] and ix_config.columns:
+                dbt.exceptions.raise_compiler_error(
+                    f'Clustered columnstore index already contains all columns.\n'
+                    f'  Remove the "columns" parameter.'
+                )
+            # Check unique parameter
+            elif ix_config.unique and ix_type not in ['clustered', 'nonclustered']:
+                dbt.exceptions.raise_compiler_error(
+                    f'Uniqueness does not work with columnstore indexes.\n'
+                    f'  Remove the "unique" parameter.'
+                )
+            # Check include columns parameter
+            elif ix_config.include_columns and ix_type not in ['nonclustered']:
+                dbt.exceptions.raise_compiler_error(
+                    f'Only nonclustered indexes may contain included columns.\n'
+                    f'  Remove the "include_columns" parameter.'
+                )
+            # Check partitioning parameters
+            elif ((ix_config.partition_schema and not ix_config.partition_column) or 
+                (ix_config.partition_column and not ix_config.partition_schema)):
+                dbt.exceptions.raise_compiler_error(
+                    f'For partitioning must specify both "partition_schema" and "partition_column" parameters'
+                )
+            # Check data compression parameter
+            elif (ix_config.data_compression
+                and ix_data_compression not in ['page', 'row', 'columnstore', 'columnstore_archive']):
+                dbt.exceptions.raise_compiler_error(
+                    f'Invalid data compression:\n'
+                    f'  Got: {ix_config.data_compression}\n'
+                    f'  data compression should be either: "page", "row", "columnstore", "columnstore_archive"'
+                )
+            # Data compression for row-store indexes
+            elif (ix_data_compression in ['page', 'row']
+                and ix_type not in ['clustered', 'nonclustered']):
+                dbt.exceptions.raise_compiler_error(
+                    f'PAGE and ROW data compression works only with row-store indexes.\n'
+                    f'  Remove or fix the "data_compression" parameter.'
+                )
+            # Data compression for columnstore indexes
+            elif (ix_data_compression in ['columnstore', 'columnstore_archive']
+                and ix_type not in ['clustered columnstore', 'nonclustered columnstore']):
+                dbt.exceptions.raise_compiler_error(
+                    f'COLUMNSTORE and COLUMNSTORE_ARCHIVE data compression works only with columnstore indexes.\n'
+                    f'  Remove or fix the "data_compression" parameter.'
                 )
             else:
                 return cls.from_dict(raw_index)
