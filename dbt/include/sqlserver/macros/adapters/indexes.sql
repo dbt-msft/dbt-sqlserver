@@ -14,10 +14,22 @@
 {% endmacro %}
 
 
-{# TODO
-  move to dbt-postgres's index implementation strategy
-  https://github.com/dbt-msft/dbt-sqlserver/issues/163
- #}
+{% macro sqlserver__get_create_index_sql(relation, index_dict) -%}
+  {%- set index_config = adapter.parse_index(index_dict) -%}
+  {%- set index_name = index_config.render(relation) -%}
+  {{ log("Create index (" ~ index_config.type ~ ") [" ~ index_name ~ "] on table " ~ this) }}
+  create {% if index_config.unique -%}
+    unique
+  {%- endif %} {{ index_config.type }} index [{{ index_name }}]
+    on {{ relation }}
+    {% if index_config.columns -%}
+      ({{ "[" + index_config.columns|join("], [") + "]" }})
+    {%- endif %}
+    {% if index_config.include_columns -%}
+      include ({{ "[" + index_config.include_columns|join("], [") + "]" }})
+    {%- endif %};
+{%- endmacro %}
+
 
 {# most of this code is from https://github.com/jacobm001/dbt-mssql/blob/master/dbt/include/mssql/macros/indexes.sql        #}
 

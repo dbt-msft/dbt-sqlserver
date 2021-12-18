@@ -1,12 +1,75 @@
+from dataclasses import dataclass
+from dbt.adapters.base.meta import available
+from dbt.adapters.base.impl import AdapterConfig
+from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.sqlserver import SQLServerConnectionManager
-from dbt.adapters.base.relation import BaseRelation
+from dbt.dataclass_schema import dbtClassMixin, ValidationError
 import agate
 from typing import (
     Optional, Tuple, Callable, Iterable, Type, Dict, Any, List, Mapping,
     Iterator, Union, Set
 )
+import dbt.exceptions
+import dbt.utils
 
+
+@dataclass
+class SQLServerIndexConfig(dbtClassMixin):
+    type: str
+    columns: Optional[List[str]] = None
+    unique: Optional[bool] = None
+    include_columns: Optional[List[str]] = None
+
+    def render(self, relation):
+        """
+        Name the index according to the following format:
+        index type (cix/ix/ccix/ncix), relation name, key columns (joined by `_`).
+        Example index name: cix_customers__customer_id.
+        """
+        index_types = {
+            'clustered': 'cix',
+            'nonclustered': 'ix',
+            'clustered columnstore': 'ccix',
+            'nonclustered columnstore': 'ncix'
+        }
+        index_type = index_types[self.type.lower()]
+        index_name = index_type + '_' + relation.identifier
+        if self.columns:
+            columns = '_'.join(self.columns)
+            index_name += '__' + columns
+        return index_name[0:127]
+
+    @classmethod
+    def parse(cls, raw_index) -> Optional['SQLServerIndexConfig']:
+        if raw_index is None:
+            return None
+        try:
+            cls.validate(raw_index)
+            index_config = cls.from_dict(raw_index)
+            if index_config.type.lower() not in ['clustered', 'nonclustered', 'clustered columnstore', 'nonclustered columnstore']:
+                dbt.exceptions.raise_compiler_error(
+                    f'Invalid index type:\n'
+                    f'  Got: {index_config.type}\n'
+                    f'  type should be either: "clustered", "nonclustered", "clustered columnstore", "nonclustered columnstore"'
+                )
+            else:
+                return cls.from_dict(raw_index)
+        except ValidationError as exc:
+            msg = dbt.exceptions.validator_error_message(exc)
+            dbt.exceptions.raise_compiler_error(
+                f'Could not parse index config: {msg}'
+            )
+        except TypeError:
+            dbt.exceptions.raise_compiler_error(
+                f'Invalid index config:\n'
+                f'  Got: {raw_index}\n'
+                f'  Expected a dictionary with at minimum a "columns" key'
+            )
+
+@dataclass
+class SQLServerConfig(AdapterConfig):
+    indexes: Optional[List[SQLServerIndexConfig]] = None
 
 class SQLServerAdapter(SQLAdapter):
     ConnectionManager = SQLServerConnectionManager
@@ -40,6 +103,10 @@ class SQLServerAdapter(SQLAdapter):
     @classmethod
     def convert_time_type(cls, agate_table, col_idx):
         return "datetime"
+
+    @available
+    def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
+        return SQLServerIndexConfig.parse(raw_index)
 
     # Methods used in adapter tests
     def timestamp_add_sql(
