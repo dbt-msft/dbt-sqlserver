@@ -119,7 +119,7 @@ class SQLServerIndexConfig(dbtClassMixin):
             dbt.exceptions.raise_compiler_error(
                 f'Invalid index config:\n'
                 f'  Got: {raw_index}\n'
-                f'  Expected a dictionary with at minimum a "columns" key'
+                f'  Expected a dictionary with at minimum a "type" key'
             )
 
 @dataclass
