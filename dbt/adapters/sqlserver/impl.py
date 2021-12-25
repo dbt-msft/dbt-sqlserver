@@ -62,6 +62,12 @@ class SQLServerIndexConfig(dbtClassMixin):
                     f'  Got: {ix_config.type}\n'
                     f'  type should be either: "clustered", "nonclustered", "clustered columnstore", "nonclustered columnstore"'
                 )
+            # Check columns parameter
+            elif ix_type not in ['clustered columnstore'] and not ix_config.columns:
+                dbt.exceptions.raise_compiler_error(
+                    f'The "columns" parameter is required for all types of indexes (except clustered columnstore).\n'
+                    f'  Add the "columns" parameter.'
+                )
             # Columns parameter doesn't work with clustered columnstore indexes
             elif ix_type in ['clustered columnstore'] and ix_config.columns:
                 dbt.exceptions.raise_compiler_error(
