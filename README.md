@@ -237,15 +237,15 @@ Supported parameters:
 Examples:
 ```sql
 {{ config(
-    materialized = 'table',
-    as_columnstore: false,
-    indexes=[
-        {'type': 'clustered', 'columns': ['customer_id'], 'unique': True},
-        {'type': 'nonclustered', 'columns': ['number_of_orders'], 'include_columns': ['first_order']},
-        {'type': 'clustered columnstore'},
-        {'type': 'nonclustered columnstore', 'columns': ['customer_id', 'first_name', 'last_name']}
-        {'type': 'nonclustered', 'columns': ['customer_id'], 'partition_schema': 'ps_by_month',
-          'partition_column': 'order_date', 'data_compression': 'page'}
+    materialized = "table",
+    as_columnstore = false,
+    indexes = [
+        {"type": "clustered", "columns": ["customer_id"], "unique": True},
+        {"type": "nonclustered", "columns": ["number_of_orders"], "include_columns": ["first_order"]},
+        {"type": "clustered columnstore"},
+        {"type": "nonclustered columnstore", "columns": ["customer_id", "first_name", "last_name"]}
+        {"type": "nonclustered", "columns": ["customer_id"], "partition_schema": "ps_by_month",
+          "partition_column": "order_date", "data_compression": "page"}
     ]
 )}}
 ```
