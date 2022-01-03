@@ -216,9 +216,9 @@ Many DBT utils macros are supported, but they require the addition of the `tsql_
 You can find the package and installation instructions in the [tsql-utils repo](https://github.com/dbt-msft/tsql-utils).
 
 ### Indexes
-There is now possible to define a regular sql server index on a table in `indexes` section of model configuration.
-To use that way for creating indexes you need to disable `as_columnstore` in model configuration.
-You can do this in `dbt_project.yml` for the whole project or for the model personally.
+It is now possible to define a regular sql server index on a table in the `indexes` section of a model configuration.
+To use this way of creating indexes you need to disable `as_columnstore` in model configuration.
+You can do this in `dbt_project.yml` for the whole project or for this model specifically.
 ```yaml
 models:
   my_project:
