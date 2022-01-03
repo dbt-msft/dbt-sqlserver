@@ -226,7 +226,7 @@ models:
 ```
 
 Supported parameters:
-- `type`: index type, accepted values: `clustered`, `nonclustered`, `clustered columnstore`, `nonclustered columnstore`
+- `type` (**required**): index type, accepted values: `clustered`, `nonclustered`, `clustered columnstore`, `nonclustered columnstore`
 - `columns`: columns list in index
 - `unique`: index uniquiness
 - `include_columns`: include columns list for nonclustered indexes
@@ -249,6 +249,17 @@ Examples:
     ]
 )}}
 ```
+
+Matrix of compatibility of parameters and index types:
+| Parameter / Index type                                       | CLUSTERED | NONCLUSTERED | CLUSTERED COLUMNSTORE | NONCLUSTERED COLUMNSTORE |
+| ------------------------------------------------------------ | --------- | ------------ | --------------------- | ------------------------ |
+| `columns`                                                    | ✅         | ✅            | ❌                     | ✅                        |
+| `unique`                                                     | ✅         | ✅            | ❌                     | ❌                        |
+| `include_columns`                                            | ❌         | ✅            | ❌                     | ❌                        |
+| `partition_schema`                                           | ✅         | ✅            | ❌                     | ✅                        |
+| `partition_column`                                           | ✅         | ✅            | ❌                     | ✅                        |
+| `data_compression` (`ROW` and `PAGE`)                        | ✅         | ✅            | ❌                     | ❌                        |
+| `data_compression` (`COLUMNSTORE` and `COLUMNSTORE_ARCHIVE`) | ❌         | ❌            | ✅                     | ✅                        |
 
 ### Indexes (old-way)
 
