@@ -27,7 +27,7 @@ AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 _TOKEN: Optional[AccessToken] = None
 
 
-logger = AdapterLogger("Postgres")
+logger = AdapterLogger("sqlserver")
 
 @dataclass
 class SQLServerCredentials(Credentials):
