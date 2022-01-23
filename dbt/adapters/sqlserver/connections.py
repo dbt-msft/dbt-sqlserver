@@ -19,12 +19,14 @@ from azure.identity import (
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import AdapterResponse
-from dbt.logger import GLOBAL_LOGGER as logger
+from dbt.events import AdapterLogger
 
 from dbt.adapters.sqlserver import __version__
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 _TOKEN: Optional[AccessToken] = None
+
+logger = AdapterLogger("SQLServer")
 
 
 @dataclass
