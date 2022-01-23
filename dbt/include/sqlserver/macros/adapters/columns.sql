@@ -61,3 +61,29 @@
   {%- endcall -%}
 
 {% endmacro %}
+
+
+{% macro sqlserver__alter_relation_add_remove_columns(relation, add_columns, remove_columns) %}
+  
+  {% if add_columns is none %}
+    {% set add_columns = [] %}
+  {% endif %}
+  {% if remove_columns is none %}
+    {% set remove_columns = [] %}
+  {% endif %}
+  
+  {% set sql -%}
+  
+    {% for column in add_columns %}
+      alter {{ relation.type }} {{ relation }} add {{ column.name }} {{ column.data_type }};
+    {% endfor %}
+    
+    {% for column in remove_columns %}
+      alter {{ relation.type }} {{ relation }} drop column {{ column.name }};
+    {% endfor %}
+  
+  {%- endset -%}
+
+  {% do run_query(sql) %}
+
+{% endmacro %}

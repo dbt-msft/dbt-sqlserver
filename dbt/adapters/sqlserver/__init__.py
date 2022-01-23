@@ -1,3 +1,4 @@
+from dbt.adapters.sqlserver.column import SQLServerColumn
 from dbt.adapters.sqlserver.connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.connections import SQLServerCredentials
 from dbt.adapters.sqlserver.impl import SQLServerAdapter

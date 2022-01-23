@@ -1,4 +1,5 @@
 from dbt.adapters.sql import SQLAdapter
+from dbt.adapters.sqlserver import SQLServerColumn
 from dbt.adapters.sqlserver import SQLServerConnectionManager
 from dbt.adapters.base.relation import BaseRelation
 import agate
@@ -9,6 +10,7 @@ from typing import (
 
 
 class SQLServerAdapter(SQLAdapter):
+    Column = SQLServerColumn
     ConnectionManager = SQLServerConnectionManager
 
     @classmethod
