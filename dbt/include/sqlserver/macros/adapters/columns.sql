@@ -47,16 +47,12 @@
     {{ return(load_result('get_columns_in_query').table.columns | map(attribute='name') | list) }}
 {% endmacro %}
 
-{% macro sqlserver__alter_column_type(relation, column_name, new_column_type) %}
 
-  {%- set tmp_column = column_name + "__dbt_alter" -%}
+{% macro sqlserver__alter_column_type(relation, column_name, new_column_type) %}
 
   {% call statement('alter_column_type') -%}
 
-    alter {{ relation.type }} {{ relation }} add {{ tmp_column }} {{ new_column_type }};
-    update {{ relation }} set {{ tmp_column }} = {{ column_name }};
-    alter {{ relation.type }} {{ relation }} drop column {{ column_name }};
-    exec sp_rename '{{ relation | replace('"', '') }}.{{ tmp_column }}', '{{ column_name }}', 'column'
+    alter table {{ relation }} alter column [{{ column_name }}] {{ new_column_type }};
 
   {%- endcall -%}
 
@@ -75,11 +71,11 @@
   {% set sql -%}
   
     {% for column in add_columns %}
-      alter {{ relation.type }} {{ relation }} add {{ column.name }} {{ column.data_type }};
+      alter table {{ relation }} add [{{ column.name }}] {{ column.data_type }};
     {% endfor %}
     
     {% for column in remove_columns %}
-      alter {{ relation.type }} {{ relation }} drop column {{ column.name }};
+      alter table {{ relation }} drop column [{{ column.name }}];
     {% endfor %}
   
   {%- endset -%}
