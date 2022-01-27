@@ -83,7 +83,7 @@
            else table_type
       end as table_type
 
-    from [{{ schema_relation.database }}].information_schema.tables
+    from [{{ schema_relation.database }}].information_schema.tables with (nolock)
     where table_schema like '{{ schema_relation.schema }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
