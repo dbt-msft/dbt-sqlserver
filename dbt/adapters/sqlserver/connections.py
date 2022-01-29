@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain, repeat
 from typing import Callable, Dict, Mapping, Optional
+from typing import Optional
+from copy import deepcopy
 
 import dbt.exceptions
 import pyodbc
@@ -21,6 +23,7 @@ from dbt.contracts.connection import AdapterResponse
 from dbt.events import AdapterLogger
 
 from dbt.adapters.sqlserver import __version__
+from sshtunnel import SSHTunnelForwarder
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 _TOKEN: Optional[AccessToken] = None
@@ -46,6 +49,10 @@ class SQLServerCredentials(Credentials):
     authentication: Optional[str] = "sql"
     encrypt: Optional[bool] = False
     trust_cert: Optional[bool] = False
+    jumpbox_ip: Optional[str] = None
+    jumpbox_port: Optional[int] = 22
+    jumpbox_username: Optional[str] = None
+    jumpbox_password: Optional[str] = None
 
     _ALIASES = {
         "user": "UID",
@@ -80,6 +87,9 @@ class SQLServerCredentials(Credentials):
             "authentication",
             "encrypt",
             "trust_cert",
+            "jumpbox_ip",
+            "jumpbox_port",
+            "jumpbox_username",
         )
 
     @property
@@ -90,12 +100,10 @@ class SQLServerCredentials(Credentials):
 def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
     """
     Convert bytes to a Microsoft windows byte string.
-
     Parameters
     ----------
     value : bytes
         The bytes.
-
     Returns
     -------
     out : bytes
@@ -108,12 +116,10 @@ def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
 def convert_access_token_to_mswindows_byte_string(token: AccessToken) -> bytes:
     """
     Convert an access token to a Microsoft windows byte string.
-
     Parameters
     ----------
     token : AccessToken
         The token.
-
     Returns
     -------
     out : bytes
@@ -126,18 +132,14 @@ def convert_access_token_to_mswindows_byte_string(token: AccessToken) -> bytes:
 def get_cli_access_token(credentials: SQLServerCredentials) -> AccessToken:
     """
     Get an Azure access token using the CLI credentials
-
     First login with:
-
     ```bash
     az login
     ```
-
     Parameters
     ----------
     credentials: SQLServerConnectionManager
         The credentials.
-
     Returns
     -------
     out : AccessToken
@@ -151,12 +153,10 @@ def get_cli_access_token(credentials: SQLServerCredentials) -> AccessToken:
 def get_msi_access_token(credentials: SQLServerCredentials) -> AccessToken:
     """
     Get an Azure access token from the system's managed identity
-
     Parameters
     -----------
     credentials: SQLServerCredentials
         Credentials.
-
     Returns
     -------
     out : AccessToken
@@ -169,12 +169,10 @@ def get_msi_access_token(credentials: SQLServerCredentials) -> AccessToken:
 def get_auto_access_token(credentials: SQLServerCredentials) -> AccessToken:
     """
     Get an Azure access token automatically through azure-identity
-
     Parameters
     -----------
     credentials: SQLServerCredentials
         Credentials.
-
     Returns
     -------
     out : AccessToken
@@ -187,12 +185,10 @@ def get_auto_access_token(credentials: SQLServerCredentials) -> AccessToken:
 def get_environment_access_token(credentials: SQLServerCredentials) -> AccessToken:
     """
     Get an Azure access token by reading environment variables
-
     Parameters
     -----------
     credentials: SQLServerCredentials
         Credentials.
-
     Returns
     -------
     out : AccessToken
@@ -205,12 +201,10 @@ def get_environment_access_token(credentials: SQLServerCredentials) -> AccessTok
 def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     """
     Get an Azure access token using the SP credentials.
-
     Parameters
     ----------
     credentials : SQLServerCredentials
         Credentials.
-
     Returns
     -------
     out : AccessToken
@@ -225,17 +219,14 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
 def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     """
     Get the pyodbc attrs before.
-
     Parameters
     ----------
     credentials : SQLServerCredentials
         Credentials.
-
     Returns
     -------
     out : Dict
         The pyodbc attrs before.
-
     Source
     ------
     Authentication for SQL server with an access token:
@@ -269,6 +260,29 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
         attrs_before = {}
 
     return attrs_before
+
+@dataclass
+class _PyodbcTunnelWrapper:
+    """
+    Wraps a Pyodbc connection with an SSH tunnel.
+    Bind the closing of the Pyodbc connecter with the one of the tunnel.
+    """
+
+    pyodbc: pyodbc.Connection  # The Pyodbc connection object.
+    tunnel: SSHTunnelForwarder  # The ssh tunnel to the jumpbox
+
+    def cursor(self) -> pyodbc.Cursor:
+        """
+        Simple getter for the Pyodbc connector.
+        """
+        return self.pyodbc.cursor()
+    
+    def close(self) -> None:
+        """
+        Close the Pyodbc connector and the SSH tunel used to connect to the database.
+        """
+        self.pyodbc.close()
+        self.tunnel.close()
 
 
 class SQLServerConnectionManager(SQLConnectionManager):
@@ -311,6 +325,29 @@ class SQLServerConnectionManager(SQLConnectionManager):
             return connection
 
         credentials = connection.credentials
+
+        # Create an SSH tunnel if the connection requires it
+        is_jumpbox = bool(credentials.jumpbox_ip)
+        if is_jumpbox:
+
+            # DeepCopy the crendentials to avoid any side effetct with the connection reuse
+            credentials = deepcopy(credentials)
+        
+            try:
+                # TODO : add support for SSH keyfile instead of passowrd.
+                tunnel = SSHTunnelForwarder(
+                    (credentials.jumpbox_ip, credentials.jumpbox_port),
+                    ssh_username=credentials.jumpbox_username,
+                    ssh_password=credentials.jumpbox_password,
+                    remote_bind_address=(credentials.host, credentials.port),
+                )
+            except KeyError as err:
+                raise KeyError("'jumpbox_username' and 'jumpbox_password' must be provided alongside jumpbox_ip")
+            tunnel.start()
+            
+            # Replace the host and the port of the connection object
+            credentials.port = tunnel.local_bind_port
+            credentials.host = tunnel.local_bind_host
 
         try:
             con_str = []
@@ -370,11 +407,16 @@ class SQLServerConnectionManager(SQLConnectionManager):
             logger.debug(f"Using connection string: {con_str_display}")
 
             attrs_before = get_pyodbc_attrs_before(credentials)
-            handle = pyodbc.connect(
+
+            # Bind the tunnel with the connection
+            cnx = pyodbc.connect(
                 con_str_concat,
                 attrs_before=attrs_before,
                 autocommit=True,
             )
+            handle = cnx
+            if is_jumpbox:
+                handle = _PyodbcTunnelWrapper(cnx, tunnel=tunnel) 
 
             connection.state = "open"
             connection.handle = handle

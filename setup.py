@@ -3,8 +3,10 @@ import os
 import re
 import sys
 
-from setuptools import find_namespace_packages, setup
-from setuptools.command.install import install
+this_directory = os.path.abspath(os.path.dirname(__file__))
+with open(os.path.join(this_directory, "README.md")) as f:
+    long_description = f.read()
+
 
 package_name = "dbt-sqlserver"
 authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
@@ -18,7 +20,9 @@ with open(os.path.join(this_directory, "README.md")) as f:
 
 # get this from a separate file
 def _dbt_sqlserver_version():
-    _version_path = os.path.join(this_directory, "dbt", "adapters", "sqlserver", "__version__.py")
+    _version_path = os.path.join(
+        this_directory, "dbt", "adapters", "sqlserver", "__version__.py"
+    )
     _version_pattern = r"""version\s*=\s*["'](.+)["']"""
     with open(_version_path) as f:
         match = re.search(_version_pattern, f.read().strip())
@@ -29,6 +33,7 @@ def _dbt_sqlserver_version():
 
 package_version = _dbt_sqlserver_version()
 
+dbt_version = "1.0"
 # the package version should be the dbt version, with maybe some things on the
 # ends of it. (0.18.1 vs 0.18.1a1, 0.18.1.1, ...)
 if not package_version.startswith(dbt_version):
@@ -61,27 +66,15 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="MIT",
-    author=", ".join(authors_list),
-    url="https://github.com/dbt-msft/dbt-sqlserver",
+    author="Mikael Ene",
+    author_email="mikael.ene@eneanalytics.com",
+    url="https://github.com/mikaelene/dbt-sqlserver",
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
         f"dbt-core~={dbt_version}.0",
         "pyodbc~=4.0.32",
-        "azure-identity>=1.10.0",
-    ],
-    cmdclass={
-        "verify": VerifyVersionCommand,
-    },
-    classifiers=[
-        "Development Status :: 5 - Production/Stable",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: Microsoft :: Windows",
-        "Operating System :: MacOS :: MacOS X",
-        "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
+        "azure-identity>=1.7.0",
+        "sshtunnel~=0.4.0",
     ],
 )
