@@ -49,10 +49,11 @@ class SQLServerCredentials(Credentials):
     authentication: Optional[str] = "sql"
     encrypt: Optional[bool] = False
     trust_cert: Optional[bool] = False
-    jumpbox_ip: Optional[str] = None
-    jumpbox_port: Optional[int] = 22
-    jumpbox_username: Optional[str] = None
-    jumpbox_password: Optional[str] = None
+    ssh_tunnel_host: Optional[str] = None
+    ssh_tunnel_port: Optional[int] = 22
+    ssh_tunnel_username: Optional[str] = None
+    ssh_tunnel_password: Optional[str] = None
+    ssh_tunnel_private_key_file_path: Optional[str] = None
 
     _ALIASES = {
         "user": "UID",
@@ -87,9 +88,9 @@ class SQLServerCredentials(Credentials):
             "authentication",
             "encrypt",
             "trust_cert",
-            "jumpbox_ip",
-            "jumpbox_port",
-            "jumpbox_username",
+            "ssh_tunnel_host",
+            "ssh_tunnel_port",
+            "ssh_tunnel_username",
         )
 
     @property
@@ -327,8 +328,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
         credentials = connection.credentials
 
         # Create an SSH tunnel if the connection requires it
-        is_jumpbox = bool(credentials.jumpbox_ip)
-        if is_jumpbox:
+        is_ssh_tunnel = bool(credentials.ssh_tunnel_host)
+        if is_ssh_tunnel:
 
             # DeepCopy the crendentials to avoid any side effetct with the connection reuse
             credentials = deepcopy(credentials)
@@ -336,13 +337,13 @@ class SQLServerConnectionManager(SQLConnectionManager):
             try:
                 # TODO : add support for SSH keyfile instead of passowrd.
                 tunnel = SSHTunnelForwarder(
-                    (credentials.jumpbox_ip, credentials.jumpbox_port),
-                    ssh_username=credentials.jumpbox_username,
-                    ssh_password=credentials.jumpbox_password,
+                    (credentials.ssh_tunnel_host, credentials.ssh_tunnel_port),
+                    ssh_username=credentials.ssh_tunnel_username,
+                    ssh_password=credentials.ssh_tunnel_password,
                     remote_bind_address=(credentials.host, credentials.port),
                 )
             except KeyError as err:
-                raise KeyError("'jumpbox_username' and 'jumpbox_password' must be provided alongside jumpbox_ip")
+                raise KeyError("'ssh_tunnel_username' and 'ssh_tunnel_password' must be provided alongside ssh_tunnel_host")
             tunnel.start()
             
             # Replace the host and the port of the connection object
@@ -415,7 +416,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 autocommit=True,
             )
             handle = cnx
-            if is_jumpbox:
+            if is_ssh_tunnel:
                 handle = _PyodbcTunnelWrapper(cnx, tunnel=tunnel) 
 
             connection.state = "open"
