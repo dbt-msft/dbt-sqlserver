@@ -331,19 +331,23 @@ class SQLServerConnectionManager(SQLConnectionManager):
         is_ssh_tunnel = bool(credentials.ssh_tunnel_host)
         if is_ssh_tunnel:
 
+            # Check that username, and either password or ssh key are provided
+            has_username = bool(credentials.ssh_tunnel_username)
+            has_auth = credentials.ssh_tunnel_password or credentials.ssh_tunnel_private_key_file_path
+            if not has_username or not has_auth:
+                raise KeyError("'ssh_tunnel_username' and either 'ssh_tunnel_password' or 'ssh_tunnel_private_key_file_path' must be provided when 'ssh_tunnel_host' is provided.")
+
             # DeepCopy the crendentials to avoid any side effetct with the connection reuse
             credentials = deepcopy(credentials)
         
-            try:
-                # TODO : add support for SSH keyfile instead of passowrd.
-                tunnel = SSHTunnelForwarder(
-                    (credentials.ssh_tunnel_host, credentials.ssh_tunnel_port),
-                    ssh_username=credentials.ssh_tunnel_username,
-                    ssh_password=credentials.ssh_tunnel_password,
-                    remote_bind_address=(credentials.host, credentials.port),
-                )
-            except KeyError as err:
-                raise KeyError("'ssh_tunnel_username' and 'ssh_tunnel_password' must be provided alongside ssh_tunnel_host")
+            tunnel = SSHTunnelForwarder(
+                (credentials.ssh_tunnel_host, credentials.ssh_tunnel_port),
+                ssh_username=credentials.ssh_tunnel_username,
+                ssh_password=credentials.ssh_tunnel_password,
+                ssh_pkey=credentials.ssh_tunnel_private_key_file_path,
+                remote_bind_address=(credentials.host, credentials.port),
+            )
+                
             tunnel.start()
             
             # Replace the host and the port of the connection object
