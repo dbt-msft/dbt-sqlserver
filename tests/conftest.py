@@ -18,5 +18,5 @@ def dbt_profile_target():
         'port': int(os.getenv('SQLSERVER_TEST_PORT')),
         'user': os.getenv('SQLSERVER_TEST_USER'),
         'pass': os.getenv('SQLSERVER_TEST_PASS'),
-        'dbname': os.getenv('SQLSERVER_TEST_DBNAME'),
+        'database': os.getenv('SQLSERVER_TEST_DBNAME'),
     }
