@@ -7,6 +7,7 @@
 {% endmacro %}
 
 {% macro sqlserver__drop_relation(relation) -%}
+  {{ log('yyy relation: ' ~ relation, info=True) }}
   {% call statement('drop_relation', auto_begin=False) -%}
     {{ sqlserver__drop_relation_script(relation) }}
   {%- endcall %}
@@ -19,6 +20,7 @@
    {% set object_id_type = 'U' %}
    {%- else -%} invalid target name
    {% endif %}
+   {{ log('zzz relation: ' ~ relation, info=True) }}
   USE [{{ relation.database }}];
   if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
       begin

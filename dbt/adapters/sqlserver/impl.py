@@ -104,8 +104,10 @@ class SQLServerAdapter(SQLAdapter):
         cursor = conn.handle.cursor()
         try:
             cursor.execute(sql)
+            print(f'xxxx anders {fetch=}')
             if not fetch:
                 conn.handle.commit()
+            print("past error")
             if fetch == "one":
                 return cursor.fetchone()
             elif fetch == "all":
