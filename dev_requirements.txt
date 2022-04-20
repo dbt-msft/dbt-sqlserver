@@ -3,3 +3,5 @@ pytest-dbt-adapter~=0.6.0
 pytest==6.2.2
 tox==3.2.0
 flake8==3.5.0
+pytest-dotenv
+git+https://github.com/dbt-labs/dbt-core.git#egg=dbt-tests-adapter&subdirectory=tests/adapter
