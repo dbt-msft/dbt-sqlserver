@@ -104,7 +104,7 @@ class SQLServerAdapter(SQLAdapter):
         cursor = conn.handle.cursor()
         try:
             cursor.execute(sql)
-            if hasattr(conn.handle, "commit"):
+            if not fetch:
                 conn.handle.commit()
             if fetch == "one":
                 return cursor.fetchone()
