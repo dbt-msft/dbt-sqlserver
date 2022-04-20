@@ -99,6 +99,28 @@ class SQLServerAdapter(SQLAdapter):
 
         return sql
 
+    # This is for use in the test suite
+    def run_sql_for_tests(self, sql, fetch, conn):
+        cursor = conn.handle.cursor()
+        try:
+            cursor.execute(sql)
+            if hasattr(conn.handle, "commit"):
+                conn.handle.commit()
+            if fetch == "one":
+                return cursor.fetchone()
+            elif fetch == "all":
+                return cursor.fetchall()
+            else:
+                return
+        except BaseException as e:
+            if conn.handle and not getattr(conn.handle, "closed", True):
+                conn.handle.rollback()
+            print(sql)
+            print(e)
+            raise
+        finally:
+            conn.transaction_open = False
+
 
 COLUMNS_EQUAL_SQL = """
 with diff_count as (
