@@ -27,7 +27,7 @@ def _dbt_sqlserver_version():
 package_version = _dbt_sqlserver_version()
 description = """A sqlserver adapter plugin for dbt (data build tool)"""
 
-dbt_version = '1.0'
+dbt_version = '1.1'
 # the package version should be the dbt version, with maybe some things on the
 # ends of it. (0.18.1 vs 0.18.1a1, 0.18.1.1, ...)
 if not package_version.startswith(dbt_version):
@@ -49,8 +49,8 @@ setup(
     packages=find_namespace_packages(include=['dbt', 'dbt.*']),
     include_package_data=True,
     install_requires=[
-        "dbt-core~=1.0.0",
+        "dbt-core~=1.1.0rc1",
         "pyodbc~=4.0.32",
-        "azure-identity>=1.7.0",
+        "azure-identity>=1.9.0",
     ]
 )

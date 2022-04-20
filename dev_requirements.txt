@@ -1,7 +1,6 @@
 black==20.8b1
-pytest-dbt-adapter~=0.6.0
-pytest==6.2.2
+pytest>=7.0.0
 tox==3.2.0
 flake8==3.5.0
 pytest-dotenv
-git+https://github.com/dbt-labs/dbt-core.git#egg=dbt-tests-adapter&subdirectory=tests/adapter
+dbt-tests-adapter==1.1.0rc1
