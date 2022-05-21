@@ -10,9 +10,9 @@ jobs:
       - image: &docker_image ghcr.io/dbt-msft/dbt-sqlserver:latest
     steps:
       - checkout
-      - python/install-packages:
-                pkg-manager: pip
-                pip-dependency-file: dev_requirements.txt
+      - python/install-packages: &install_dev
+          pkg-manager: pip
+          pip-dependency-file: dev_requirements.txt
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
     docker: &msodbc_py_&_sqlserver
@@ -24,9 +24,7 @@ jobs:
           MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
       - checkout
-      - python/install-packages:
-                pkg-manager: pip
-                pip-dependency-file: dev_requirements.txt
+      - python/install-packages: *install_dev
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
@@ -67,9 +65,7 @@ jobs:
     docker: *msodbc_py
     steps:
       - checkout
-      - python/install-packages:
-                pkg-manager: pip
-                pip-dependency-file: dev_requirements.txt
+      - python/install-packages: *install_dev
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -- -v test/integration/azuresql.dbtspec
@@ -77,6 +73,7 @@ jobs:
     docker: *msodbc_py
     steps:
       - checkout
+      - python/install-packages: *install_dev
       - run: *install-dbt-sqlserver
       - azure-cli/install
       - run: *prep=connect
