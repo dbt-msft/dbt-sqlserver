@@ -8,3 +8,4 @@ aiohttp==3.8.1
 twine==4.0.0
 wheel==0.37.1
 pre-commit==2.19.0
+mypy==0.950
