@@ -1,13 +1,13 @@
 version: 2.1
 
 orbs:
-  python: circleci/python@1.3
-  azure-cli: circleci/azure-cli@1.1.0
+  python: circleci/python@2.0.3
+  azure-cli: circleci/azure-cli@1.2.2
 
 jobs:
   unit:
     docker: &msodbc_py
-      - image: &docker_image dbtmsft/msodbc_py:0.5
+      - image: &docker_image ghcr.io/dbt-msft/dbt-sqlserver:latest
     steps:
       - checkout
       - python/install-packages:
