@@ -1,4 +1,4 @@
-black==20.8b1
+black==22.3.0
 pytest-dbt-adapter~=0.6.0
 pytest==6.2.2
 tox==3.2.0
