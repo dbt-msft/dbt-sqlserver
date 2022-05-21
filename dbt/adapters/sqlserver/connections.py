@@ -3,18 +3,17 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain, repeat
-from typing import Callable, Dict, Mapping
-from typing import Optional
+from typing import Callable, Dict, Mapping, Optional
 
 import dbt.exceptions
 import pyodbc
 from azure.core.credentials import AccessToken
 from azure.identity import (
     AzureCliCredential,
-    ManagedIdentityCredential,
     ClientSecretCredential,
     DefaultAzureCredential,
     EnvironmentCredential,
+    ManagedIdentityCredential,
 )
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
@@ -255,9 +254,7 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
 
     authentication = credentials.authentication.lower()
     if authentication in azure_auth_functions:
-        time_remaining = (
-            (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
-        )
+        time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
 
         if _TOKEN is None or (time_remaining < MAX_REMAINING_TIME):
             azure_auth_function = azure_auth_functions[authentication]
@@ -318,8 +315,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
             con_str.append(f"DRIVER={{{credentials.driver}}}")
 
             if "\\" in credentials.host:
-                # if there is a backslash \ in the host name the host is a sql-server named instance
-                # in this case then port number has to be omitted
+
+                # If there is a backslash \ in the host name, the host is a
+                # SQL Server named instance. In this case then port number has to be omitted.
                 con_str.append(f"SERVER={credentials.host}")
             else:
                 con_str.append(f"SERVER={credentials.host},{credentials.port}")
@@ -338,7 +336,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     con_str.append(f"UID={{{credentials.UID}}}")
 
             elif getattr(credentials, "windows_login", False):
-                con_str.append(f"trusted_connection=yes")
+                con_str.append("trusted_connection=yes")
             elif type_auth == "sql":
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
@@ -347,9 +345,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
             # to learn more visit
             # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
             if getattr(credentials, "encrypt", False) is True:
-                con_str.append(f"Encrypt=Yes")
+                con_str.append("Encrypt=Yes")
                 if getattr(credentials, "trust_cert", False) is True:
-                    con_str.append(f"TrustServerCertificate=Yes")
+                    con_str.append("TrustServerCertificate=Yes")
 
             plugin_version = __version__.version
             application_name = f"dbt-{credentials.type}/{plugin_version}"

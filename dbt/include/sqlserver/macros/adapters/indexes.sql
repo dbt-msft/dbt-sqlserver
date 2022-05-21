@@ -132,9 +132,9 @@ select @drop_remaining_indexes_last = (
 
 {% set idx_name = this.table + '__clustered_index_on_' + columns|join('_') %}
 
-if not exists(select * from sys.indexes 
-                where 
-                name = '{{ idx_name }}' and 
+if not exists(select * from sys.indexes
+                where
+                name = '{{ idx_name }}' and
                 object_id = OBJECT_ID('{{ this }}')
 )
 begin
@@ -156,9 +156,9 @@ end
 
 {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") %}
 
-if not exists(select * from sys.indexes 
-                where 
-                name = '{{ idx_name }}' and 
+if not exists(select * from sys.indexes
+                where
+                name = '{{ idx_name }}' and
                 object_id = OBJECT_ID('{{ this }}')
 )
 begin

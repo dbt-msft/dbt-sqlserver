@@ -7,3 +7,4 @@ azure-mgmt-sql==3.0.1
 aiohttp==3.8.1
 twine==4.0.0
 wheel==0.37.1
+pre-commit==2.19.0

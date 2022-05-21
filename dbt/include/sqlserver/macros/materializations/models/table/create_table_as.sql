@@ -18,7 +18,7 @@
     {{ tmp_relation }}
 
    {{ sqlserver__drop_relation_script(tmp_relation) }}
-    
+
    {% if not temporary and as_columnstore -%}
    {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
