@@ -119,17 +119,20 @@ jobs:
           command: az logout
       - run:
           name: cnxn -- Azure SQL - AZ SP auto
-          environment: &azure_sp_env
-            AZURE_CLIENT_ID: DBT_AZURE_SP_NAME
-            AZURE_CLIENT_SECRET: DBT_AZURE_SP_SECRET
-            AZURE_TENANT_ID: DBT_AZURE_TENANT
           command: |
+            echo 'export AZURE_CLIENT_ID="${DBT_AZURE_SP_NAME}"' >> $BASH_ENV
+            echo 'export AZURE_CLIENT_SECRET="${DBT_AZURE_SP_SECRET}"' >> $BASH_ENV
+            echo 'export AZURE_TENANT_ID="${DBT_AZURE_TENANT}"' >> $BASH_ENV
+            source $BASH_ENV
             cd test/integration
             dbt compile --target azuresql_azauto
       - run:
           name: cnxn -- Azure SQL - AZ SP env
-          environment: *azure_sp_env
           command: |
+            echo 'export AZURE_CLIENT_ID="${DBT_AZURE_SP_NAME}"' >> $BASH_ENV
+            echo 'export AZURE_CLIENT_SECRET="${DBT_AZURE_SP_SECRET}"' >> $BASH_ENV
+            echo 'export AZURE_TENANT_ID="${DBT_AZURE_TENANT}"' >> $BASH_ENV
+            source $BASH_ENV
             cd test/integration
             dbt compile --target azuresql_azenv
 
