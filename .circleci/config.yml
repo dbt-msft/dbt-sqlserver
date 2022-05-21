@@ -164,21 +164,27 @@ workflows:
   main:
     jobs:
       - unit: &untagged-filters
-          filters:
+          filters: &untagged-filters
             tags:
               only: /.*/
+      - connection-sqlserver:
+          filters: *untagged-filters
+      - integration-sqlserver:
+          filters: *untagged-filters
       - connection-azuresql: &profile
-          <<: *untagged-filters
+          filters: *untagged-filters
           context:
             - DBT_SYNAPSE_PROFILE
-      - connection-sqlserver: *profile
-      - integration-sqlserver: *profile
       - integration-azuresql:
           <<: *profile
           requires:
             - connection-azuresql
       - release-new-version:
+          context:
+            - DBT_SYNAPSE_PROFILE
           filters:
+            branches:
+              ignore: /.*/
             tags:
               only: /^v.*/
           requires:
