@@ -1,4 +1,4 @@
-FROM python:3.10-bullseye
+FROM python:3.9-bullseye
 
 # Setup dependencies for pyodbc
 RUN apt-get update && \

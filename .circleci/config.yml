@@ -19,7 +19,7 @@ jobs:
       - image: *docker_image
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
-          ACCEPT_EULA: 'yes'
+          ACCEPT_EULA: 'Y'
           MSSQL_SA_PASSWORD: 5atyaNadella
           MSSQL_IP_ADDRESS: 0.0.0.0
     steps:
