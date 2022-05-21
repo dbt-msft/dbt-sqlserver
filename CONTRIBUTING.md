@@ -43,3 +43,19 @@ There is a Circle CI workflow with jobs that run the following tasks:
 * Use the adapter to connect to a SQL Server Docker container
 * Run the pytest-dbt-adapter specs against a SQL Server Docker container
 * Use the adapter to connect to an Azure SQL Database with various options
+
+### Azure integration tests
+
+The following environment variables are available:
+
+* `DBT_AZURESQL_SERVER`: full hostname of the server hosting the Azure SQL database
+* `DBT_AZURESQL_DB`: name of the Azure SQL database
+* `DBT_AZURESQL_UID`: username of the SQL admin on the server hosting the Azure SQL database
+* `DBT_AZURESQL_PWD`: password of the SQL admin on the server hosting the Azure SQL database
+* `DBT_AZURE_TENANT`: Azure tenant ID
+* `DBT_AZURE_SUBSCRIPTION_ID`: Azure subscription ID
+* `DBT_AZURE_RESOURCE_GROUP_NAME`: Azure resource group name
+* `DBT_AZURE_SP_NAME`: Client/application ID of the service principal used to connect to Azure AD
+* `DBT_AZURE_SP_SECRET`: Password of the service principal used to connect to Azure AD
+* `DBT_AZURE_USERNAME`: Username of the user to connect to Azure AD
+* `DBT_AZURE_PASSWORD`: Password of the user to connect to Azure AD

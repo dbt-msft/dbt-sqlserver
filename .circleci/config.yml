@@ -80,11 +80,14 @@ jobs:
       - run: *install-dbt-sqlserver
       - azure-cli/install
       - run: *prep=connect
+      - azure-cli/login-with-service-principal:
+          azure-sp: DBT_AZURE_SP_NAME
+          azure-sp-password: DBT_AZURE_SP_SECRET
+          azure-sp-tenant: DBT_AZURE_TENANT
       - run:
           name: wake up server
           command: |
-            cd test/integration
-            dbt debug --target azuresql_sqlcred
+            python .circleci/wakeup_azure.py
       - run:
           name: cnxn -- Azure SQL - SQL CRED user+pass
           command: |
@@ -119,18 +122,17 @@ jobs:
           command: az logout
       - run:
           name: cnxn -- Azure SQL - AZ SP auto
+          environment: &azure_sp_env
+            AZURE_CLIENT_ID: $DBT_AZURE_SP_NAME
+            AZURE_CLIENT_SECRET: $DBT_AZURE_SP_SECRET
+            AZURE_TENANT_ID: $DBT_AZURE_TENANT
           command: |
-            export AZURE_CLIENT_ID="$DBT_AZURE_SP_NAME"
-            export AZURE_CLIENT_SECRET="$DBT_AZURE_SP_SECRET"
-            export AZURE_TENANT_ID="$DBT_AZURE_TENANT"
             cd test/integration
             dbt compile --target azuresql_azauto
       - run:
           name: cnxn -- Azure SQL - AZ SP env
+          environment: *azure_sp_env
           command: |
-            export AZURE_CLIENT_ID="$DBT_AZURE_SP_NAME"
-            export AZURE_CLIENT_SECRET="$DBT_AZURE_SP_SECRET"
-            export AZURE_TENANT_ID="$DBT_AZURE_TENANT"
             cd test/integration
             dbt compile --target azuresql_azenv
 
