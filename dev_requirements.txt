@@ -4,3 +4,4 @@ pytest==6.2.5
 tox==3.25.0
 flake8==4.0.1
 azure-mgmt-sql==3.0.1
+aiohttp==3.8.1
