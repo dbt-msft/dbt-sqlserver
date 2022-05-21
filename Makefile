@@ -32,12 +32,12 @@ linecheck: ## Checks for all Python lines 100 characters or more
 	find dbt -type f -name "*.py" -exec grep -I -r -n '.\{100\}' {} \;
 
 .PHONY: unit
-unit: ## Runs unit tests with py38.
+unit: ## Runs unit tests.
 	@\
 	tox -- -v test/unit
 
 .PHONY: test
-test: ## Runs unit tests with py38 and code checks against staged changes.
+test: ## Runs unit tests and code checks against staged changes.
 	@\
 	tox -- -v test/unit; \
 	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
