@@ -60,9 +60,8 @@ setup(
     long_description=description,
     long_description_content_type="text/markdown",
     license="MIT",
-    author="Mikael Ene",
-    author_email="mikael.ene@eneanalytics.com",
-    url="https://github.com/mikaelene/dbt-sqlserver",
+    author="Mikael Ene, Anders Swanson, Sam Debruyn, Cor Zuurmond",
+    url="https://github.com/dbt-msft/dbt-sqlserver",
     packages=find_namespace_packages(include=['dbt', 'dbt.*']),
     include_package_data=True,
     install_requires=[
@@ -72,5 +71,16 @@ setup(
     ],
     cmdclass={
         'verify': VerifyVersionCommand,
-    }
+    },
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: Microsoft :: Windows",
+        "Operating System :: MacOS :: MacOS X",
+        "Operating System :: POSIX :: Linux",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+    ],
 )
