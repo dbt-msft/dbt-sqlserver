@@ -8,7 +8,7 @@ from azure.mgmt.sql.aio import SqlManagementClient
 
 credential = DefaultAzureCredential()
 subscription_id = os.getenv("DBT_AZURE_SUBSCRIPTION_ID")
-sql_server_name = os.getenv("DBT_AZURESQL_SERVER")
+sql_server_name = os.getenv("DBT_AZURESQL_SERVER").replace(".database.windows.net", "")
 database_name = os.getenv("DBT_AZURESQL_DB")
 resource_group_name = os.getenv("DBT_AZURE_RESOURCE_GROUP_NAME")
 
