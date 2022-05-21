@@ -5,6 +5,7 @@ orbs:
   azure-cli: circleci/azure-cli@1.2.2
 
 jobs:
+
   unit:
     docker: &msodbc_py
       - image: &docker_image ghcr.io/dbt-msft/dbt-sqlserver:latest
@@ -34,6 +35,7 @@ jobs:
       - run:
           name: Test adapter on SQL Server against dbt-adapter-tests
           command: tox -- -v test/integration/sqlserver.dbtspec
+
   connection-sqlserver:
     <<: *sqlserver
     steps:
@@ -69,6 +71,7 @@ jobs:
       - run:
           name: Test adapter on Azure SQL against dbt-adapter-tests
           command: tox -- -v test/integration/azuresql.dbtspec
+
   connection-azuresql:
     docker: *msodbc_py
     steps:
@@ -136,11 +139,36 @@ jobs:
             cd test/integration
             dbt compile --target azuresql_azenv
 
+  release-new-version:
+    docker: *msodbc_py
+    steps:
+      - checkout
+      - python/install-packages: *install_dev
+      - run: *install-dbt-sqlserver
+      - run:
+          name: verify git tag vs. version
+          command: python setup.py verify
+      - run:
+          name: init .pypirc
+          command: |
+            echo -e "[pypi]" >> ~/.pypirc
+            echo -e "username = __token__" >> ~/.pypirc
+            echo -e "password = $PYPI_DBT_SQLSERVER" >> ~/.pypirc
+      - run:
+          name: build and publish package
+          command: |
+            python setup.py sdist bdist_wheel
+            twine upload dist/*
+
 workflows:
   main:
     jobs:
-      - unit
+      - unit: &untagged-filters
+          filters:
+            tags:
+              only: /.*/
       - connection-azuresql: &profile
+          <<: *untagged-filters
           context:
             - DBT_SYNAPSE_PROFILE
       - connection-sqlserver: *profile
@@ -149,3 +177,13 @@ workflows:
           <<: *profile
           requires:
             - connection-azuresql
+      - release-new-version:
+          filters:
+            tags:
+              only: /^v.*/
+          requires:
+            - unit
+            - connection-azuresql
+            - connection-sqlserver
+            - integration-sqlserver
+            - integration-azuresql

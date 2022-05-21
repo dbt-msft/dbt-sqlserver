@@ -2,11 +2,13 @@
 from setuptools import find_namespace_packages, setup
 import os
 import re
+import sys
+
+from setuptools.command.install import install
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_directory, 'README.md')) as f:
     long_description = f.read()
-
 
 package_name = "dbt-sqlserver"
 
@@ -36,6 +38,21 @@ if not package_version.startswith(dbt_version):
         f'dbt_version={dbt_version}'
     )
 
+
+class VerifyVersionCommand(install):
+    """Custom command to verify that the git tag matches our version"""
+    description = 'Verify that the git tag matches our version'
+
+    def run(self):
+        tag = os.getenv('CIRCLE_TAG')
+
+        if tag != package_version:
+            info = "Git tag: {0} does not match the version of this app: {1}".format(
+                tag, package_version
+            )
+            sys.exit(info)
+
+
 setup(
     name=package_name,
     version=package_version,
@@ -52,5 +69,8 @@ setup(
         "dbt-core~=1.0.0",
         "pyodbc~=4.0.32",
         "azure-identity>=1.7.0",
-    ]
+    ],
+    cmdclass={
+        'verify': VerifyVersionCommand,
+    }
 )

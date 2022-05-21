@@ -59,3 +59,8 @@ The following environment variables are available:
 * `DBT_AZURE_SP_SECRET`: Password of the service principal used to connect to Azure AD
 * `DBT_AZURE_USERNAME`: Username of the user to connect to Azure AD
 * `DBT_AZURE_PASSWORD`: Password of the user to connect to Azure AD
+
+## Releasing a new version
+
+Make sure the version number is bumped in `__version__.py`. Then, create a git tag named `v<version>` and push it to GitHub.
+A CircleCI workflow will be triggered to build the package and push it to PyPI. 
