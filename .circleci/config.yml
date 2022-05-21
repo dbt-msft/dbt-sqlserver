@@ -120,9 +120,9 @@ jobs:
       - run:
           name: cnxn -- Azure SQL - AZ SP auto
           environment: &azure_sp_env
-            AZURE_CLIENT_ID: $DBT_AZURE_SP_NAME
-            AZURE_CLIENT_SECRET: $DBT_AZURE_SP_SECRET
-            AZURE_TENANT_ID: $DBT_AZURE_TENANT
+            AZURE_CLIENT_ID: DBT_AZURE_SP_NAME
+            AZURE_CLIENT_SECRET: DBT_AZURE_SP_SECRET
+            AZURE_TENANT_ID: DBT_AZURE_TENANT
           command: |
             cd test/integration
             dbt compile --target azuresql_azauto
