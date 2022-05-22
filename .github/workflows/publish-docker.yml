@@ -1,12 +1,18 @@
 ---
-name: Publish Docker image for CI/CD
+name: Publish Docker images for CI/CD
 on:  # yamllint disable-line rule:truthy
   push:
-    tags:
-      - 'docker-*'
+    paths:
+      - '.github/Dockerfile'
+      - '.github/workflows/publish-docker.yml'
+    branches:
+      - 'master'
 
 jobs:
-  publish:
+  publish-docker:
+    strategy:
+      matrix:
+        python_version: ["3.7", "3.8", "3.9"]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,18 +28,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4.0.1
-        with:
-          images: ghcr.io/${{ github.repository }}
-
       - name: Build and push Docker images
         uses: docker/build-push-action@v3.0.0
         with:
           context: .
+          build-args: |
+            PYTHON_VERSION: ${{ matrix.python_version }}
           file: ./.github/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}
