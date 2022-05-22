@@ -85,7 +85,6 @@ repos:
           - '--show-error-codes'
           - '--ignore-missing-imports'
         files: '^dbt/adapters'
-        language: system
       - id: mypy
         alias: mypy-check
         stages:
@@ -95,4 +94,3 @@ repos:
           - '--pretty'
           - '--ignore-missing-imports'
         files: '^dbt/adapters'
-        language: system

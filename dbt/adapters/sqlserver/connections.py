@@ -215,7 +215,7 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
         The access token.
     """
     token = ClientSecretCredential(
-        credentials.tenant_id, credentials.client_id, credentials.client_secret
+        str(credentials.tenant_id), str(credentials.client_id), str(credentials.client_secret)
     ).get_token(AZURE_CREDENTIAL_SCOPE)
     return token
 
@@ -252,7 +252,7 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
         "environment": get_environment_access_token,
     }
 
-    authentication = credentials.authentication.lower()
+    authentication = str(credentials.authentication).lower()
     if authentication in azure_auth_functions:
         time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
 
