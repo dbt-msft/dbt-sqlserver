@@ -1,0 +1,8 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      SA_PASSWORD: "L0calTesting!"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"

@@ -49,6 +49,11 @@ test: ## Runs unit tests and code checks against staged changes.
 	pre-commit run flake8-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
 
+.PHONY: server
+server: ## Spins up a local MS SQL Server instance for development. Docker-compose is required.
+	@\
+	docker-compose up -d
+
 .PHONY: clean
 	@echo "cleaning repo"
 	@git clean -f -X
