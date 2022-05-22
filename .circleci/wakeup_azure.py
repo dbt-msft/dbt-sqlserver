@@ -1,52 +1,34 @@
 #!/usr/bin/env python3
 
-import asyncio
 import os
 
-from azure.identity.aio import DefaultAzureCredential
-from azure.mgmt.sql.aio import SqlManagementClient
-
-credential = DefaultAzureCredential()
-subscription_id = os.getenv("DBT_AZURE_SUBSCRIPTION_ID")
-sql_server_name = os.getenv("DBT_AZURESQL_SERVER").replace(".database.windows.net", "")
-database_name = os.getenv("DBT_AZURESQL_DB")
-resource_group_name = os.getenv("DBT_AZURE_RESOURCE_GROUP_NAME")
+import pyodbc
 
 
-async def resume_azsql() -> bool:
-    try:
-        client = SqlManagementClient(credential=credential, subscription_id=subscription_id)
-        db = await client.databases.get(
-            resource_group_name=resource_group_name,
-            server_name=sql_server_name,
-            database_name=database_name,
-        )
-        if db.status == "Paused":
-            res = await client.databases.begin_resume(
-                resource_group_name=resource_group_name,
-                server_name=sql_server_name,
-                database_name=database_name,
-            )
-            print("Resuming SQL Database")
-            await res.wait()
-        elif db.status in ("Pausing", "Resuming"):
-            print(f"SQL Database is {db.status}, waiting a minute and trying again")
-            await asyncio.sleep(60)
-            return True
-        else:
-            print(f"SQL Database is already {db.status}")
+def resume_azsql():
+    sql_server_name = os.getenv("DBT_AZURESQL_SERVER")
+    sql_server_port = 1433
+    database_name = os.getenv("DBT_AZURESQL_DB")
+    username = os.getenv("DBT_AZURESQL_UID")
+    password = os.getenv("DBT_AZURESQL_PASSWORD")
+    driver = "ODBC Driver 17 for SQL Server"
 
-        return False
-    finally:
-        await client.close()
+    con_str = [
+        f"DRIVER={{{driver}}}",
+        f"SERVER={sql_server_name},{sql_server_port}",
+        f"Database={database_name}",
+        "Encrypt=Yes",
+        f"UID={{{username}}}",
+        f"PWD={{{password}}}",
+    ]
+
+    con_str_concat = ";".join(con_str)
+    pyodbc.connect(con_str_concat, autocommit=True)
 
 
-async def main():
-    if await resume_azsql():
-        await main()
+def main():
+    resume_azsql()
 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
-    loop.close()
+    main()
