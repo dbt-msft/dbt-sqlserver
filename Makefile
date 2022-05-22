@@ -26,6 +26,11 @@ lint: ## Runs flake8 and mypy code checks against staged changes.
 	pre-commit run flake8-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
 
+.PHONY: all
+all: ## Runs all checks against staged changes.
+	@\
+	pre-commit run -a
+
 .PHONY: linecheck
 linecheck: ## Checks for all Python lines 100 characters or more
 	@\
