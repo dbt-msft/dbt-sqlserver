@@ -11,7 +11,7 @@ def resume_azsql():
     sql_server_port = 1433
     database_name = os.getenv("DBT_AZURESQL_DB")
     username = os.getenv("DBT_AZURESQL_UID")
-    password = os.getenv("DBT_AZURESQL_PASSWORD")
+    password = os.getenv("DBT_AZURESQL_PWD")
     driver = "ODBC Driver 17 for SQL Server"
 
     con_str = [
