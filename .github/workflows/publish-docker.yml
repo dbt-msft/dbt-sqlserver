@@ -33,7 +33,7 @@ jobs:
         with:
           context: .
           build-args: |
-            PYTHON_VERSION: ${{ matrix.python_version }}
+            PYTHON_VERSION: "${{ matrix.python_version }}"
           file: ./.github/Dockerfile
           push: true
           platforms: linux/amd64
