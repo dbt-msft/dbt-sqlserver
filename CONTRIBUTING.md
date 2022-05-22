@@ -29,7 +29,7 @@ However, this is no longer the recommended way to test adapters and we should in
 Running the unit tests:
 
 ```shell
-tox -- -v test/unit
+make test
 ```
 
 ## CI/CD
