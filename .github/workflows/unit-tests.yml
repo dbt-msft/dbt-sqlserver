@@ -30,6 +30,6 @@ jobs:
 
       - name: Run unit tests
         run: |
-          RAW_TOXENV="${{ matrix.python_version }}"
+          RAW_TOXENV="py${{ matrix.python_version }}"
           TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
           tox -e "$TOXENV" -- tests/unit
