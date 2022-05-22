@@ -2,8 +2,8 @@
 # You should __NEVER__ check credentials into version control. Thanks for reading :)
 
 config:
-  send_anonymous_usage_stats: False
-  use_colors: True
+  send_anonymous_usage_stats: false
+  use_colors: true
 
 defaults:
   basic: &basic
@@ -22,8 +22,8 @@ defaults:
     <<: *basic
     host: "{{ env_var('DBT_AZURESQL_SERVER') }}"
     database: "{{ env_var('DBT_AZURESQL_DB') }}"
-    encrypt: yes
-    trust_cert: yes
+    encrypt: true
+    trust_cert: true
 
 integration_tests:
   target: sqlserver_local_userpass
@@ -31,8 +31,8 @@ integration_tests:
     sqlserver_local_userpass: *basic-sqlserver
     sqlserver_local_encrypt:
       <<: *basic-sqlserver
-      encrypt: yes
-      trust_cert: yes
+      encrypt: true
+      trust_cert: true
     azuresql_sqlcred:
       <<: *azuresql-basic
       username: "{{ env_var('DBT_AZURESQL_UID') }}"

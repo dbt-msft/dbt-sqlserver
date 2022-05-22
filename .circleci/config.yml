@@ -16,7 +16,7 @@ jobs:
           pip-dependency-file: dev_requirements.txt
       - run: tox -- -v test/unit
   integration-sqlserver: &sqlserver
-    docker: &msodbc_py_&_sqlserver
+    docker:
       - image: *docker_image
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
@@ -47,7 +47,7 @@ jobs:
       - run:
           name: wait for SQL Server container to set up
           command: sleep 30
-      - run: &prep=connect
+      - run: &prep-connect
           name: prep for connecting
           command: |
             mkdir -p ~/.dbt
@@ -79,7 +79,7 @@ jobs:
       - python/install-packages: *install_dev
       - run: *install-dbt-sqlserver
       - azure-cli/install
-      - run: *prep=connect
+      - run: *prep-connect
       - azure-cli/login-with-service-principal:
           azure-sp: DBT_AZURE_SP_NAME
           azure-sp-password: DBT_AZURE_SP_SECRET

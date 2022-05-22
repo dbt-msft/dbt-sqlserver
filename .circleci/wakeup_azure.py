@@ -16,11 +16,17 @@ resource_group_name = os.getenv("DBT_AZURE_RESOURCE_GROUP_NAME")
 async def resume_azsql() -> bool:
     try:
         client = SqlManagementClient(credential=credential, subscription_id=subscription_id)
-        db = await client.databases.get(resource_group_name=resource_group_name, server_name=sql_server_name,
-                                        database_name=database_name)
+        db = await client.databases.get(
+            resource_group_name=resource_group_name,
+            server_name=sql_server_name,
+            database_name=database_name,
+        )
         if db.status == "Paused":
-            res = await client.databases.begin_resume(resource_group_name=resource_group_name,
-                                                      server_name=sql_server_name, database_name=database_name)
+            res = await client.databases.begin_resume(
+                resource_group_name=resource_group_name,
+                server_name=sql_server_name,
+                database_name=database_name,
+            )
             print("Resuming SQL Database")
             await res.wait()
         elif db.status in ("Pausing", "Resuming"):
@@ -40,7 +46,7 @@ async def main():
         await main()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
     loop.close()

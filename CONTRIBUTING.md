@@ -10,11 +10,11 @@ pyenv virtualenv 3.9.12 dbt-sqlserver
 pyenv activate dbt-sqlserver
 ```
 
-Install the development dependencies:
+Install the development dependencies and pre-commit and get information about possible make commands:
 
 ```shell
-pip install -r devrequirements.txt
-pip install -e .
+make dev
+make help
 ```
 
 ## Testing

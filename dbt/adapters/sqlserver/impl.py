@@ -1,11 +1,10 @@
-from dbt.adapters.sql import SQLAdapter
-from dbt.adapters.sqlserver import SQLServerConnectionManager
-from dbt.adapters.base.relation import BaseRelation
+from typing import List, Optional
+
 import agate
-from typing import (
-    Optional, Tuple, Callable, Iterable, Type, Dict, Any, List, Mapping,
-    Iterator, Union, Set
-)
+from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.sql import SQLAdapter
+
+from dbt.adapters.sqlserver import SQLServerConnectionManager
 
 
 class SQLServerAdapter(SQLAdapter):
@@ -42,9 +41,7 @@ class SQLServerAdapter(SQLAdapter):
         return "datetime"
 
     # Methods used in adapter tests
-    def timestamp_add_sql(
-        self, add_to: str, number: int = 1, interval: str = "hour"
-    ) -> str:
+    def timestamp_add_sql(self, add_to: str, number: int = 1, interval: str = "hour") -> str:
         # note: 'interval' is not supported for T-SQL
         # for backwards compatibility, we're compelled to set some sort of
         # default. A lot of searching has lead me to believe that the
@@ -53,19 +50,20 @@ class SQLServerAdapter(SQLAdapter):
         return f"DATEADD({interval},{number},{add_to})"
 
     def string_add_sql(
-        self, add_to: str, value: str, location='append',
+        self,
+        add_to: str,
+        value: str,
+        location="append",
     ) -> str:
         """
         `+` is T-SQL's string concatenation operator
         """
-        if location == 'append':
+        if location == "append":
             return f"{add_to} + '{value}'"
-        elif location == 'prepend':
+        elif location == "prepend":
             return f"'{value}' + {add_to}"
         else:
-            raise RuntimeException(
-                f'Got an unexpected location value of "{location}"'
-            )
+            raise ValueError(f'Got an unexpected location value of "{location}"')
 
     def get_rows_different_sql(
         self,
