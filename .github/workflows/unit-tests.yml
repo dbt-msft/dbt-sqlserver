@@ -28,11 +28,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r dev_requirements.txt
 
-      - name: Set tox environment
-        run:
+      - name: Run unit tests
+        run: |
           RAW_TOXENV="${{ matrix.python_version }}"
           TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
-          echo "TOXENV=$TOXENV" >> $GITHUB_ENV
-
-      - name: Run unit tests
-        run: tox -e "${{ env.TOXENV }}" -- tests/unit
+          tox -e "$TOXENV" -- tests/unit
