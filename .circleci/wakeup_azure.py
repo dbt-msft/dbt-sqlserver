@@ -24,6 +24,9 @@ def resume_azsql():
     ]
 
     con_str_concat = ";".join(con_str)
+    print("Connecting with the following connection string:")
+    print(con_str_concat.replace(password, "***"))
+
     connected = False
     while not connected:
         try:
