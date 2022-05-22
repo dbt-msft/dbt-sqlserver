@@ -35,4 +35,4 @@ jobs:
           echo "TOXENV=$TOXENV" >> $GITHUB_ENV
 
       - name: Run unit tests
-        run: tox -e $TOXENV -- tests/unit
+        run: tox -e "${{ env.TOXENV }}" -- tests/unit
