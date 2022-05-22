@@ -28,8 +28,10 @@ def resume_azsql():
     print(con_str_concat.replace(password, "***"))
 
     connected = False
-    while not connected:
+    attempts = 0
+    while not connected and attempts < 20:
         try:
+            attempts += 1
             handle = pyodbc.connect(con_str_concat, autocommit=True)
             cursor = handle.cursor()
             cursor.execute("SELECT 1")
