@@ -64,5 +64,4 @@ jobs:
         run: |
           RAW_TOXENV="py${{ matrix.python_version }}"
           TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
-          az login --service-principal --username="${{ secrets.DBT_AZURE_SP_NAME }}" --password="${{ secrets.DBT_AZURE_SP_SECRET }}" --tenant="${{ secrets.DBT_AZURE_TENANT }}"
           tox -e "$TOXENV" -- tests/functional --profile "${{ matrix.profile }}"
