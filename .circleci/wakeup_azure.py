@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import time
 
 import pyodbc
 
@@ -23,7 +24,16 @@ def resume_azsql():
     ]
 
     con_str_concat = ";".join(con_str)
-    pyodbc.connect(con_str_concat, autocommit=True)
+    connected = False
+    while not connected:
+        try:
+            handle = pyodbc.connect(con_str_concat, autocommit=True)
+            cursor = handle.cursor()
+            cursor.execute("SELECT 1")
+            connected = True
+        except pyodbc.Error:
+            print("Failed to connect to SQL Server. Retrying...")
+            time.sleep(10)
 
 
 def main():
