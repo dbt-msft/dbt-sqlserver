@@ -102,21 +102,17 @@ class SQLServerAdapter(SQLAdapter):
         cursor = conn.handle.cursor()
         try:
             cursor.execute(sql)
-            print(f"xxxx anders {fetch=}")
             if not fetch:
                 conn.handle.commit()
-            print("past error")
             if fetch == "one":
                 return cursor.fetchone()
             elif fetch == "all":
                 return cursor.fetchall()
             else:
                 return
-        except BaseException as e:
+        except BaseException:
             if conn.handle and not getattr(conn.handle, "closed", True):
                 conn.handle.rollback()
-            print(sql)
-            print(e)
             raise
         finally:
             conn.transaction_open = False

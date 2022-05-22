@@ -15,28 +15,14 @@ jobs:
           pkg-manager: pip
           pip-dependency-file: dev_requirements.txt
       - run: tox -- -v test/unit
-  integration-sqlserver: &sqlserver
+
+  connection-sqlserver:
     docker:
       - image: *docker_image
       - image: mcr.microsoft.com/mssql/server:2019-latest
         environment:
           ACCEPT_EULA: 'Y'
           SA_PASSWORD: 5atyaNadella
-    steps:
-      - checkout
-      - python/install-packages: *install_dev
-      - run:
-          name: wait for SQL Server container to set up
-          command: sleep 30
-      - run:
-          name: test connection via SQL CMD
-          command: sqlcmd -S 'localhost,1433' -U sa -P 5atyaNadella -Q 'create database blog'
-      - run:
-          name: Test adapter on SQL Server against dbt-adapter-tests
-          command: tox -- -v test/integration/sqlserver.dbtspec
-
-  connection-sqlserver:
-    <<: *sqlserver
     steps:
       - checkout
       - run: &install-dbt-sqlserver
@@ -61,15 +47,6 @@ jobs:
           command: |
             cd test/integration
             dbt compile --target sqlserver_local_encrypt
-
-  integration-azuresql:
-    docker: *msodbc_py
-    steps:
-      - checkout
-      - python/install-packages: *install_dev
-      - run:
-          name: Test adapter on Azure SQL against dbt-adapter-tests
-          command: tox -- -v test/integration/azuresql.dbtspec
 
   connection-azuresql:
     docker: *msodbc_py
@@ -168,16 +145,10 @@ workflows:
               only: /.*/
       - connection-sqlserver:
           filters: *untagged-filters
-      - integration-sqlserver:
-          filters: *untagged-filters
       - connection-azuresql: &profile
           filters: *untagged-filters
           context:
             - DBT_SYNAPSE_PROFILE
-      - integration-azuresql:
-          <<: *profile
-          requires:
-            - connection-azuresql
       - release-new-version:
           context:
             - DBT_SYNAPSE_PROFILE
