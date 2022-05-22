@@ -93,7 +93,7 @@ def _profile_ci_sql_server():
     return {
         **_all_profiles_base(),
         **{
-            "host": "localhost",
+            "host": "sqlserver",
             "user": "SA",
             "pass": "5atyaNadella",
             "database": "msdb",

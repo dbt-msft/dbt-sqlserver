@@ -1,0 +1,64 @@
+---
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  unit-tests:
+    strategy:
+      matrix:
+        python_version: ["3.7", "3.8", "3.9"]
+        profile: ["ci_sql_server", "ci_sql_server_encrypt", "ci_azure_cli", "ci_azure_auto", "ci_azure_environment", "ci_azure_basic"]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2019-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          SA_PASSWORD: 5atyaNadella
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: pip install -r dev_requirements.txt
+
+      - name: Wake up server
+        env:
+          DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
+          DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
+          DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
+          DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
+        run: python .github/wakeup_azure.py
+
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_LOGIN_CREDS }}
+
+      - name: Run functional tests
+        env:
+          DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
+          DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
+          DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
+          DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
+          DBT_AZURE_USERNAME: ${{ secrets.DBT_AZURE_USERNAME }}
+          DBT_AZURE_PASSWORD: ${{ secrets.DBT_AZURE_PASSWORD }}
+          AZURE_CLIENT_ID: ${{ secrets.DBT_AZURE_SP_NAME }}
+          AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}
+        run: |
+          RAW_TOXENV="py${{ matrix.python_version }}"
+          TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
+          tox -e "$TOXENV" -- tests/functional --profile "${{ matrix.profile }}"

@@ -5,122 +5,18 @@ orbs:
   azure-cli: circleci/azure-cli@1.2.2
 
 jobs:
-
-  unit:
-    docker: &msodbc_py
-      - image: &docker_image ghcr.io/dbt-msft/dbt-sqlserver:latest
+  release-new-version:
+    docker:
+      - image: ghcr.io/dbt-msft/dbt-sqlserver:latest
     steps:
       - checkout
-      - python/install-packages: &install_dev
+      - python/install-packages:
           pkg-manager: pip
           pip-dependency-file: dev_requirements.txt
-      - run: tox -- -v test/unit
-
-  connection-sqlserver:
-    docker:
-      - image: *docker_image
-      - image: mcr.microsoft.com/mssql/server:2019-latest
-        environment:
-          ACCEPT_EULA: 'Y'
-          SA_PASSWORD: 5atyaNadella
-    steps:
-      - checkout
-      - run: &install-dbt-sqlserver
+      - run:
           name: "install dbt-sqlserver"
           command: |
             pip install .
-      - run:
-          name: wait for SQL Server container to set up
-          command: sleep 30
-      - run: &prep-connect
-          name: prep for connecting
-          command: |
-            mkdir -p ~/.dbt
-            cp test/integration/sample.profiles.yml ~/.dbt/profiles.yml
-      - run:
-          name: cnxn -- SQL Server - local sql cred
-          command: |
-            cd test/integration
-            dbt compile --target sqlserver_local_userpass
-      - run:
-          name: cnxn -- SQL Server - local sql cred encrypt
-          command: |
-            cd test/integration
-            dbt compile --target sqlserver_local_encrypt
-
-  connection-azuresql:
-    docker: *msodbc_py
-    steps:
-      - checkout
-      - python/install-packages: *install_dev
-      - run: *install-dbt-sqlserver
-      - azure-cli/install
-      - run: *prep-connect
-      - azure-cli/login-with-service-principal:
-          azure-sp: DBT_AZURE_SP_NAME
-          azure-sp-password: DBT_AZURE_SP_SECRET
-          azure-sp-tenant: DBT_AZURE_TENANT
-      - run:
-          name: wake up server
-          command: |
-            python .circleci/wakeup_azure.py
-      - run:
-          name: cnxn -- Azure SQL - SQL CRED user+pass
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_sqlcred
-      - azure-cli/login-with-user:
-          azure-username: DBT_AZURE_USERNAME
-          azure-password: DBT_AZURE_PASSWORD
-          alternate-tenant: true
-          azure-tenant: DBT_AZURE_TENANT
-      - run:
-          name: cnxn -- Azure SQL - AZ CLI User
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_azcli
-      - azure-cli/login-with-service-principal:
-          azure-sp: DBT_AZURE_SP_NAME
-          azure-sp-password: DBT_AZURE_SP_SECRET
-          azure-sp-tenant: DBT_AZURE_TENANT
-      - run:
-          name: cnxn -- Azure SQL - AZ CLI ServicePrincipal
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_azcli
-      - run:
-          name: cnxn -- Azure SQL - AZ CLI auto
-          command: |
-            cd test/integration
-            dbt compile --target azuresql_azauto
-      - run:
-          name: az logout
-          command: az logout
-      - run:
-          name: cnxn -- Azure SQL - AZ SP auto
-          command: |
-            echo 'export AZURE_CLIENT_ID="${DBT_AZURE_SP_NAME}"' >> $BASH_ENV
-            echo 'export AZURE_CLIENT_SECRET="${DBT_AZURE_SP_SECRET}"' >> $BASH_ENV
-            echo 'export AZURE_TENANT_ID="${DBT_AZURE_TENANT}"' >> $BASH_ENV
-            source $BASH_ENV
-            cd test/integration
-            dbt compile --target azuresql_azauto
-      - run:
-          name: cnxn -- Azure SQL - AZ SP env
-          command: |
-            echo 'export AZURE_CLIENT_ID="${DBT_AZURE_SP_NAME}"' >> $BASH_ENV
-            echo 'export AZURE_CLIENT_SECRET="${DBT_AZURE_SP_SECRET}"' >> $BASH_ENV
-            echo 'export AZURE_TENANT_ID="${DBT_AZURE_TENANT}"' >> $BASH_ENV
-            source $BASH_ENV
-            cd test/integration
-            dbt compile --target azuresql_azenv
-
-  release-new-version:
-    docker: *msodbc_py
-    steps:
-      - checkout
-      - python/install-packages: *install_dev
-      - run: *install-dbt-sqlserver
       - run:
           name: verify git tag vs. version
           command: python setup.py verify
@@ -139,16 +35,6 @@ jobs:
 workflows:
   main:
     jobs:
-      - unit: &untagged-filters
-          filters: &untagged-filters
-            tags:
-              only: /.*/
-      - connection-sqlserver:
-          filters: *untagged-filters
-      - connection-azuresql: &profile
-          filters: *untagged-filters
-          context:
-            - DBT_SYNAPSE_PROFILE
       - release-new-version:
           context:
             - DBT_SYNAPSE_PROFILE
@@ -157,9 +43,3 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v.*/
-          requires:
-            - unit
-            - connection-azuresql
-            - connection-sqlserver
-            - integration-sqlserver
-            - integration-azuresql
