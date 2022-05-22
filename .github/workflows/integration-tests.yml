@@ -47,9 +47,8 @@ jobs:
           DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
         run: python .github/wakeup_azure.py
 
-      - uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_LOGIN_CREDS }}
+      - name: AZ CLI login
+        run: az login --service-principal --username="${{ secrets.DBT_AZURE_SP_NAME }}" --password="${{ secrets.DBT_AZURE_SP_SECRET }}" --tenant="${{ secrets.DBT_AZURE_TENANT }}"
 
       - name: Run functional tests
         env:
