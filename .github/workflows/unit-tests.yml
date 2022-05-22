@@ -1,0 +1,38 @@
+---
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  unit-tests:
+    strategy:
+      matrix:
+        python_version: ["3.7", "3.8", "3.9"]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: pip install -r dev_requirements.txt
+
+      - name: Set tox environment
+        run:
+          RAW_TOXENV="${{ matrix.python_version }}"
+          TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
+          echo "TOXENV=$TOXENV" >> $GITHUB_ENV
+
+      - name: Run unit tests
+        run: tox -e $TOXENV -- tests/unit
