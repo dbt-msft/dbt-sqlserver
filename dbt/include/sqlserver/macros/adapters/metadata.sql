@@ -26,7 +26,7 @@
             ordinal_position as column_index,
             data_type as column_type,
 			null as column_comment
-        from information_schema.columns
+        from INFORMATION_SCHEMA.COLUMNS
 
     )
 
@@ -83,7 +83,7 @@
            else table_type
       end as table_type
 
-    from [{{ schema_relation.database }}].information_schema.tables
+    from [{{ schema_relation.database }}].INFORMATION_SCHEMA.TABLES
     where table_schema like '{{ schema_relation.schema }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
