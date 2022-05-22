@@ -1,6 +1,7 @@
-black==20.8b1
-pytest>=7.0.0
-tox==3.2.0
-flake8==3.5.0
-pytest-dotenv
-dbt-tests-adapter==1.1.0rc1
+pytest==6.2.5
+tox==3.25.0
+twine==4.0.0
+wheel==0.37.1
+pre-commit==2.19.0
+pytest-dotenv==0.5.2
+dbt-tests-adapter==1.1.0

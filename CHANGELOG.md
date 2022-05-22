@@ -1,5 +1,20 @@
 # Changelog
 
+### vNext
+
+#### Features
+
+#### Fixes
+
+* [#194](https://github.com/dbt-msft/dbt-sqlserver/pull/194) uppercased information_schema ([@TrololoLi](https://github.com/TrololoLi))
+* [#215](https://github.com/dbt-msft/dbt-sqlserver/pull/215) Escape schema names so they can contain strange characters ([@johnf](https://github.com/johnf))
+
+#### Chores
+
+* Documentation on how to contribute to the adapter
+* Automatic release process by adding a new tag
+* Consistent code style with pre-commit
+* [#201](https://github.com/dbt-msft/dbt-sqlserver/pull/201) use new dbt 1.0 logger ([@semcha](https://github.com/semcha))
 
 ### v1.0.0
 

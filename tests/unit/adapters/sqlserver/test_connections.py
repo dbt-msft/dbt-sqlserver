@@ -7,8 +7,8 @@ from azure.identity import AzureCliCredential
 
 from dbt.adapters.sqlserver import SQLServerCredentials, connections
 
-
-# See https://github.com/Azure/azure-sdk-for-python/blob/azure-identity_1.5.0/sdk/identity/azure-identity/tests/test_cli_credential.py
+# See
+# https://github.com/Azure/azure-sdk-for-python/blob/azure-identity_1.5.0/sdk/identity/azure-identity/tests/test_cli_credential.py
 CHECK_OUTPUT = AzureCliCredential.__module__ + ".subprocess.check_output"
 
 
@@ -29,9 +29,9 @@ def mock_cli_access_token() -> str:
     expected_expires_on = 1602015811
     successful_output = json.dumps(
         {
-            "expiresOn": dt.datetime.fromtimestamp(
-                expected_expires_on
-            ).strftime("%Y-%m-%d %H:%M:%S.%f"),
+            "expiresOn": dt.datetime.fromtimestamp(expected_expires_on).strftime(
+                "%Y-%m-%d %H:%M:%S.%f"
+            ),
             "accessToken": access_token,
             "subscription": "some-guid",
             "tenant": "some-guid",
@@ -48,7 +48,7 @@ def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
     When the authentication is set to sql we expect an empty attrs before.
     """
     attrs_before = connections.get_pyodbc_attrs_before(credentials)
-    assert attrs_before == dict()
+    assert attrs_before == {}
 
 
 @pytest.mark.parametrize("authentication", ["CLI", "cli", "cLi"])
@@ -62,8 +62,6 @@ def test_get_pyodbc_attrs_before_contains_access_token_key_for_cli_authenticatio
     access token key.
     """
     credentials.authentication = authentication
-    with mock.patch(
-        CHECK_OUTPUT, mock.Mock(return_value=mock_cli_access_token)
-    ):
+    with mock.patch(CHECK_OUTPUT, mock.Mock(return_value=mock_cli_access_token)):
         attrs_before = connections.get_pyodbc_attrs_before(credentials)
     assert 1256 in attrs_before.keys()

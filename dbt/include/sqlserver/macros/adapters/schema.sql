@@ -3,14 +3,14 @@
     USE [{{ relation.database }}];
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA {{ relation.without_identifier().schema }}')
+    EXEC('CREATE SCHEMA [{{ relation.without_identifier().schema }}]')
     END
   {% endcall %}
 {% endmacro %}
 
 {% macro sqlserver__drop_schema(relation) -%}
   {%- set relations_in_schema = list_relations_without_caching(relation) %}
-  
+
   {% for row in relations_in_schema %}
     {%- set schema_relation = api.Relation.create(database=relation.database,
                                                schema=relation.schema,
