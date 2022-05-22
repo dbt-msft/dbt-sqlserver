@@ -1,9 +1,9 @@
 .DEFAULT_GOAL:=help
 
 .PHONY: dev
-dev: ## Installs adapter in develop mode along with development depedencies
+dev: ## Installs adapter in develop mode along with development dependencies
 	@\
-	pip install -r dev_requirements.txt && pre-commit install
+	pip install -r dev_requirements.txt && pip install -e . && pre-commit install
 
 .PHONY: mypy
 mypy: ## Runs mypy against staged changes for static type checking.
