@@ -14,6 +14,7 @@
 * Documentation on how to contribute to the adapter
 * Automatic release process by adding a new tag
 * Consistent code style with pre-commit
+* [#201](https://github.com/dbt-msft/dbt-sqlserver/pull/201) use new dbt 1.0 logger ([@semcha](https://github.com/semcha))
 
 ### v1.0.0
 
