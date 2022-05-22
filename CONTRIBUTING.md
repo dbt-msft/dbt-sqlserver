@@ -34,8 +34,8 @@ make test
 
 ## CI/CD
 
-We use Docker image that has all the things we need to run the adapter. The Dockerfile is located in the *.github* directory and pushed to GitHub Packages to this repo.
-To update the image, push a new tag that starts with `docker-` (e.g. `docker-2022052301`). The image is built and pushed using GitHub actions.
+We use Docker images that have all the things we need to run the adapter. The Dockerfile is located in the *.github* directory and pushed to GitHub Packages to this repo.
+There is one tag per supported Python version.
 
 There is a Circle CI workflow with jobs that run the following tasks:
 

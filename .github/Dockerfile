@@ -1,4 +1,5 @@
-FROM python:3.9-bullseye
+ARG PYTHON_VERSION=3.9
+FROM python:${PYTHON_VERSION}-bullseye
 
 # Setup dependencies for pyodbc
 RUN apt-get update && \
