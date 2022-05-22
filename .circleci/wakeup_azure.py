@@ -31,8 +31,9 @@ def resume_azsql():
             cursor = handle.cursor()
             cursor.execute("SELECT 1")
             connected = True
-        except pyodbc.Error:
+        except pyodbc.Error as e:
             print("Failed to connect to SQL Server. Retrying...")
+            print(e)
             time.sleep(10)
 
 
