@@ -1,7 +1,7 @@
 {% macro sqlserver__get_columns_in_relation(relation) -%}
   {% call statement('get_columns_in_relation', fetch_result=True) %}
       SELECT
-          column_name,
+          DISTINCT column_name,
           data_type,
           character_maximum_length,
           numeric_precision,
@@ -26,7 +26,7 @@
               numeric_precision,
               numeric_scale
           from tempdb.INFORMATION_SCHEMA.COLUMNS
-          where table_name like '{{ relation.identifier }}%') cols
+          where table_name like '{{ relation.identifier }}%')
       order by ordinal_position
 
 
