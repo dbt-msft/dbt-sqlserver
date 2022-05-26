@@ -67,7 +67,7 @@ setup(
     install_requires=[
         "dbt-core~=1.1.0",
         "pyodbc~=4.0.32",
-        "azure-identity>=1.9.0",
+        "azure-identity>=1.10.0",
     ],
     cmdclass={
         "verify": VerifyVersionCommand,
