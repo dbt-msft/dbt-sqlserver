@@ -48,7 +48,7 @@ jobs:
         run: python .github/wakeup_azure.py
 
       - name: AZ CLI login
-        run: az login --service-principal --username="${{ secrets.DBT_AZURE_SP_NAME }}" --password="${{ secrets.DBT_AZURE_SP_SECRET }}" --tenant="${{ secrets.DBT_AZURE_TENANT }}"
+        run: az login --username="${{ secrets.DBT_AZURE_USERNAME }}" --password="${{ secrets.DBT_AZURE_PASSWORD }}"
 
       - name: Run functional tests
         env:
