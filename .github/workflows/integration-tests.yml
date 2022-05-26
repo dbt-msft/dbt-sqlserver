@@ -47,12 +47,6 @@ jobs:
           DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
         run: python .github/wakeup_azure.py
 
-      - name: AZ CLI login
-        run: az login --username="${{ secrets.DBT_AZURE_USERNAME }}" --password="${{ secrets.DBT_AZURE_PASSWORD }}"
-
-      - name: AZC CLI validate
-        run: az account show
-
       - name: Run functional tests
         env:
           DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
@@ -65,6 +59,6 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}
         run: |
-          RAW_TOXENV="py${{ matrix.python_version }}"
+          RAW_TOXENV="py${{ matrix.python_version }}-ci"
           TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
           tox -e "$TOXENV" -- tests/functional --profile "${{ matrix.profile }}"
