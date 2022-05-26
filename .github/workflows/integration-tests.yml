@@ -50,6 +50,9 @@ jobs:
       - name: AZ CLI login
         run: az login --username="${{ secrets.DBT_AZURE_USERNAME }}" --password="${{ secrets.DBT_AZURE_PASSWORD }}"
 
+      - name: AZC CLI validate
+        run: az account show
+
       - name: Run functional tests
         env:
           DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
