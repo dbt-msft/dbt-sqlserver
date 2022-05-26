@@ -44,7 +44,7 @@ unit: ## Runs unit tests.
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
 	@\
-	tox -e py37,py38,py39 -- -v test/unit; \
+	tox -- -v test/unit; \
 	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run flake8-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
