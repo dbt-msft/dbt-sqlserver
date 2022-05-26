@@ -58,9 +58,6 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.DBT_AZURE_SP_NAME }}
           AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}
-          DBT_AZURE_SP_NAME: ${{ secrets.DBT_AZURE_SP_NAME }}
-          DBT_AZURE_SP_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
-          DBT_AZURE_TENANT: ${{ secrets.DBT_AZURE_TENANT }}
         run: |
           RAW_TOXENV="py${{ matrix.python_version }}-ci"
           TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
