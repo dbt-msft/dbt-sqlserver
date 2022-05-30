@@ -17,7 +17,7 @@
           from [{{ relation.database }}].INFORMATION_SCHEMA.COLUMNS
           where table_name = '{{ relation.identifier }}'
             and table_schema = '{{ relation.schema }}'
-          UNION ALL
+          UNION
           select
               ordinal_position,
               column_name collate database_default,

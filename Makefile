@@ -39,15 +39,25 @@ linecheck: ## Checks for all Python lines 100 characters or more
 .PHONY: unit
 unit: ## Runs unit tests.
 	@\
-	tox -- -v test/unit
+	tox -- -v tests/unit
+
+.PHONY: functional
+functional: ## Runs unit tests.
+	@\
+	tox -- -v tests/functional
 
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
 	@\
-	tox -- -v test/unit; \
+	tox -- -v tests/unit; \
 	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run flake8-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
+
+.PHONY: server
+server: ## Spins up a local MS SQL Server instance for development. Docker-compose is required.
+	@\
+	docker-compose up -d
 
 .PHONY: clean
 	@echo "cleaning repo"

@@ -5,9 +5,11 @@ Python 3.9 is used for developing the adapter. To get started, setup your enviro
 Create a virtual environment, pyenv is used in the example:
 
 ```shell
+pyenv install 3.7.13
+pyenv install 3.8.13
 pyenv install 3.9.12
 pyenv virtualenv 3.9.12 dbt-sqlserver
-pyenv activate dbt-sqlserver
+pyenv local dbt-sqlserver 3.8.13 3.7.13
 ```
 
 Install the development dependencies and pre-commit and get information about possible make commands:

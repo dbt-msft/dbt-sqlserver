@@ -43,6 +43,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+*.log.legacy
 
 # Translations
 *.mo
@@ -90,7 +91,7 @@ target/
 .mypy_cache/
 
 # Environments
-.env
+*.env
 .venv
 env/
 venv/
