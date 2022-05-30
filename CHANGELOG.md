@@ -1,8 +1,10 @@
 # Changelog
 
-### vNext
+### v1.1.0.rc1
 
 #### Features
+
+* update to dbt 1.1
 
 #### Fixes
 
@@ -15,6 +17,7 @@
 * Automatic release process by adding a new tag
 * Consistent code style with pre-commit
 * [#201](https://github.com/dbt-msft/dbt-sqlserver/pull/201) use new dbt 1.0 logger ([@semcha](https://github.com/semcha))
+* [#216](https://github.com/dbt-msft/dbt-sqlserver/pull/216) use new dbt testing framework ([@dataders](https://github.com/dataders) & [@sdebruyn](https://github.com/sdebruyn))
 
 ### v1.0.0
 
