@@ -22,6 +22,9 @@ jobs:
           pip install -e .
           pip install -r dev_requirements.txt
 
+      - name: Verify version match
+        run: python setup.py verify
+
       - name: Initialize .pypirc
         run: |
           echo -e "[pypi]" >> ~/.pypirc
