@@ -1,43 +1,13 @@
 ---
-name: Integration tests
+name: Integration tests on Azure
 on:  # yamllint disable-line rule:truthy
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+  pull_request_target:
+    types: [labeled]
 
 jobs:
-  integration-tests-sql-server:
-    name: Integration tests on SQL Server
-    strategy:
-      fail-fast: false
-      matrix:
-        python_version: ["3.7", "3.8", "3.9"]
-        profile: ["ci_sql_server", "ci_sql_server_encrypt"]
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2019-latest
-        env:
-          ACCEPT_EULA: 'Y'
-          SA_PASSWORD: 5atyaNadella
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install dependencies
-        run: pip install -e . && pip install -r dev_requirements.txt
-
-      - name: Run functional tests
-        run: |
-          RAW_TOXENV="py${{ matrix.python_version }}"
-          TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
-          tox -e "$TOXENV" -- tests/functional --profile "${{ matrix.profile }}"
-
   integration-tests-azure:
     name: Integration tests on Azure
+    if: contains(github.event.pull_request.labels.*.name, 'safe to test')
     strategy:
       fail-fast: false
       max-parallel: 1
