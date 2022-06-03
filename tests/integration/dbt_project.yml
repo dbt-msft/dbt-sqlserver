@@ -1,5 +1,0 @@
-name: 'sqlserver_integration_tests'
-version: '1.0'
-config-version: 2
-
-profile: 'integration_tests'

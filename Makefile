@@ -42,7 +42,7 @@ unit: ## Runs unit tests.
 	tox -- -v tests/unit
 
 .PHONY: functional
-functional: ## Runs unit tests.
+functional: ## Runs functional tests.
 	@\
 	tox -- -v tests/functional
 
