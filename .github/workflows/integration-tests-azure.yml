@@ -1,6 +1,9 @@
 ---
 name: Integration tests on Azure
 on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - master
   pull_request_target:
     types: [labeled]
 
