@@ -11,6 +11,7 @@ with open(os.path.join(this_directory, "README.md")) as f:
     long_description = f.read()
 
 package_name = "dbt-sqlserver"
+authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
 
 
 # get this from a separate file
@@ -43,7 +44,7 @@ class VerifyVersionCommand(install):
     description = "Verify that the git tag matches our version"
 
     def run(self):
-        tag = os.getenv("CIRCLE_TAG")
+        tag = os.getenv("GITHUB_REF_NAME")
         tag_without_prefix = tag[1:]
 
         if tag_without_prefix != package_version:
@@ -60,7 +61,7 @@ setup(
     long_description=description,
     long_description_content_type="text/markdown",
     license="MIT",
-    author="Mikael Ene, Anders Swanson, Sam Debruyn, Cor Zuurmond",
+    author=", ".join(authors_list),
     url="https://github.com/dbt-msft/dbt-sqlserver",
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
