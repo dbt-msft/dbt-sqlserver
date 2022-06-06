@@ -2,7 +2,7 @@ import pytest
 from dbt.tests.util import run_dbt
 
 
-class TestAddtionalIncrementalSQLServer:
+class TestAdditionalIncrementalSQLServer:
     @pytest.fixture(scope="class")
     def models(self):
         return {
