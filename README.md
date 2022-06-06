@@ -57,7 +57,7 @@ See [the changelog](CHANGELOG.md)
 
 This adapter is community-maintained.
 Anyone is welcome to contribute by creating issues, opening or reviewing pull requests or helping other users in Slack channel.
-If you're unsure how to get started, check out our [contributing guide](CONTRIBUTING.md) guide.
+If you're unsure how to get started, check out our [contributing guide](CONTRIBUTING.md).
 
 ## License
 
