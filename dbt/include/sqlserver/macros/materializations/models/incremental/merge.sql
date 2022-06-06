@@ -15,14 +15,17 @@
 
       {% if unique_key %}
       {% if unique_key is sequence and unique_key is not string %}
-      delete from {{target }}
-          using {{ source }}
-      where (
+      delete from {{ target }}
+          where exists (
+                SELECT NULL
+                FROM
+                  {{ source }}
+                WHERE
                 {% for key in unique_key %}
-                {{ source }}.{{ key }} = {{ target }}.{{ key }}
-                {{ "and " if not loop.last }}
+                    {{ source }}.{{ key }} = {{ target }}.{{ key }}
+                    {{ "and " if not loop.last }}
                 {% endfor %}
-                );
+            );
       {% else %}
       delete from {{ target }}
           where (
