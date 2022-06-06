@@ -25,6 +25,6 @@ class TestAdditionalIncrementalSQLServer:
     SELECT A, B FROM CTE""",
         }
 
-    def test_build(self, project):
+    def test_run_incremental(self, project):
         run_dbt(["run"])
         run_dbt(["run"])
