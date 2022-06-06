@@ -56,7 +56,7 @@ See [the changelog](CHANGELOG.md)
 [![Integration tests on Azure](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/integration-tests-azure.yml/badge.svg)](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/integration-tests-azure.yml)
 
 This adapter is community-maintained.
-Anyone is welcome to contribute by creating issues, opening or reviewing pull requests or helping other users in Slack channel.
+You are is welcome to contribute by creating issues, opening or reviewing pull requests or helping other users in Slack channel.
 If you're unsure how to get started, check out our [contributing guide](CONTRIBUTING.md).
 
 ## License
