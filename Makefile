@@ -57,7 +57,7 @@ test: ## Runs unit tests and code checks against staged changes.
 .PHONY: server
 server: ## Spins up a local MS SQL Server instance for development. Docker-compose is required.
 	@\
-	docker-compose up -d
+	docker compose up -d
 
 .PHONY: clean
 	@echo "cleaning repo"
