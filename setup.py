@@ -58,7 +58,7 @@ setup(
     name=package_name,
     version=package_version,
     description=description,
-    long_description=description,
+    long_description=long_description,
     long_description_content_type="text/markdown",
     license="MIT",
     author=", ".join(authors_list),
