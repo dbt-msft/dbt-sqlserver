@@ -2,6 +2,7 @@ import struct
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
 from itertools import chain, repeat
 from typing import Callable, Dict, Mapping, Optional
 
@@ -270,6 +271,31 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
 
     return attrs_before
 
+def handle_datetimeoffset(dto_value) -> datetime:
+    """
+    Provides an pyodbc handler for DATETIMEOFFSET as this is not handled natively
+
+    Parameters
+    ----------
+    dto_value : Buffer
+        A binary DATETIMEOFFSET value
+
+    Returns
+    -------
+    out : datetime
+    
+    Source
+    ------
+    pyodbc wiki:
+        https://github.com/mkleehammer/pyodbc/wiki/Using-an-Output-Converter-function
+        
+    @stevenwinfield's decoding suggestion here:
+        https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
+    """
+    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 500000000, -6, 0)
+    return datetime(tup[0], tup[1], tup[2], tup[3], tup[4], tup[5], tup[6] // 1000,
+                    timezone(timedelta(hours=tup[7], minutes=tup[8])))
+
 
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
@@ -417,7 +443,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             else:
                 logger.debug("On {}: {}".format(connection.name, sql))
             pre = time.time()
-
+            
             cursor = connection.handle.cursor()
 
             # pyodbc does not handle a None type binding!
@@ -425,6 +451,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 cursor.execute(sql)
             else:
                 cursor.execute(sql, bindings)
+            
+            # tell pyodbc how to handle datetimeoffset
+            connection.handle.add_output_converter(-155, handle_datetimeoffset)
 
             logger.debug(
                 "SQL status: {} in {:0.2f} seconds".format(
