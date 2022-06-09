@@ -1,5 +1,21 @@
 # Changelog
 
+### v1.1.0
+
+See changes included in v1.1.0rc1 below as well
+
+#### Fixes
+
+* [#251](https://github.com/dbt-msft/dbt-sqlserver/pull/251) fix incremental models with arrays for unique keys ([@sdebruyn](https://github.com/sdebruyn) & [@johnnytang24](https://github.com/johnnytang24))
+* [#214](https://github.com/dbt-msft/dbt-sqlserver/pull/214) fix for sources with spaces in the names ([@Freia3](https://github.com/Freia3))
+* [#238](https://github.com/dbt-msft/dbt-sqlserver/pull/238) fix snapshots breaking when new columns are added ([@jakemcaferty](https://github.com/jakemcaferty))
+
+#### Chores
+
+* [#249](https://github.com/dbt-msft/dbt-sqlserver/pull/249) & [#250](https://github.com/dbt-msft/dbt-sqlserver/pull/251) add Python 3.10 to automated testing ([@sdebruyn](https://github.com/sdebruyn))
+* [#248](https://github.com/dbt-msft/dbt-sqlserver/pull/248) update all documentation, README and include on dbt docs ([@sdebruyn](https://github.com/sdebruyn))
+* [#252](https://github.com/dbt-msft/dbt-sqlserver/pull/252) add automated test for [#214](https://github.com/dbt-msft/dbt-sqlserver/pull/214) ([@sdebruyn](https://github.com/sdebruyn))
+
 ### v1.1.0.rc1
 
 #### Features
