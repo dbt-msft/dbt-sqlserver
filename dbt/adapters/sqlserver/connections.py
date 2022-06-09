@@ -276,6 +276,8 @@ def handle_datetimeoffset(dto_value) -> datetime:
     """
     Provides an pyodbc handler for DATETIMEOFFSET as this is not handled natively
 
+    little-endian
+
     Parameters
     ----------
     dto_value : Buffer
@@ -293,16 +295,16 @@ def handle_datetimeoffset(dto_value) -> datetime:
     @stevenwinfield's decoding suggestion here:
         https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
     """
-    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 500000000, -6, 0)
+    tup = struct.unpack("<6hI2h", dto_value)
     return datetime(
-        tup[0],
-        tup[1],
-        tup[2],
-        tup[3],
-        tup[4],
-        tup[5],
-        tup[6] // 1000,
-        timezone(timedelta(hours=tup[7], minutes=tup[8])),
+        year=tup[0],
+        month=tup[1],
+        day=tup[2],
+        hour=tup[3],
+        minute=tup[4],
+        second=tup[5],
+        microsecond=tup[6] // 1000,
+        tzinfo=timezone(timedelta(hours=tup[7], minutes=tup[8])),
     )
 
 
