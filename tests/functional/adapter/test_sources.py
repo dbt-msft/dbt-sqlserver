@@ -37,12 +37,18 @@ sources:
     period: minute
   schema: INFORMATION_SCHEMA
   tables:
-  - name: freshness_timestamp
-    loaded_at_field: CAST(current_timestamp AS timestamp)
+  - name: freshness_datetime
+    identifier: VIEWS
+    loaded_at_field: CURRENT_TIMESTAMP
+  - name: freshness_datetime_ansi
+    identifier: VIEWS
+    loaded_at_field: GETDATE()
+  - name: freshness_datetime_two
+    loaded_at_field: SYSDATETIME()
     identifier: VIEWS
   - name: freshness_datetimeoffset
     identifier: VIEWS
-    loaded_at_field: CAST(current_timestamp AS datetimeoffset)
+    loaded_at_field: SYSDATETIMEOFFSET()
 """
 
 select_from_source_regular = """
@@ -81,7 +87,7 @@ class TestSourcesSQLServer:
         run_dbt(["compile"])
 
         ls = run_dbt(["list"])
-        assert len(ls) == 10
+        assert len(ls) == 12
         ls_sources = [src for src in ls if src.startswith("source:")]
         assert len(ls_sources) == 3
 
