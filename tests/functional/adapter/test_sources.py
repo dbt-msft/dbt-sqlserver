@@ -53,6 +53,7 @@ select_from_source_space_in_name = """
 select * from {{ source("space in name", "VIEWS") }}
 """
 
+
 class TestSourcesSQLServer:
     @pytest.fixture(scope="class")
     def models(self):
