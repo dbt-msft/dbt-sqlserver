@@ -4,5 +4,5 @@ twine==4.0.1
 wheel==0.37.1
 pre-commit==2.19.0
 pytest-dotenv==0.5.2
-dbt-tests-adapter==1.1.0
+dbt-tests-adapter==1.1.1
 tox-pyenv==1.1.0
