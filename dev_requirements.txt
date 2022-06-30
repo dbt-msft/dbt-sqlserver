@@ -1,5 +1,5 @@
 pytest==7.1.2
-tox==3.25.0
+tox==3.25.1
 twine==4.0.1
 wheel==0.37.1
 pre-commit==2.19.0
