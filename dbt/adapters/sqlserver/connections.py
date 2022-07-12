@@ -339,6 +339,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             elif getattr(credentials, "windows_login", False):
                 con_str.append("trusted_connection=yes")
+                con_str.append("TrustServerCertificate=yes")
             elif type_auth == "sql":
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
