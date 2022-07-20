@@ -32,9 +32,10 @@ source_freshness = """
 version: 2
 sources:
 - name: freshness
-  error_after:
-    count: 1
-    period: minute
+  freshness:
+    error_after:
+      count: 1
+      period: minute
   schema: INFORMATION_SCHEMA
   tables:
   - name: freshness_datetime
@@ -89,7 +90,7 @@ class TestSourcesSQLServer:
         ls = run_dbt(["list"])
         assert len(ls) == 12
         ls_sources = [src for src in ls if src.startswith("source:")]
-        assert len(ls_sources) == 3
+        assert len(ls_sources) == 6
 
         run_dbt(["run"])
         run_dbt(["test"])
