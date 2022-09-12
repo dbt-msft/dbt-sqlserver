@@ -19,7 +19,7 @@ from azure.identity import (
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.clients.agate_helper import empty_table
-from dbt.contracts.connection import AdapterResponse, Connection
+from dbt.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.events import AdapterLogger
 
 from dbt.adapters.sqlserver import __version__
@@ -308,66 +308,71 @@ class SQLServerConnectionManager(SQLConnectionManager):
     @classmethod
     def open(cls, connection: Connection) -> Connection:
 
-        if connection.state == "open":
+        if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
 
-        credentials = connection.credentials
+        credentials = cls.get_credentials(connection.credentials)
 
-        try:
-            con_str = [f"DRIVER={{{credentials.driver}}}"]
+        con_str = [f"DRIVER={{{credentials.driver}}}"]
 
-            if "\\" in credentials.host:
+        if "\\" in credentials.host:
 
-                # If there is a backslash \ in the host name, the host is a
-                # SQL Server named instance. In this case then port number has to be omitted.
-                con_str.append(f"SERVER={credentials.host}")
-            else:
-                con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            # If there is a backslash \ in the host name, the host is a
+            # SQL Server named instance. In this case then port number has to be omitted.
+            con_str.append(f"SERVER={credentials.host}")
+        else:
+            con_str.append(f"SERVER={credentials.host},{credentials.port}")
 
-            con_str.append(f"Database={credentials.database}")
+        con_str.append(f"Database={credentials.database}")
 
-            type_auth = getattr(credentials, "authentication", "sql")
+        type_auth = getattr(credentials, "authentication", "sql")
 
-            if "ActiveDirectory" in type_auth:
-                con_str.append(f"Authentication={credentials.authentication}")
+        if "ActiveDirectory" in type_auth:
+            con_str.append(f"Authentication={credentials.authentication}")
 
-                if type_auth == "ActiveDirectoryPassword":
-                    con_str.append(f"UID={{{credentials.UID}}}")
-                    con_str.append(f"PWD={{{credentials.PWD}}}")
-                elif type_auth == "ActiveDirectoryInteractive":
-                    con_str.append(f"UID={{{credentials.UID}}}")
-
-            elif getattr(credentials, "windows_login", False):
-                con_str.append("trusted_connection=yes")
-            elif type_auth == "sql":
+            if type_auth == "ActiveDirectoryPassword":
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
+            elif type_auth == "ActiveDirectoryInteractive":
+                con_str.append(f"UID={{{credentials.UID}}}")
 
-            # still confused whether to use "Yes", "yes", "True", or "true"
-            # to learn more visit
-            # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
-            if getattr(credentials, "encrypt", False) is True:
-                con_str.append("Encrypt=Yes")
-                if getattr(credentials, "trust_cert", False) is True:
-                    con_str.append("TrustServerCertificate=Yes")
+        elif getattr(credentials, "windows_login", False):
+            con_str.append("trusted_connection=yes")
+        elif type_auth == "sql":
+            con_str.append(f"UID={{{credentials.UID}}}")
+            con_str.append(f"PWD={{{credentials.PWD}}}")
 
-            plugin_version = __version__.version
-            application_name = f"dbt-{credentials.type}/{plugin_version}"
-            con_str.append(f"Application Name={application_name}")
+        # still confused whether to use "Yes", "yes", "True", or "true"
+        # to learn more visit
+        # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
+        if getattr(credentials, "encrypt", False) is True:
+            con_str.append("Encrypt=Yes")
+            if getattr(credentials, "trust_cert", False) is True:
+                con_str.append("TrustServerCertificate=Yes")
 
-            con_str_concat = ";".join(con_str)
+        plugin_version = __version__.version
+        application_name = f"dbt-{credentials.type}/{plugin_version}"
+        con_str.append(f"Application Name={application_name}")
 
-            index = []
-            for i, elem in enumerate(con_str):
-                if "pwd=" in elem.lower():
-                    index.append(i)
+        con_str_concat = ";".join(con_str)
 
-            if len(index) != 0:
-                con_str[index[0]] = "PWD=***"
+        index = []
+        for i, elem in enumerate(con_str):
+            if "pwd=" in elem.lower():
+                index.append(i)
 
-            con_str_display = ";".join(con_str)
+        if len(index) != 0:
+            con_str[index[0]] = "PWD=***"
 
+        con_str_display = ";".join(con_str)
+
+        retryable_exceptions = [  # https://github.com/mkleehammer/pyodbc/wiki/Exceptions
+            pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
+            pyodbc.OperationalError,
+        ]
+
+        def connect():
             logger.debug(f"Using connection string: {con_str_display}")
 
             attrs_before = get_pyodbc_attrs_before(credentials)
@@ -376,20 +381,16 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 attrs_before=attrs_before,
                 autocommit=True,
             )
-
-            connection.state = "open"
-            connection.handle = handle
             logger.debug(f"Connected to db: {credentials.database}")
+            return handle
 
-        except pyodbc.Error as e:
-            logger.debug(f"Could not connect to db: {e}")
-
-            connection.handle = None
-            connection.state = "fail"
-
-            raise dbt.exceptions.FailedToConnectException(str(e))
-
-        return connection
+        return cls.retry_connection(
+            connection,
+            connect=connect,
+            logger=logger,
+            retry_limit=credentials.retries,
+            retryable_exceptions=retryable_exceptions,
+        )
 
     def cancel(self, connection: Connection):
         logger.debug("Cancel query")
