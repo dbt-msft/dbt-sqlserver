@@ -1,7 +1,6 @@
 import pytest
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
-from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
 from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
@@ -51,14 +50,6 @@ class TestSnapshotTimestampSQLServer(BaseSnapshotTimestamp):
 
 
 class TestBaseCachingSQLServer(BaseAdapterMethod):
-    pass
-
-
-class TestDocsGenerateSQLServer(BaseDocsGenerate):
-    pass
-
-
-class TestDocsGenReferencesSQLServer(BaseDocsGenReferences):
     pass
 
 
