@@ -1,3 +1,4 @@
+import pytest
 from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_bool_or import BaseBoolOr
 from dbt.tests.adapter.utils.test_cast_bool_to_text import BaseCastBoolToText
@@ -24,6 +25,7 @@ class TestAnyValueSQLServer(BaseAnyValue):
     pass
 
 
+@pytest.mark.skip("Not supported in this adapter")
 class TestBoolOrSQLServer(BaseBoolOr):
     pass
 
