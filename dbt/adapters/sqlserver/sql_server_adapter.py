@@ -4,11 +4,13 @@ import agate
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.sql import SQLAdapter
 
-from dbt.adapters.sqlserver import SQLServerConnectionManager
+from dbt.adapters.sqlserver.connections import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 
 
 class SQLServerAdapter(SQLAdapter):
     ConnectionManager = SQLServerConnectionManager
+    Column = SQLServerColumn
 
     @classmethod
     def date_function(cls):
