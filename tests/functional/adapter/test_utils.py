@@ -30,7 +30,7 @@ class TestAnyValueSQLServer(BaseAnyValue):
     pass
 
 
-@pytest.mark.skip("Not supported in this adapter")
+@pytest.mark.skip("bool_or not supported in this adapter")
 class TestBoolOrSQLServer(BaseBoolOr):
     pass
 
