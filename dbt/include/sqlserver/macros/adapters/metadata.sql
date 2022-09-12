@@ -3,17 +3,84 @@
 
   {%- call statement('catalog', fetch_result=True) -%}
 
-    with tabs as (
+    with
+    principals as (
+        select
+            name as principal_name,
+            principal_id as principal_id
+        from
+            sys.database_principals
+    ),
 
-		select
-			TABLE_CATALOG as table_database,
-			TABLE_SCHEMA as table_schema,
-			TABLE_NAME as table_name,
-			TABLE_TYPE as table_type,
-			TABLE_SCHEMA as table_owner,
-			null as table_comment
-		from INFORMATION_SCHEMA.TABLES
+    schemas as (
+        select
+            name as schema_name,
+            schema_id as schema_id,
+            principal_id as principal_id
+        from
+            sys.schemas
+    ),
 
+    tables as (
+        select
+            name as table_name,
+            schema_id as schema_id,
+            principal_id as principal_id,
+            'BASE TABLE' as table_type
+        from
+            sys.tables
+    ),
+
+    tables_with_metadata as (
+        select
+            table_name,
+            schema_name,
+            coalesce(tables.principal_id, schemas.principal_id) as owner_principal_id,
+            table_type
+        from
+            tables
+        join schemas on tables.schema_id = schemas.schema_id
+    ),
+
+    views as (
+        select
+            name as table_name,
+            schema_id as schema_id,
+            principal_id as principal_id,
+            'VIEW' as table_type
+        from
+            sys.views
+    ),
+
+    views_with_metadata as (
+        select
+            table_name,
+            schema_name,
+            coalesce(views.principal_id, schemas.principal_id) as owner_principal_id,
+            table_type
+        from
+            views
+        join schemas on views.schema_id = schemas.schema_id
+    ),
+
+    tables_and_views as (
+        select
+            table_name,
+            schema_name,
+            principal_name,
+            table_type
+        from
+            tables_with_metadata
+        join principals on tables_with_metadata.owner_principal_id = principals.principal_id
+        union all
+        select
+            table_name,
+            schema_name,
+            principal_name,
+            table_type
+        from
+            views_with_metadata
+        join principals on views_with_metadata.owner_principal_id = principals.principal_id
     ),
 
     cols as (
@@ -24,28 +91,27 @@
             table_name,
             column_name,
             ordinal_position as column_index,
-            data_type as column_type,
-			null as column_comment
+            data_type as column_type
         from INFORMATION_SCHEMA.COLUMNS
 
     )
 
     select
-		tabs.table_database,
-		tabs.table_schema,
-		tabs.table_name,
-		tabs.table_type,
-		tabs.table_comment,
-		tabs.table_owner,
-		cols.column_name,
-		cols.column_index,
-		cols.column_type,
-		cols.column_comment
-    from tabs
-    join cols on tabs.table_database = cols.table_database and tabs.table_schema = cols.table_schema and tabs.table_name = cols.table_name
+        cols.table_database,
+        tv.schema_name as table_schema,
+        tv.table_name,
+        tv.table_type,
+        null as table_comment,
+        tv.principal_name as table_owner,
+        cols.column_name,
+        cols.column_index,
+        cols.column_type,
+        null as column_comment
+    from tables_and_views tv
+             join cols on tv.schema_name = cols.table_schema and tv.table_name = cols.table_name
     order by column_index
 
-  {%- endcall -%}
+    {%- endcall -%}
 
   {{ return(load_result('catalog').table) }}
 
