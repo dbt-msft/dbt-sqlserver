@@ -45,7 +45,7 @@ seeds:
   - name: expected
     config:
       column_types:
-        timestamp_col: "datetime"
+        timestamp_col: "datetimeoffset"
         """
 
         return {
