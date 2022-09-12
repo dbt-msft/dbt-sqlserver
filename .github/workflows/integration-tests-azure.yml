@@ -4,6 +4,7 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - master
+      - v*
   pull_request_target:
     types: [labeled]
 
