@@ -16,7 +16,7 @@ from dbt.tests.adapter.basic.test_docs_generate import (
 
 class TestDocsGenerateSQLServer(BaseDocsGenerate):
     @pytest.fixture(scope="class")
-    def expected_catalog(self, project, profile_user):
+    def expected_catalog(self, project):
         return base_expected_catalog(
             project,
             role="dbo",
@@ -31,7 +31,7 @@ class TestDocsGenerateSQLServer(BaseDocsGenerate):
 
 class TestDocsGenReferencesSQLServer(BaseDocsGenReferences):
     @pytest.fixture(scope="class")
-    def expected_catalog(self, project, profile_user):
+    def expected_catalog(self, project):
         return expected_references_catalog(
             project,
             role="dbo",

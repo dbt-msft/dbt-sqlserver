@@ -27,6 +27,8 @@ def dbt_profile_target(request):
         return _profile_ci_azure_basic()
     if profile == "user":
         return _profile_user()
+    if profile == "user_azure":
+        return _profile_user_azure()
 
     raise ValueError(f"Unknown profile: {profile}")
 
@@ -121,6 +123,21 @@ def _profile_user():
             "port": int(os.getenv("SQLSERVER_TEST_PORT")),
             "user": os.getenv("SQLSERVER_TEST_USER"),
             "pass": os.getenv("SQLSERVER_TEST_PASS"),
+            "database": os.getenv("SQLSERVER_TEST_DBNAME"),
+        },
+    }
+
+
+def _profile_user_azure():
+    return {
+        **_all_profiles_base(),
+        **{
+            "driver": os.getenv("SQLSERVER_TEST_DRIVER"),
+            "host": os.getenv("SQLSERVER_TEST_HOST"),
+            "port": int(os.getenv("SQLSERVER_TEST_PORT")),
+            "authentication": "auto",
+            "encrypt": True,
+            "trust_cert": True,
             "database": os.getenv("SQLSERVER_TEST_DBNAME"),
         },
     }
