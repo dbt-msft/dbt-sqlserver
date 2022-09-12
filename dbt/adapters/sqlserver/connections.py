@@ -3,8 +3,9 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain, repeat
-from typing import Callable, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
+import agate
 import dbt.exceptions
 import pyodbc
 from azure.core.credentials import AccessToken
@@ -17,7 +18,8 @@ from azure.identity import (
 )
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
-from dbt.contracts.connection import AdapterResponse
+from dbt.clients.agate_helper import empty_table
+from dbt.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.events import AdapterLogger
 
 from dbt.adapters.sqlserver import __version__
@@ -46,6 +48,7 @@ class SQLServerCredentials(Credentials):
     authentication: Optional[str] = "sql"
     encrypt: Optional[bool] = False
     trust_cert: Optional[bool] = False
+    retries: int = 1
 
     _ALIASES = {
         "user": "UID",
@@ -287,7 +290,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 self.release()
             except pyodbc.Error:
                 logger.debug("Failed to release connection!")
-                pass
 
             raise dbt.exceptions.DatabaseException(str(e).strip()) from e
 
@@ -304,69 +306,73 @@ class SQLServerConnectionManager(SQLConnectionManager):
             raise dbt.exceptions.RuntimeException(e)
 
     @classmethod
-    def open(cls, connection):
+    def open(cls, connection: Connection) -> Connection:
 
-        if connection.state == "open":
+        if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
 
-        credentials = connection.credentials
+        credentials = cls.get_credentials(connection.credentials)
 
-        try:
-            con_str = []
-            con_str.append(f"DRIVER={{{credentials.driver}}}")
+        con_str = [f"DRIVER={{{credentials.driver}}}"]
 
-            if "\\" in credentials.host:
+        if "\\" in credentials.host:
 
-                # If there is a backslash \ in the host name, the host is a
-                # SQL Server named instance. In this case then port number has to be omitted.
-                con_str.append(f"SERVER={credentials.host}")
-            else:
-                con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            # If there is a backslash \ in the host name, the host is a
+            # SQL Server named instance. In this case then port number has to be omitted.
+            con_str.append(f"SERVER={credentials.host}")
+        else:
+            con_str.append(f"SERVER={credentials.host},{credentials.port}")
 
-            con_str.append(f"Database={credentials.database}")
+        con_str.append(f"Database={credentials.database}")
 
-            type_auth = getattr(credentials, "authentication", "sql")
+        type_auth = getattr(credentials, "authentication", "sql")
 
-            if "ActiveDirectory" in type_auth:
-                con_str.append(f"Authentication={credentials.authentication}")
+        if "ActiveDirectory" in type_auth:
+            con_str.append(f"Authentication={credentials.authentication}")
 
-                if type_auth == "ActiveDirectoryPassword":
-                    con_str.append(f"UID={{{credentials.UID}}}")
-                    con_str.append(f"PWD={{{credentials.PWD}}}")
-                elif type_auth == "ActiveDirectoryInteractive":
-                    con_str.append(f"UID={{{credentials.UID}}}")
-
-            elif getattr(credentials, "windows_login", False):
-                con_str.append("trusted_connection=yes")
-            elif type_auth == "sql":
+            if type_auth == "ActiveDirectoryPassword":
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
+            elif type_auth == "ActiveDirectoryInteractive":
+                con_str.append(f"UID={{{credentials.UID}}}")
 
-            # still confused whether to use "Yes", "yes", "True", or "true"
-            # to learn more visit
-            # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
-            if getattr(credentials, "encrypt", False) is True:
-                con_str.append("Encrypt=Yes")
-                if getattr(credentials, "trust_cert", False) is True:
-                    con_str.append("TrustServerCertificate=Yes")
+        elif getattr(credentials, "windows_login", False):
+            con_str.append("trusted_connection=yes")
+        elif type_auth == "sql":
+            con_str.append(f"UID={{{credentials.UID}}}")
+            con_str.append(f"PWD={{{credentials.PWD}}}")
 
-            plugin_version = __version__.version
-            application_name = f"dbt-{credentials.type}/{plugin_version}"
-            con_str.append(f"Application Name={application_name}")
+        # still confused whether to use "Yes", "yes", "True", or "true"
+        # to learn more visit
+        # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
+        if getattr(credentials, "encrypt", False) is True:
+            con_str.append("Encrypt=Yes")
+            if getattr(credentials, "trust_cert", False) is True:
+                con_str.append("TrustServerCertificate=Yes")
 
-            con_str_concat = ";".join(con_str)
+        plugin_version = __version__.version
+        application_name = f"dbt-{credentials.type}/{plugin_version}"
+        con_str.append(f"Application Name={application_name}")
 
-            index = []
-            for i, elem in enumerate(con_str):
-                if "pwd=" in elem.lower():
-                    index.append(i)
+        con_str_concat = ";".join(con_str)
 
-            if len(index) != 0:
-                con_str[index[0]] = "PWD=***"
+        index = []
+        for i, elem in enumerate(con_str):
+            if "pwd=" in elem.lower():
+                index.append(i)
 
-            con_str_display = ";".join(con_str)
+        if len(index) != 0:
+            con_str[index[0]] = "PWD=***"
 
+        con_str_display = ";".join(con_str)
+
+        retryable_exceptions = [  # https://github.com/mkleehammer/pyodbc/wiki/Exceptions
+            pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
+            pyodbc.OperationalError,
+        ]
+
+        def connect():
             logger.debug(f"Using connection string: {con_str_display}")
 
             attrs_before = get_pyodbc_attrs_before(credentials)
@@ -375,24 +381,19 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 attrs_before=attrs_before,
                 autocommit=True,
             )
-
-            connection.state = "open"
-            connection.handle = handle
             logger.debug(f"Connected to db: {credentials.database}")
+            return handle
 
-        except pyodbc.Error as e:
-            logger.debug(f"Could not connect to db: {e}")
+        return cls.retry_connection(
+            connection,
+            connect=connect,
+            logger=logger,
+            retry_limit=credentials.retries,
+            retryable_exceptions=retryable_exceptions,
+        )
 
-            connection.handle = None
-            connection.state = "fail"
-
-            raise dbt.exceptions.FailedToConnectException(str(e))
-
-        return connection
-
-    def cancel(self, connection):
+    def cancel(self, connection: Connection):
         logger.debug("Cancel query")
-        pass
 
     def add_begin_query(self):
         # return self.add_query('BEGIN TRANSACTION', auto_begin=False)
@@ -402,7 +403,13 @@ class SQLServerConnectionManager(SQLConnectionManager):
         # return self.add_query('COMMIT TRANSACTION', auto_begin=False)
         pass
 
-    def add_query(self, sql, auto_begin=True, bindings=None, abridge_sql_log=False):
+    def add_query(
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+    ) -> Tuple[Connection, Any]:
 
         connection = self.get_thread_connection()
 
@@ -435,11 +442,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
             return connection, cursor
 
     @classmethod
-    def get_credentials(cls, credentials):
+    def get_credentials(cls, credentials: SQLServerCredentials) -> SQLServerCredentials:
         return credentials
 
     @classmethod
-    def get_response(cls, cursor) -> AdapterResponse:
+    def get_response(cls, cursor: Any) -> AdapterResponse:
         # message = str(cursor.statusmessage)
         message = "OK"
         rows = cursor.rowcount
@@ -456,7 +463,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
             rows_affected=rows,
         )
 
-    def execute(self, sql, auto_begin=True, fetch=False):
+    def execute(
+        self, sql: str, auto_begin: bool = True, fetch: bool = False
+    ) -> Tuple[AdapterResponse, agate.Table]:
         _, cursor = self.add_query(sql, auto_begin)
         response = self.get_response(cursor)
         if fetch:
@@ -466,7 +475,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     break
             table = self.get_result_from_cursor(cursor)
         else:
-            table = dbt.clients.agate_helper.empty_table()
+            table = empty_table()
         # Step through all result sets so we process all errors
         while cursor.nextset():
             pass

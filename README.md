@@ -24,7 +24,7 @@ This adapter requires the Microsoft ODBC driver to be installed:
 <details><summary>Debian/Ubuntu</summary>
 <p>
 
-Make sure to install the ODBC headers:
+Make sure to install the ODBC headers as well as the driver linked above:
 
 ```shell
 sudo apt-get install -y unixodbc-dev

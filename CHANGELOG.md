@@ -1,5 +1,33 @@
 # Changelog
 
+### v1.2.0 (betas)
+
+#### Features
+
+* Support for [dbt-core 1.2](https://github.com/dbt-labs/dbt-core/releases/tag/v1.2.0)
+* Support automatic retries with new `retries` setting introduced in core
+* The correct owner of a table/view is now visible in generated documentation (and in catalog.json)
+* A lot of features of dbt-utils & T-SQL utils are now available out-of-the-box in dbt-core and this adapter. A new release of T-SQL utils will follow.
+  *  Support for all `type_*` macros
+  *  Support for all [cross-database macros](https://docs.getdbt.com/reference/dbt-jinja-functions/cross-database-macros), except:
+    *  `bool_or`
+    *  `listagg` will only work in SQL Server 2017 or newer or the cloud versions. The `limit_num` option is unsupported. `DISTINCT` cannot be used in the measure.
+
+#### Fixes
+
+* In some cases the `TIMESTAMP` would be used as data type instead of `DATETIMEOFFSET`, fixed that
+
+#### Chores
+
+* Update adapter testing framework to 1.2.1
+* Update pre-commit, tox, pytest and pre-commit hooks
+* Type hinting in connection class
+
+#### Outstanding work for next beta release
+
+* Native dbt support for GRANTs as configs
+* Add documentation about new features to official dbt docs pages
+
 ### v1.1.0
 
 See changes included in v1.1.0rc1 below as well

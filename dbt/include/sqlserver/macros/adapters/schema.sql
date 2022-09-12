@@ -26,6 +26,3 @@
       EXEC('DROP SCHEMA {{ relation.schema }}')
       END  {% endcall %}
 {% endmacro %}
-
-
-{# there is no drop_schema... why? #}

@@ -4,9 +4,11 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - master
+      - v*
   pull_request:
     branches:
       - master
+      - v*
 
 jobs:
   unit-tests:

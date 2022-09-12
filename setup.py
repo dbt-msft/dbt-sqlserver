@@ -8,7 +8,7 @@ from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
 authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
-dbt_version = "1.1"
+dbt_version = "1.2"
 description = """A Microsoft SQL Server adapter plugin for dbt (data build tool)"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
