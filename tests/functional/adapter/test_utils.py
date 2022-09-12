@@ -1,4 +1,5 @@
 import pytest
+from dbt.tests.adapter.utils.fixture_cast_bool_to_text import models__test_cast_bool_to_text_yml
 from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_bool_or import BaseBoolOr
 from dbt.tests.adapter.utils.test_cast_bool_to_text import BaseCastBoolToText
@@ -31,7 +32,31 @@ class TestBoolOrSQLServer(BaseBoolOr):
 
 
 class TestCastBoolToTextSQLServer(BaseCastBoolToText):
-    pass
+    @pytest.fixture(scope="class")
+    def models(self):
+        models__test_cast_bool_to_text_sql = """
+        with data as (
+
+            select 0 as input, 'false' as expected union all
+            select 1 as input, 'true' as expected union all
+            select null as input, null as expected
+
+        )
+
+        select
+
+            {{ cast_bool_to_text("input") }} as actual,
+            expected
+
+        from data
+        """
+
+        return {
+            "test_cast_bool_to_text.yml": models__test_cast_bool_to_text_yml,
+            "test_cast_bool_to_text.sql": self.interpolate_macro_namespace(
+                models__test_cast_bool_to_text_sql, "cast_bool_to_text"
+            ),
+        }
 
 
 class TestConcatSQLServer(BaseConcat):
