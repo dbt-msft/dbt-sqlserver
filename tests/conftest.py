@@ -37,6 +37,7 @@ def _all_profiles_base():
         "threads": 1,
         "driver": "ODBC Driver 17 for SQL Server",
         "port": 1433,
+        "retries": 2,
     }
 
 
