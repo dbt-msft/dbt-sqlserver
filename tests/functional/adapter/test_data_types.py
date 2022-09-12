@@ -4,7 +4,10 @@ from dbt.tests.adapter.utils.data_types.test_type_float import BaseTypeFloat
 from dbt.tests.adapter.utils.data_types.test_type_int import BaseTypeInt
 from dbt.tests.adapter.utils.data_types.test_type_numeric import BaseTypeNumeric
 from dbt.tests.adapter.utils.data_types.test_type_string import BaseTypeString
-from dbt.tests.adapter.utils.data_types.test_type_timestamp import BaseTypeTimestamp
+from dbt.tests.adapter.utils.data_types.test_type_timestamp import (
+    BaseTypeTimestamp,
+    seeds__expected_csv,
+)
 
 
 @pytest.mark.skip(reason="SQL Server shows 'numeric' if you don't explicitly cast it to bigint")
@@ -34,4 +37,18 @@ class TestTypeStringSQLServer(BaseTypeString):
 
 
 class TestTypeTimestampSQLServer(BaseTypeTimestamp):
-    pass
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        seeds__expected_yml = """
+version: 2
+seeds:
+  - name: expected
+    config:
+      column_types:
+        timestamp_col: "datetime"
+        """
+
+        return {
+            "expected.csv": seeds__expected_csv,
+            "expected.yml": seeds__expected_yml,
+        }
