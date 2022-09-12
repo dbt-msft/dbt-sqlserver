@@ -112,7 +112,21 @@ class TestSafeCastSQLServer(BaseSafeCast):
 
 
 class TestDateAddSQLServer(BaseDateAdd):
-    pass
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "name": "test",
+            "seeds": {
+                "test": {
+                    "data_dateadd": {
+                        "+column_types": {
+                            "from_time": "datetimeoffset",
+                            "result": "datetimeoffset",
+                        },
+                    },
+                },
+            },
+        }
 
 
 class TestExceptSQLServer(BaseExcept):
