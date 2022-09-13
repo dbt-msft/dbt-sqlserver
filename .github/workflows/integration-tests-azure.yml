@@ -21,7 +21,7 @@ jobs:
         msodbc_version: ["17", "18"]
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
+      image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
     steps:
       - name: AZ CLI login
         run: az login --service-principal --username="${AZURE_CLIENT_ID:}" --password="${AZURE_CLIENT_SECRET:}" --tenant="${AZURE_TENANT_ID:}"
@@ -41,7 +41,7 @@ jobs:
           DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
           DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
           DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
-        run: python devops/wakeup_azure.py
+        run: python devops/scripts/wakeup_azure.py
 
       - name: Configure test users
         run: sqlcmd -b -I -i devops/create_sql_users.sql

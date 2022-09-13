@@ -22,29 +22,25 @@ jobs:
         sqlserver_version: ["2017", "2019", "2022"]
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
+      image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
     services:
       sqlserver:
-        image: mcr.microsoft.com/mssql/server:${{ matrix.sqlserver_version }}-latest
+        image: ghcr.io/${{ github.repository }}:server-${{ matrix.sqlserver_version }}
         env:
           ACCEPT_EULA: 'Y'
           SA_PASSWORD: 5atyaNadella
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Configure test users
-        run: sqlcmd -b -I -i devops/create_sql_users.sql
-        env:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
           DBT_TEST_USER_3: DBT_TEST_USER_3
-          SQLCMDUSER: SA
-          SQLCMDPASSWORD: 5atyaNadella
-          SQLCMDSERVER: sqlserver
-          SQLCMDDBNAME: msdb
+    steps:
+      - uses: actions/checkout@v3
 
       - name: Install dependencies
         run: pip install -r dev_requirements.txt
 
       - name: Run functional tests
         run: pytest tests/functional --profile "${{ matrix.profile }}"
+        env:
+          DBT_TEST_USER_1: DBT_TEST_USER_1
+          DBT_TEST_USER_2: DBT_TEST_USER_2
+          DBT_TEST_USER_3: DBT_TEST_USER_3
