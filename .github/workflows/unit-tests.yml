@@ -21,7 +21,7 @@ jobs:
       contents: read
       packages: read
     container:
-      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}
+      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}-msodbc18
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.github_token }}
