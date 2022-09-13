@@ -18,9 +18,10 @@ jobs:
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10"]
         profile: ["ci_azure_cli", "ci_azure_auto", "ci_azure_environment", "ci_azure_basic"]
+        msodbc_version: ["17", "18"]
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}
+      image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
     steps:
       - uses: actions/checkout@v3
 
