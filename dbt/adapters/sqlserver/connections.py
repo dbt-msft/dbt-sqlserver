@@ -1,7 +1,6 @@
 import struct
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
 from itertools import chain, repeat
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
@@ -16,78 +15,18 @@ from azure.identity import (
     EnvironmentCredential,
     ManagedIdentityCredential,
 )
-from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.clients.agate_helper import empty_table
 from dbt.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.events import AdapterLogger
 
 from dbt.adapters.sqlserver import __version__
+from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 _TOKEN: Optional[AccessToken] = None
 
 logger = AdapterLogger("SQLServer")
-
-
-@dataclass
-class SQLServerCredentials(Credentials):
-    driver: str
-    host: str
-    database: str
-    schema: str
-    port: Optional[int] = 1433
-    UID: Optional[str] = None
-    PWD: Optional[str] = None
-    windows_login: Optional[bool] = False
-    tenant_id: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    # "sql", "ActiveDirectoryPassword" or "ActiveDirectoryInteractive", or
-    # "ServicePrincipal"
-    authentication: Optional[str] = "sql"
-    encrypt: Optional[bool] = False
-    trust_cert: Optional[bool] = False
-    retries: int = 1
-
-    _ALIASES = {
-        "user": "UID",
-        "username": "UID",
-        "pass": "PWD",
-        "password": "PWD",
-        "server": "host",
-        "trusted_connection": "windows_login",
-        "auth": "authentication",
-        "app_id": "client_id",
-        "app_secret": "client_secret",
-        "TrustServerCertificate": "trust_cert",
-    }
-
-    @property
-    def type(self):
-        return "sqlserver"
-
-    def _connection_keys(self):
-        # return an iterator of keys to pretty-print in 'dbt debug'
-        # raise NotImplementedError
-        if self.windows_login is True:
-            self.authentication = "Windows Login"
-
-        return (
-            "server",
-            "database",
-            "schema",
-            "port",
-            "UID",
-            "client_id",
-            "authentication",
-            "encrypt",
-            "trust_cert",
-        )
-
-    @property
-    def unique_field(self):
-        return self.host
 
 
 def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
@@ -343,13 +282,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
             con_str.append(f"UID={{{credentials.UID}}}")
             con_str.append(f"PWD={{{credentials.PWD}}}")
 
-        # still confused whether to use "Yes", "yes", "True", or "true"
-        # to learn more visit
         # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
         if getattr(credentials, "encrypt", False) is True:
             con_str.append("Encrypt=Yes")
-            if getattr(credentials, "trust_cert", False) is True:
-                con_str.append("TrustServerCertificate=Yes")
+        if getattr(credentials, "trust_cert", False) is True:
+            con_str.append("TrustServerCertificate=Yes")
 
         plugin_version = __version__.version
         application_name = f"dbt-{credentials.type}/{plugin_version}"
