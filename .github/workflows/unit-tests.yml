@@ -30,12 +30,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install dependencies
-        run: |
-          pip install .
-          pip install -r dev_requirements.txt
+        run: pip install -r dev_requirements.txt
 
       - name: Run unit tests
-        run: |
-          RAW_TOXENV="py${{ matrix.python_version }}"
-          TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
-          tox -e "$TOXENV" -- tests/unit
+        run: pytest tests/unit

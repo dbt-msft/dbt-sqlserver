@@ -5,12 +5,9 @@ Python 3.10 is used for developing the adapter. To get started, bootstrap your e
 Create a virtual environment, [pyenv](https://github.com/pyenv/pyenv) is used in the example:
 
 ```shell
-pyenv install 3.7.13
-pyenv install 3.8.13
-pyenv install 3.9.12
-pyenv install 3.10.4
-pyenv virtualenv 3.10.4 dbt-sqlserver
-pyenv local dbt-sqlserver 3.9.12 3.8.13 3.7.13
+pyenv install 3.10.7
+pyenv virtualenv 3.10.7 dbt-sqlserver
+pyenv activate dbt-sqlserver
 ```
 
 Install the development dependencies and pre-commit and get information about possible make commands:
@@ -49,19 +46,11 @@ The 3 users are defined by the following environment variables containing their 
 * `DBT_TEST_USER_2`
 * `DBT_TEST_USER_3`
 
-We use tox to isolate the environment for testing and for making it possible to test in multiple environments.
 You can use the following commands to run the unit and the functional tests respectively:
 
 ```shell
 make unit
 make functional
-```
-
-This will start tox and test in all environments. If you only want to run the tests in a specific environment, you can use the following commands:
-
-```shell
-tox -e py310 -- -v tests/functional # will only functional run in Python 3.10
-tox -e py39 -- -v tests/unit # will only run unit test in Python 3.9
 ```
 
 ## CI/CD

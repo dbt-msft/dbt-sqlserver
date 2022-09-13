@@ -3,7 +3,7 @@
 .PHONY: dev
 dev: ## Installs adapter in develop mode along with development dependencies
 	@\
-	pip install -r dev_requirements.txt && pip install -e . && pre-commit install
+	pip install -r dev_requirements.txt && pre-commit install
 
 .PHONY: mypy
 mypy: ## Runs mypy against staged changes for static type checking.
@@ -39,17 +39,17 @@ linecheck: ## Checks for all Python lines 100 characters or more
 .PHONY: unit
 unit: ## Runs unit tests.
 	@\
-	tox -- -v tests/unit
+	pytest -v tests/unit
 
 .PHONY: functional
 functional: ## Runs functional tests.
 	@\
-	tox -- -v tests/functional
+	pytest -v tests/functional
 
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
 	@\
-	tox -- -v tests/unit; \
+	pytest -v tests/unit; \
 	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run flake8-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"

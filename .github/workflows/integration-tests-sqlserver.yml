@@ -43,10 +43,7 @@ jobs:
           SQLCMDDBNAME: msdb
 
       - name: Install dependencies
-        run: pip install -e . && pip install -r dev_requirements.txt
+        run: pip install -r dev_requirements.txt
 
       - name: Run functional tests
-        run: |
-          RAW_TOXENV="py${{ matrix.python_version }}"
-          TOXENV=$(echo $RAW_TOXENV | sed 's/\.//')
-          tox -e "$TOXENV" -- tests/functional --profile "${{ matrix.profile }}"
+        run: pytest tests/functional --profile "${{ matrix.profile }}"
