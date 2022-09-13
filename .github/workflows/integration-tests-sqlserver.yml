@@ -14,7 +14,6 @@ jobs:
   integration-tests-sql-server:
     name: Integration tests on SQL Server
     strategy:
-      fail-fast: false
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10"]
         profile: ["ci_sql_server", "ci_sql_server_encrypt"]

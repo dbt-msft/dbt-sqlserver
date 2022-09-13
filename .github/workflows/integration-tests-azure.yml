@@ -13,7 +13,6 @@ jobs:
     name: Integration tests on Azure
     if: contains(github.event.pull_request.labels.*.name, 'safe to test') || github.ref_name == 'master'
     strategy:
-      fail-fast: false
       max-parallel: 1
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10"]
