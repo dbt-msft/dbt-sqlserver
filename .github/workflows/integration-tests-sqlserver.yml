@@ -39,7 +39,7 @@ jobs:
           DBT_TEST_USER_3: DBT_TEST_USER_3
           SQLCMDUSER: SA
           SQLCMDPASSWORD: 5atyaNadella
-          SQLCMDSERVER: localhost
+          SQLCMDSERVER: sqlserver
           SQLCMDDBNAME: msdb
 
       - name: Install dependencies
