@@ -19,4 +19,6 @@ services:
       SQLCMDPASSWORD: "L0calTesting!"
       SQLCMDSERVER: sqlserver
       SQLCMDDBNAME: msdb
+    env_file:
+      - test.env
     command: sh -c "/mnt/scripts/wait-for-it.sh sqlserver:1433 -t 60 -- sleep 5 && /opt/mssql-tools/bin/sqlcmd -b -I -i /mnt/scripts/create_sql_users.sql"
