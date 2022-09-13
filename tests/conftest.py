@@ -37,8 +37,8 @@ def _all_profiles_base():
     return {
         "type": "sqlserver",
         "threads": 1,
-        "driver": "ODBC Driver 17 for SQL Server",
-        "port": 1433,
+        "driver": os.getenv("SQLSERVER_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
+        "port": int(os.getenv("SQLSERVER_TEST_PORT", "1433")),
         "retries": 2,
     }
 
@@ -118,9 +118,7 @@ def _profile_user():
     return {
         **_all_profiles_base(),
         **{
-            "driver": os.getenv("SQLSERVER_TEST_DRIVER"),
             "host": os.getenv("SQLSERVER_TEST_HOST"),
-            "port": int(os.getenv("SQLSERVER_TEST_PORT")),
             "user": os.getenv("SQLSERVER_TEST_USER"),
             "pass": os.getenv("SQLSERVER_TEST_PASS"),
             "database": os.getenv("SQLSERVER_TEST_DBNAME"),
@@ -132,9 +130,7 @@ def _profile_user_azure():
     return {
         **_all_profiles_base(),
         **{
-            "driver": os.getenv("SQLSERVER_TEST_DRIVER"),
             "host": os.getenv("SQLSERVER_TEST_HOST"),
-            "port": int(os.getenv("SQLSERVER_TEST_PORT")),
             "authentication": "auto",
             "encrypt": True,
             "trust_cert": True,

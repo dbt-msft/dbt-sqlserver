@@ -43,3 +43,4 @@ jobs:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
           DBT_TEST_USER_3: DBT_TEST_USER_3
+          SQLSERVER_TEST_DRIVER: 'ODBC Driver ${{ matrix.msodbc_version }} for SQL Server'
