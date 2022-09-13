@@ -213,6 +213,25 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     return attrs_before
 
 
+def bool_to_connection_string_arg(key: str, value: bool) -> str:
+    """
+    Convert a boolean to a connection string argument.
+
+    Parameters
+    ----------
+    key : str
+        The key to use in the connection string.
+    value : bool
+        The boolean to convert.
+
+    Returns
+    -------
+    out : str
+        The connection string argument.
+    """
+    return f'{key}={"Yes" if value else "No"}'
+
+
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
 
@@ -265,28 +284,31 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         con_str.append(f"Database={credentials.database}")
 
-        type_auth = getattr(credentials, "authentication", "sql")
+        assert credentials.authentication is not None
 
-        if "ActiveDirectory" in type_auth:
+        if "ActiveDirectory" in credentials.authentication:
             con_str.append(f"Authentication={credentials.authentication}")
 
-            if type_auth == "ActiveDirectoryPassword":
+            if credentials.authentication == "ActiveDirectoryPassword":
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
-            elif type_auth == "ActiveDirectoryInteractive":
+            elif credentials.authentication == "ActiveDirectoryInteractive":
                 con_str.append(f"UID={{{credentials.UID}}}")
 
-        elif getattr(credentials, "windows_login", False):
-            con_str.append("trusted_connection=yes")
-        elif type_auth == "sql":
+        elif credentials.windows_login:
+            con_str.append("trusted_connection=Yes")
+        elif credentials.authentication == "sql":
             con_str.append(f"UID={{{credentials.UID}}}")
             con_str.append(f"PWD={{{credentials.PWD}}}")
 
         # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
-        if getattr(credentials, "encrypt", False) is True:
-            con_str.append("Encrypt=Yes")
-        if getattr(credentials, "trust_cert", False) is True:
-            con_str.append("TrustServerCertificate=Yes")
+        assert credentials.encrypt is not None
+        assert credentials.trust_cert is not None
+
+        con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
+        con_str.append(
+            bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert)
+        )
 
         plugin_version = __version__.version
         application_name = f"dbt-{credentials.type}/{plugin_version}"

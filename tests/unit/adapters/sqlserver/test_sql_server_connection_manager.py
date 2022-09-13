@@ -5,7 +5,11 @@ from unittest import mock
 import pytest
 from azure.identity import AzureCliCredential
 
-from dbt.adapters.sqlserver import SQLServerCredentials, connections
+from dbt.adapters.sqlserver.sql_server_connection_manager import (
+    bool_to_connection_string_arg,
+    get_pyodbc_attrs_before,
+)
+from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 
 # See
 # https://github.com/Azure/azure-sdk-for-python/blob/azure-identity_1.5.0/sdk/identity/azure-identity/tests/test_cli_credential.py
@@ -47,7 +51,7 @@ def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
     """
     When the authentication is set to sql we expect an empty attrs before.
     """
-    attrs_before = connections.get_pyodbc_attrs_before(credentials)
+    attrs_before = get_pyodbc_attrs_before(credentials)
     assert attrs_before == {}
 
 
@@ -63,5 +67,12 @@ def test_get_pyodbc_attrs_before_contains_access_token_key_for_cli_authenticatio
     """
     credentials.authentication = authentication
     with mock.patch(CHECK_OUTPUT, mock.Mock(return_value=mock_cli_access_token)):
-        attrs_before = connections.get_pyodbc_attrs_before(credentials)
+        attrs_before = get_pyodbc_attrs_before(credentials)
     assert 1256 in attrs_before.keys()
+
+
+@pytest.mark.parametrize(
+    "key, value, expected", [("somekey", False, "somekey=No"), ("somekey", True, "somekey=Yes")]
+)
+def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> None:
+    assert bool_to_connection_string_arg(key, value) == expected

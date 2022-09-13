@@ -4,8 +4,8 @@ import agate
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.sql import SQLAdapter
 
-from dbt.adapters.sqlserver.connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
+from dbt.adapters.sqlserver.sql_server_connection_manager import SQLServerConnectionManager
 
 
 class SQLServerAdapter(SQLAdapter):
