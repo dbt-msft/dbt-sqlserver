@@ -12,7 +12,7 @@ on:  # yamllint disable-line rule:truthy
 jobs:
   integration-tests-azure:
     name: Integration tests on Azure
-    if: contains(github.event.pull_request.labels.*.name, 'safe to test') || github.ref_name == 'master'
+    if: contains(github.event.pull_request.labels.*.name, 'safe to test') || github.ref_name == 'master' || github.ref_name == 'azure-testing'
     strategy:
       max-parallel: 1
       matrix:
