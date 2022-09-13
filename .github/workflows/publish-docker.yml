@@ -34,7 +34,7 @@ jobs:
         with:
           context: devops
           build-args: PYTHON_VERSION=${{ matrix.python_version }}
-          file: CI.Dockerfile
+          file: devops/CI.Dockerfile
           push: true
           platforms: linux/amd64
           target: ${{ matrix.docker_target }}
@@ -64,7 +64,7 @@ jobs:
         with:
           context: devops
           build-args: MSSQL_VERSION=${{ matrix.mssql_version }}
-          file: server.Dockerfile
+          file: devops/server.Dockerfile
           push: true
           platforms: linux/amd64
           tags: ghcr.io/${{ github.repository }}:server-${{ matrix.mssql_version }}
