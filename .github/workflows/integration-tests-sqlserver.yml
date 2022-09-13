@@ -16,7 +16,6 @@ jobs:
     strategy:
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10"]
-        profile: ["ci_sql_server", "ci_sql_server_encrypt"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
     runs-on: ubuntu-latest
@@ -38,7 +37,7 @@ jobs:
         run: pip install -r dev_requirements.txt
 
       - name: Run functional tests
-        run: pytest tests/functional --profile "${{ matrix.profile }}"
+        run: pytest tests/functional --profile "ci_sql_server"
         env:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2

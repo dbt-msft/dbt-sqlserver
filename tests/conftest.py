@@ -15,8 +15,6 @@ def dbt_profile_target(request):
 
     if profile == "ci_sql_server":
         return _profile_ci_sql_server()
-    if profile == "ci_sql_server_encrypt":
-        return _profile_ci_sql_server_encrypt()
     if profile == "ci_azure_cli":
         return _profile_ci_azure_cli()
     if profile == "ci_azure_auto":
@@ -100,14 +98,6 @@ def _profile_ci_sql_server():
             "user": "SA",
             "pass": "5atyaNadella",
             "database": "msdb",
-        },
-    }
-
-
-def _profile_ci_sql_server_encrypt():
-    return {
-        **_profile_ci_sql_server(),
-        **{
             "encrypt": True,
             "trust_cert": True,
         },
@@ -122,6 +112,8 @@ def _profile_user():
             "user": os.getenv("SQLSERVER_TEST_USER"),
             "pass": os.getenv("SQLSERVER_TEST_PASS"),
             "database": os.getenv("SQLSERVER_TEST_DBNAME"),
+            "encrypt": bool(os.getenv("SQLSERVER_TEST_ENCRYPT", "False")),
+            "trust_cert": bool(os.getenv("SQLSERVER_TEST_TRUST_CERT", "False")),
         },
     }
 
