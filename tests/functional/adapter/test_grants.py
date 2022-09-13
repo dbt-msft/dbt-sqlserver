@@ -10,7 +10,11 @@ class TestIncrementalGrantsSQLServer(BaseIncrementalGrants):
 
 
 class TestInvalidGrantsSQLServer(BaseInvalidGrants):
-    pass
+    def grantee_does_not_exist_error(self):
+        return "Cannot find the user"
+
+    def privilege_does_not_exist_error(self):
+        return "Incorrect syntax near"
 
 
 class TestModelGrantsSQLServer(BaseModelGrants):
