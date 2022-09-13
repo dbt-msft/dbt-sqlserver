@@ -19,12 +19,13 @@ jobs:
         python_version: ["3.7", "3.8", "3.9", "3.10"]
         profile: ["ci_sql_server", "ci_sql_server_encrypt"]
         msodbc_version: ["17", "18"]
+        sqlserver_version: ["2017", "2019", "2022"]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
     services:
       sqlserver:
-        image: mcr.microsoft.com/mssql/server:2019-latest
+        image: mcr.microsoft.com/mssql/server:${{ matrix.sqlserver_version }}-latest
         env:
           ACCEPT_EULA: 'Y'
           SA_PASSWORD: 5atyaNadella

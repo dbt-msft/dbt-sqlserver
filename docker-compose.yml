@@ -1,6 +1,6 @@
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2019-latest
+    image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       SA_PASSWORD: "L0calTesting!"
       ACCEPT_EULA: "Y"
@@ -8,7 +8,7 @@ services:
       - "1433:1433"
 
   init-db:
-    image: mcr.microsoft.com/mssql/server:2019-latest
+    image: mcr.microsoft.com/mssql/server:2022-latest
     depends_on:
       - sqlserver
     restart: 'no'
