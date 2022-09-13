@@ -40,6 +40,15 @@ You can use the provided `test.env.sample` as a base and if you started the serv
 cp test.env.sample test.env
 ```
 
+You can tweak the contents of this file to test against a different database.
+
+Note that we need 3 users to be able to run tests related to the grants.
+The 3 users are defined by the following environment variables containing their usernames.
+
+* `DBT_TEST_USER_1`
+* `DBT_TEST_USER_2`
+* `DBT_TEST_USER_3`
+
 We use tox to isolate the environment for testing and for making it possible to test in multiple environments.
 You can use the following commands to run the unit and the functional tests respectively:
 
@@ -58,7 +67,7 @@ tox -e py39 -- -v tests/unit # will only run unit test in Python 3.9
 ## CI/CD
 
 We use Docker images that have all the things we need to test the adapter in the CI/CD workflows.
-The Dockerfile is located in the *.github* directory and pushed to GitHub Packages to this repo.
+The Dockerfile is located in the *devops* directory and pushed to GitHub Packages to this repo.
 There is one tag per supported Python version.
 
 All CI/CD pipelines are using GitHub Actions. The following pipelines are available:

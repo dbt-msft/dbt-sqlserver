@@ -6,3 +6,17 @@ services:
       ACCEPT_EULA: "Y"
     ports:
       - "1433:1433"
+
+  init-db:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    depends_on:
+      - sqlserver
+    restart: 'no'
+    volumes:
+      - ./devops:/mnt/scripts
+    environment:
+      SQLCMDUSER: SA
+      SQLCMDPASSWORD: "L0calTesting!"
+      SQLCMDSERVER: sqlserver
+      SQLCMDDBNAME: msdb
+    command: sh -c "/mnt/scripts/wait-for-it.sh sqlserver:1433 -t 60 -- sleep 5 && /opt/mssql-tools/bin/sqlcmd -b -I -i /mnt/scripts/create_sql_users.sql"

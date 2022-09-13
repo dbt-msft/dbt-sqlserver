@@ -3,7 +3,7 @@ name: Publish Docker images for CI/CD
 on:  # yamllint disable-line rule:truthy
   push:
     paths:
-      - '.github/Dockerfile'
+      - 'devops/Dockerfile'
       - '.github/workflows/publish-docker.yml'
     branches:
       - 'master'
@@ -33,7 +33,7 @@ jobs:
         with:
           context: .
           build-args: PYTHON_VERSION=${{ matrix.python_version }}
-          file: ./.github/Dockerfile
+          file: devops/Dockerfile
           push: true
           platforms: linux/amd64
           tags: ghcr.io/${{ github.repository }}:${{ matrix.python_version }}

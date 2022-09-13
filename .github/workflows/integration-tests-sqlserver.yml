@@ -29,6 +29,18 @@ jobs:
           SA_PASSWORD: 5atyaNadella
     steps:
       - uses: actions/checkout@v3
+
+      - name: Configure test users
+        run: opt/mssql-tools/bin/sqlcmd -b -I -i devops/create_sql_users.sql
+        env:
+          DBT_TEST_USER_1: DBT_TEST_USER_1
+          DBT_TEST_USER_2: DBT_TEST_USER_2
+          DBT_TEST_USER_3: DBT_TEST_USER_3
+          SQLCMDUSER: SA
+          SQLCMDPASSWORD: 5atyaNadella
+          SQLCMDSERVER: localhost
+          SQLCMDDBNAME: msdb
+
       - name: Install dependencies
         run: pip install -e . && pip install -r dev_requirements.txt
 
