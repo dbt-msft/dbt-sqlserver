@@ -32,9 +32,9 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v3.1.1
         with:
-          context: .
+          context: devops
           build-args: PYTHON_VERSION=${{ matrix.python_version }}
-          file: devops/CI.Dockerfile
+          file: CI.Dockerfile
           push: true
           platforms: linux/amd64
           target: ${{ matrix.docker_target }}
@@ -62,9 +62,9 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v3.1.1
         with:
-          context: .
+          context: devops
           build-args: MSSQL_VERSION=${{ matrix.mssql_version }}
-          file: devops/server.Dockerfile
+          file: server.Dockerfile
           push: true
           platforms: linux/amd64
           tags: ghcr.io/${{ github.repository }}:server-${{ matrix.mssql_version }}
