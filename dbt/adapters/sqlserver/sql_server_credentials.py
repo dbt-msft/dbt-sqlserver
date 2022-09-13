@@ -18,8 +18,8 @@ class SQLServerCredentials(Credentials):
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
     authentication: Optional[str] = "sql"
-    encrypt: Optional[bool] = False
-    trust_cert: Optional[bool] = False
+    encrypt: Optional[bool] = True  # default value in MS ODBC Driver 18 as well
+    trust_cert: Optional[bool] = False  # default value in MS ODBC Driver 18 as well
     retries: int = 1
 
     _ALIASES = {

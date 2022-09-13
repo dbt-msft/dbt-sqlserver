@@ -1,10 +1,26 @@
 # Changelog
 
-### v1.2.0 (betas)
+### v1.2.0 (pre-releases)
+
+#### Possibly breaking change: connection encryption
+
+For compatibility with MS ODBC Driver 18, the settings `Encrypt` and `TrustServerCertificate` are now always added to the connection string.
+These are configured with the keys `encrypt` and `trust_cert` in your profile.
+In previous versions, these settings were only added if they were set to `True`.
+
+The new version of the MS ODBC Driver sets `Encrypt` to `True` by default.
+The adapter is following this change and also defaults to `True` for `Encrypt`.
+
+The default value for `TrustServerConnection` remains `False` as it would be a security risk otherwise.
+
+This means that connections made with this version of the adapter will now have `Encrypt=Yes` and `TrustServerCertificate=No` set if you are using the default settings.
+You should change the settings `encrypt` or `trust_cert` to accommodate for your use case.
+
 
 #### Features
 
 * Support for [dbt-core 1.2](https://github.com/dbt-labs/dbt-core/releases/tag/v1.2.0)
+* Support for MS ODBC Driver 18
 * Support automatic retries with new `retries` setting introduced in core
 * The correct owner of a table/view is now visible in generated documentation (and in catalog.json)
 * A lot of features of dbt-utils & T-SQL utils are now available out-of-the-box in dbt-core and this adapter. A new release of T-SQL utils will follow.
@@ -22,10 +38,11 @@
 * Update adapter testing framework to 1.2.1
 * Update pre-commit, tox, pytest and pre-commit hooks
 * Type hinting in connection class
+* Automated testing with SQL Server 2017, 2019 and 2022
+* Automated testing with MS ODBC 17 and MS ODBC 18
 
-#### Outstanding work for next beta release
+#### Outstanding work for official release
 
-* Native dbt support for GRANTs as configs
 * Add documentation about new features to official dbt docs pages
 
 ### v1.1.0
