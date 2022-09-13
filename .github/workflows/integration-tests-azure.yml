@@ -23,7 +23,7 @@ jobs:
       image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
     steps:
       - name: AZ CLI login
-        run: az login --service-principal --username="${AZURE_CLIENT_ID:}" --password="${AZURE_CLIENT_SECRET:}" --tenant="${AZURE_TENANT_ID:}"
+        run: az login --service-principal --username="${AZURE_CLIENT_ID}" --password="${AZURE_CLIENT_SECRET}" --tenant="${AZURE_TENANT_ID}"
         env:
           AZURE_CLIENT_ID: ${{ secrets.DBT_AZURE_SP_NAME }}
           AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
