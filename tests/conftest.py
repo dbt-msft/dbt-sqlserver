@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from _pytest.fixtures import FixtureRequest
 
 pytest_plugins = ["dbt.tests.fixtures.project"]
 
@@ -48,6 +49,7 @@ def _profile_ci_azure_base():
             "database": os.getenv("DBT_AZURESQL_DB"),
             "encrypt": True,
             "trust_cert": True,
+            "auto_provision_aad_principals": True,
         },
     }
 
@@ -131,9 +133,13 @@ def _profile_user_azure():
 
 
 @pytest.fixture(autouse=True)
-def skip_by_profile_type(request):
+def skip_by_profile_type(request: FixtureRequest):
     profile_type = request.config.getoption("--profile")
+
     if request.node.get_closest_marker("skip_profile"):
-        for skip_profile_type in request.node.get_closest_marker("skip_profile").args:
-            if skip_profile_type == profile_type:
-                pytest.skip("Skipped on '{profile_type}' profile")
+        if profile_type in request.node.get_closest_marker("skip_profile").args:
+            pytest.skip(f"Skipped on '{profile_type}' profile")
+
+    if request.node.get_closest_marker("only_with_profile"):
+        if profile_type not in request.node.get_closest_marker("only_with_profile").args:
+            pytest.skip(f"Skipped on '{profile_type}' profile")
