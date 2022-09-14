@@ -41,6 +41,7 @@ jobs:
           DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
           DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
           DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
+          MSODBC_VERSION: ${{ matrix.msodbc_version }}
         run: python devops/scripts/wakeup_azure.py
 
       - name: Configure test users

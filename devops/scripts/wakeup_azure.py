@@ -12,7 +12,7 @@ def resume_azsql():
     database_name = os.getenv("DBT_AZURESQL_DB")
     username = os.getenv("DBT_AZURESQL_UID")
     password = os.getenv("DBT_AZURESQL_PWD")
-    driver = "ODBC Driver 17 for SQL Server"
+    driver = f"ODBC Driver {os.getenv('MSODBC_VERSION')} for SQL Server"
 
     con_str = [
         f"DRIVER={{{driver}}}",
