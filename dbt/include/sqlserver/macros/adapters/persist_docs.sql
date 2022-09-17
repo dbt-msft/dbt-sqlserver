@@ -10,7 +10,7 @@
                 on cols.object_id = ep.major_id
                     and cols.column_id = ep.minor_id
         where
-            ep.major_id = object_id('{{ relation }}') 
+            ep.major_id = object_id('{{ relation }}')
             and ep.name = N'MS_Description'
             and cols.name = N'{{ column_name }}'
     )
