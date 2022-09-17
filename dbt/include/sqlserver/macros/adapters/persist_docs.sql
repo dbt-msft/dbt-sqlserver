@@ -25,4 +25,3 @@
                                             , @level2type = N'COLUMN', @level2name = N'{{ column_name }}';
   {%- endfor %}
 {%- endmacro %}
-
