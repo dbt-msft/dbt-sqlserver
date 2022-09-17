@@ -99,6 +99,12 @@ class SQLServerAdapter(SQLAdapter):
 
         return sql
 
+    def valid_incremental_strategies(self):
+        """The set of standard builtin strategies which this adapter supports out-of-the-box.
+        Not used to validate custom strategies defined by end users.
+        """
+        return ["append", "delete+insert", "merge", "insert_overwrite"]
+
     # This is for use in the test suite
     def run_sql_for_tests(self, sql, fetch, conn):
         cursor = conn.handle.cursor()
