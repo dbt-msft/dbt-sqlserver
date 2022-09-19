@@ -20,6 +20,8 @@ You should change the settings `encrypt` or `trust_cert` to accommodate for your
 #### Features
 
 * Support for [dbt-core 1.2](https://github.com/dbt-labs/dbt-core/releases/tag/v1.2.0)
+  * Full support for the new [grants config](https://docs.getdbt.com/reference/resource-configs/grants)
+  * New configuration option in the target: `auto_provision_aad_principals` - setting this to `true` will automatically create contained database users linked to Azure AD principals or groups if they don't exist yet when they're being used in grant configs
 * Support for MS ODBC Driver 18
 * Support automatic retries with new `retries` setting introduced in core
 * The correct owner of a table/view is now visible in generated documentation (and in catalog.json)
@@ -40,10 +42,6 @@ You should change the settings `encrypt` or `trust_cert` to accommodate for your
 * Type hinting in connection class
 * Automated testing with SQL Server 2017, 2019 and 2022
 * Automated testing with MS ODBC 17 and MS ODBC 18
-
-#### Outstanding work for official release
-
-* Add documentation about new features to official dbt docs pages
 
 ### v1.1.0
 
