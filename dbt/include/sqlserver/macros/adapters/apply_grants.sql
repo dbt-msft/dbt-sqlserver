@@ -9,41 +9,33 @@
 {% endmacro %}
 
 
-{%- macro sqlserver__get_dcl_statement_list(relation, grant_config, get_dcl_macro) -%}
-    {#
-      -- Unpack grant_config into specific privileges and the set of users who need them granted/revoked.
-      -- Depending on whether this database supports multiple grantees per statement, pass in the list of
-      -- all grantees per privilege, or (if not) template one statement per privilege-grantee pair.
-      -- `get_dcl_macro` will be either `get_grant_sql` or `get_revoke_sql`
-    #}
-    {%- set dcl_statements = [] -%}
-    {%- for privilege, grantees in grant_config.items() %}
-        {%- set grantees_safe = [] -%}
-        {%- for grantee in grantees -%}
-            {#
-                Grantees are wrapped in [] to avoid issues with spaces or other special chars in their names.
-            #}
-            {%- set grantee_safe = "[" ~ grantee ~ "]" -%}
-            {%- do grantees_safe.append(grantee_safe) -%}
-        {%- endfor -%}
-        {%- if support_multiple_grantees_per_dcl_statement() and grantees_safe -%}
-          {%- set dcl = get_dcl_macro(relation, privilege, grantees_safe) -%}
-          {%- do dcl_statements.append(dcl) -%}
-        {%- else -%}
-          {%- for grantee in grantees_safe -%}
-              {% set dcl = get_dcl_macro(relation, privilege, [grantee]) %}
-              {%- do dcl_statements.append(dcl) -%}
-          {% endfor -%}
-        {%- endif -%}
+
+
+
+{%- macro sqlserver__get_grant_sql(relation, privilege, grantees) -%}
+    {%- set grantees_safe = [] -%}
+    {%- for grantee in grantees -%}
+        {%- set grantee_safe = "[" ~ grantee ~ "]" -%}
+        {%- do grantees_safe.append(grantee_safe) -%}
     {%- endfor -%}
-    {{ return(dcl_statements) }}
-{%- endmacro %}
+    grant {{ privilege }} on {{ relation }} to {{ grantees_safe | join(', ') }}
+{%- endmacro -%}
+
+
+{%- macro sqlserver__get_revoke_sql(relation, privilege, grantees) -%}
+    {%- set grantees_safe = [] -%}
+    {%- for grantee in grantees -%}
+        {%- set grantee_safe = "[" ~ grantee ~ "]" -%}
+        {%- do grantees_safe.append(grantee_safe) -%}
+    {%- endfor -%}
+    revoke {{ privilege }} on {{ relation }} from {{ grantees_safe | join(', ') }}
+{%- endmacro -%}
 
 
 {% macro get_provision_sql(relation, privilege, grantees) %}
     {% for grantee in grantees %}
         if not exists(select name from sys.database_principals where name = '{{ grantee }}')
-        create user {{ grantee }} from external provider;
+        create user [{{ grantee }}] from external provider;
     {% endfor %}
 {% endmacro %}
 
