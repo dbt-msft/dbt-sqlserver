@@ -34,7 +34,6 @@ def dbt_profile_target(request):
 def _all_profiles_base():
     return {
         "type": "sqlserver",
-        "threads": 1,
         "driver": os.getenv("SQLSERVER_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
         "port": int(os.getenv("SQLSERVER_TEST_PORT", "1433")),
         "retries": 2,
