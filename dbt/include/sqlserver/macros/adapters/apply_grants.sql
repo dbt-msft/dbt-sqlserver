@@ -9,9 +9,6 @@
 {% endmacro %}
 
 
-
-
-
 {%- macro sqlserver__get_grant_sql(relation, privilege, grantees) -%}
     {%- set grantees_safe = [] -%}
     {%- for grantee in grantees -%}
