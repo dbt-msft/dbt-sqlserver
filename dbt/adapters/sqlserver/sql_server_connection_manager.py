@@ -25,6 +25,7 @@ from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 _TOKEN: Optional[AccessToken] = None
+AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials], AccessToken]
 
 logger = AdapterLogger("SQLServer")
 
@@ -164,6 +165,15 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     return token
 
 
+AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
+    "serviceprincipal": get_sp_access_token,
+    "cli": get_cli_access_token,
+    "msi": get_msi_access_token,
+    "auto": get_auto_access_token,
+    "environment": get_environment_access_token,
+}
+
+
 def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     """
     Get the pyodbc attrs before.
@@ -187,21 +197,12 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
     attrs_before: Dict
     MAX_REMAINING_TIME = 300
 
-    azure_auth_function_type = Callable[[SQLServerCredentials], AccessToken]
-    azure_auth_functions: Mapping[str, azure_auth_function_type] = {
-        "serviceprincipal": get_sp_access_token,
-        "cli": get_cli_access_token,
-        "msi": get_msi_access_token,
-        "auto": get_auto_access_token,
-        "environment": get_environment_access_token,
-    }
-
     authentication = str(credentials.authentication).lower()
-    if authentication in azure_auth_functions:
+    if authentication in AZURE_AUTH_FUNCTIONS:
         time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
 
         if _TOKEN is None or (time_remaining < MAX_REMAINING_TIME):
-            azure_auth_function = azure_auth_functions[authentication]
+            azure_auth_function = AZURE_AUTH_FUNCTIONS[authentication]
             _TOKEN = azure_auth_function(credentials)
 
         token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
@@ -330,6 +331,10 @@ class SQLServerConnectionManager(SQLConnectionManager):
             pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
             pyodbc.OperationalError,
         ]
+
+        if credentials.authentication.lower() in AZURE_AUTH_FUNCTIONS:
+            # Temporary login/token errors fall into this category when using AAD
+            retryable_exceptions.append(pyodbc.InterfaceError)
 
         def connect():
             logger.debug(f"Using connection string: {con_str_display}")
