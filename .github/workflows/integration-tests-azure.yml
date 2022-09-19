@@ -61,8 +61,6 @@ jobs:
           DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
           DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
           DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
-          DBT_AZURE_USERNAME: ${{ secrets.DBT_AZURE_USERNAME }}
-          DBT_AZURE_PASSWORD: ${{ secrets.DBT_AZURE_PASSWORD }}
           AZURE_CLIENT_ID: ${{ secrets.DBT_AZURE_SP_NAME }}
           AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}

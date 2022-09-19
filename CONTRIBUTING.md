@@ -82,8 +82,6 @@ The following environment variables are available:
 * `DBT_AZURE_RESOURCE_GROUP_NAME`: Azure resource group name
 * `DBT_AZURE_SP_NAME`: Client/application ID of the service principal used to connect to Azure AD
 * `DBT_AZURE_SP_SECRET`: Password of the service principal used to connect to Azure AD
-* `DBT_AZURE_USERNAME`: Username of the user to connect to Azure AD
-* `DBT_AZURE_PASSWORD`: Password of the user to connect to Azure AD
 
 ## Releasing a new version
 
