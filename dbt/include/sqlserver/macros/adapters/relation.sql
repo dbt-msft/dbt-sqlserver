@@ -1,5 +1,6 @@
 {% macro sqlserver__make_temp_relation(base_relation, suffix) %}
-    {% set tmp_identifier = '#' ~  base_relation.identifier ~ suffix %}
+    {% set uuid = run_query("SELECT REPLACE(NEWID(), '-','_') ")[0].values()[0] %}
+    {% set tmp_identifier = '#' ~  base_relation.identifier ~ uuid ~ suffix %}
     {% set tmp_relation = base_relation.incorporate(
                                 path={"identifier": tmp_identifier}) -%}
 
