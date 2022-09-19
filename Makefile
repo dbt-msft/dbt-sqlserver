@@ -39,12 +39,12 @@ linecheck: ## Checks for all Python lines 100 characters or more
 .PHONY: unit
 unit: ## Runs unit tests.
 	@\
-	pytest -v tests/unit
+	pytest -ra -v tests/unit
 
 .PHONY: functional
 functional: ## Runs functional tests.
 	@\
-	pytest -v tests/functional
+	pytest -ra -v tests/functional
 
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
