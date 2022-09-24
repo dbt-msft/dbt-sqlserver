@@ -59,7 +59,7 @@
         {% if needs_granting or needs_revoking %}
             {% set revoke_statement_list = get_dcl_statement_list(relation, needs_revoking, get_revoke_sql) %}
 
-            {% if target.auto_provision_aad_principals is not none and target.auto_provision_aad_principals %}
+            {% if config.get('auto_provision_aad_principals', False) %}
                 {% set provision_statement_list = get_dcl_statement_list(relation, needs_granting, get_provision_sql) %}
             {% else %}
                 {% set provision_statement_list = [] %}

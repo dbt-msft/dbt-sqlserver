@@ -5,12 +5,14 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.sql import SQLAdapter
 
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
+from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sql_server_connection_manager import SQLServerConnectionManager
 
 
 class SQLServerAdapter(SQLAdapter):
     ConnectionManager = SQLServerConnectionManager
     Column = SQLServerColumn
+    AdapterSpecificConfigs = SQLServerConfigs
 
     @classmethod
     def date_function(cls):
