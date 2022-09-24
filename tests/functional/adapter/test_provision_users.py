@@ -1,5 +1,4 @@
 import pytest
-from dbt.adapters.base import BaseAdapter
 from dbt.tests.util import run_dbt
 
 my_model_sql = """
@@ -54,8 +53,8 @@ class BaseTestProvisionAzureSQL:
             "cleanup_existing.sql": cleanup_existing_sql,
         }
 
-    def test_auto_provision(self, project, adapter: BaseAdapter):
-        adapter.execute_macro("cleanup_existing")
+    def test_auto_provision(self, project):
+        run_dbt(["run-operation", "cleanup_existing"])
         run_dbt(["run"])
 
 
