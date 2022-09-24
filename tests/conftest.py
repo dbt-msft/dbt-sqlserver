@@ -33,12 +33,14 @@ def dbt_profile_target(request: FixtureRequest):
 
 
 @pytest.fixture(scope="class")
-def project_config_update():
-    return {
-        "models": {
-            "auto_provision_aad_principals": True,
+def project_config_update(request: FixtureRequest):
+    if "azure" in request.config.getoption("--profile"):
+        return {
+            "models": {
+                "auto_provision_aad_principals": True,
+            }
         }
-    }
+    return {}
 
 
 def _all_profiles_base():
