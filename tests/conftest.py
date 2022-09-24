@@ -49,7 +49,6 @@ def _profile_ci_azure_base():
             "database": os.getenv("DBT_AZURESQL_DB"),
             "encrypt": True,
             "trust_cert": True,
-            "auto_provision_aad_principals": True,
         },
     }
 

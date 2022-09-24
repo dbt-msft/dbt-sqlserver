@@ -56,7 +56,6 @@ class SQLServerCredentials(Credentials):
             "encrypt",
             "trust_cert",
             "retries",
-            "auto_provision_aad_principals",
         )
 
     @property
