@@ -7,21 +7,23 @@ my_model_sql = """
 """
 
 cleanup_existing_sql = """
-{%- call statement('drop_existing', fetch_result=False) -%}
-
-    if exists(
-        select *
-        from sys.database_principals
-        where name = '{{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}')
-    drop user {{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}
-
-    if exists(
-        select *
-        from sys.database_principals
-        where name = '{{ env_var('DBT_TEST_AAD_PRINCIPAL_2') }}')
-    drop user {{ env_var('DBT_TEST_AAD_PRINCIPAL_2') }}
-
-{%- endcall -%}
+{% macro cleanup_existing() %}
+    {%- call statement('drop_existing', fetch_result=False) -%}
+    
+        if exists(
+            select *
+            from sys.database_principals
+            where name = '{{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}')
+        drop user {{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}
+    
+        if exists(
+            select *
+            from sys.database_principals
+            where name = '{{ env_var('DBT_TEST_AAD_PRINCIPAL_2') }}')
+        drop user {{ env_var('DBT_TEST_AAD_PRINCIPAL_2') }}
+    
+    {%- endcall -%}
+{% endmacro %}
 """
 
 model_schema_single_user_yml = """
