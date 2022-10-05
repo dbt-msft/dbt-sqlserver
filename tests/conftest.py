@@ -11,7 +11,7 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="class")
-def dbt_profile_target(request):
+def dbt_profile_target(request: FixtureRequest):
     profile = request.config.getoption("--profile")
 
     if profile == "ci_sql_server":
@@ -32,6 +32,17 @@ def dbt_profile_target(request):
     raise ValueError(f"Unknown profile: {profile}")
 
 
+@pytest.fixture(scope="class")
+def project_config_update(request: FixtureRequest):
+    if "azure" in request.config.getoption("--profile"):
+        return {
+            "models": {
+                "auto_provision_aad_principals": True,
+            }
+        }
+    return {}
+
+
 def _all_profiles_base():
     return {
         "type": "sqlserver",
@@ -49,7 +60,6 @@ def _profile_ci_azure_base():
             "database": os.getenv("DBT_AZURESQL_DB"),
             "encrypt": True,
             "trust_cert": True,
-            "auto_provision_aad_principals": True,
         },
     }
 
