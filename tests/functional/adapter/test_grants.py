@@ -11,7 +11,7 @@ class TestIncrementalGrantsSQLServer(BaseIncrementalGrants):
 
 
 @pytest.mark.skip_profile("ci_sql_server", "user")
-class TestInvalidGrantsSQLServer(BaseInvalidGrants):
+class TestInvalidGrantsSQLServerAzure(BaseInvalidGrants):
     def grantee_does_not_exist_error(self):
         return "could not be found or this principal type is not supported"
 
@@ -20,7 +20,7 @@ class TestInvalidGrantsSQLServer(BaseInvalidGrants):
 
 
 @pytest.mark.only_with_profile("ci_sql_server", "user")
-class TestInvalidGrantsSQLServer(BaseInvalidGrants):
+class TestInvalidGrantsSQLServerOnPrem(BaseInvalidGrants):
     def grantee_does_not_exist_error(self):
         return "Cannot find the user"
 
