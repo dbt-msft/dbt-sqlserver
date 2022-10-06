@@ -9,4 +9,5 @@ class SQLServerColumn(Column):
         "TIMESTAMP": "DATETIMEOFFSET",
         "FLOAT": "FLOAT",
         "INTEGER": "INT",
+        "BOOLEAN": "BIT",
     }

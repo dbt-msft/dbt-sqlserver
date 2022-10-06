@@ -5,9 +5,13 @@ from dbt.tests.adapter.utils.fixture_listagg import (
     seeds__data_listagg_csv,
 )
 from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
+from dbt.tests.adapter.utils.test_array_append import BaseArrayAppend
+from dbt.tests.adapter.utils.test_array_concat import BaseArrayConcat
+from dbt.tests.adapter.utils.test_array_construct import BaseArrayConstruct
 from dbt.tests.adapter.utils.test_bool_or import BaseBoolOr
 from dbt.tests.adapter.utils.test_cast_bool_to_text import BaseCastBoolToText
 from dbt.tests.adapter.utils.test_concat import BaseConcat
+from dbt.tests.adapter.utils.test_current_timestamp import BaseCurrentTimestampNaive
 from dbt.tests.adapter.utils.test_date_trunc import BaseDateTrunc
 from dbt.tests.adapter.utils.test_dateadd import BaseDateAdd
 from dbt.tests.adapter.utils.test_datediff import BaseDateDiff
@@ -221,4 +225,23 @@ class TestPositionSQLServer(BasePosition):
 
 
 class TestReplaceSQLServer(BaseReplace):
+    pass
+
+
+class TestCurrentTimestampSQLServer(BaseCurrentTimestampNaive):
+    pass
+
+
+@pytest.mark.skip(reason="arrays not supported")
+class TestArrayAppendSQLServer(BaseArrayAppend):
+    pass
+
+
+@pytest.mark.skip(reason="arrays not supported")
+class TestArrayConcatSQLServer(BaseArrayConcat):
+    pass
+
+
+@pytest.mark.skip(reason="arrays not supported")
+class TestArrayConstructSQLServer(BaseArrayConstruct):
     pass

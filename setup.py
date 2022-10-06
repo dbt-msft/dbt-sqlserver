@@ -8,8 +8,8 @@ from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
 authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
-dbt_version = "1.2"
-description = """A Microsoft SQL Server adapter plugin for dbt"""
+dbt_version = "1.3"
+description = """A Microsoft SQL Server adapter plugin for dbt (data build tool)"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_directory, "README.md")) as f:
@@ -66,7 +66,7 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        f"dbt-core~={dbt_version}.0",
+        "dbt-core==1.3.0rc2",
         "pyodbc==4.0.32",
         "azure-identity>=1.10.0",
     ],
