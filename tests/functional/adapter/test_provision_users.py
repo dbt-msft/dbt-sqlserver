@@ -30,6 +30,7 @@ version: 2
 models:
   - name: my_model
     config:
+      auto_provision_aad_principals: true
       grants:
         select: ["{{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}"]
 """
@@ -39,6 +40,7 @@ version: 2
 models:
   - name: my_model
     config:
+      auto_provision_aad_principals: true
       grants:
         select:
           - "{{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}"
