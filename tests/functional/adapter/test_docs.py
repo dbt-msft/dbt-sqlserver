@@ -10,6 +10,7 @@ from dbt.tests.adapter.basic.test_docs_generate import (
     ref_models__docs_md,
     ref_models__ephemeral_copy_sql,
     ref_models__schema_yml,
+    ref_sources__schema_yml,
 )
 
 
@@ -64,22 +65,6 @@ class TestDocsGenReferencesSQLServer(BaseDocsGenReferences):
         }}
 
         select first_name, ct from {{ref('ephemeral_summary')}}
-        """
-
-        ref_sources__schema_yml = """
-version: 2
-sources:
-  - name: my_source
-    description: "{{ doc('source_info') }}"
-    loader: a_loader
-    schema: "{{ var('test_schema') }}"
-    tables:
-      - name: my_table
-        description: "{{ doc('table_info') }}"
-        identifier: seed
-        columns:
-          - name: id
-            description: "{{ doc('column_info') }}"
         """
 
         return {
