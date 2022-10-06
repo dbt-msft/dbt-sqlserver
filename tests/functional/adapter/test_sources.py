@@ -53,12 +53,6 @@ class TestSourcesSQLServer:
             + select_from_source_space_in_name,
         }
 
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "name": "test_sources",
-        }
-
     def test_dbt_run(self, project):
         run_dbt(["compile"])
 
