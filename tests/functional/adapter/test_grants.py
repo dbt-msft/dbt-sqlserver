@@ -10,7 +10,7 @@ class TestIncrementalGrantsSQLServer(BaseIncrementalGrants):
     pass
 
 
-@pytest.mark.only_with_profile("ci_sql_server", "user")
+@pytest.mark.skip_profile("ci_sql_server", "user")
 class TestInvalidGrantsSQLServer(BaseInvalidGrants):
     def grantee_does_not_exist_error(self):
         return "could not be found or this principal type is not supported"
@@ -19,7 +19,7 @@ class TestInvalidGrantsSQLServer(BaseInvalidGrants):
         return "Incorrect syntax near"
 
 
-@pytest.mark.skip_profile("ci_sql_server", "user")
+@pytest.mark.only_with_profile("ci_sql_server", "user")
 class TestInvalidGrantsSQLServer(BaseInvalidGrants):
     def grantee_does_not_exist_error(self):
         return "Cannot find the user"
