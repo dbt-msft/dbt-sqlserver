@@ -1,5 +1,22 @@
 # Changelog
 
+### v1.3.0
+
+#### Features
+
+* Support for [dbt-core 1.3](https://github.com/dbt-labs/dbt-core/releases/tag/v1.3.0)
+  * Python models are currently not supported in this adapter
+  * The following cross-db macros are not supported in this adapter: `bool_or`, `array_construct`, `array_concat`, `array_append`
+
+#### Fixes
+
+* The macro `type_boolean` now returns the correct data type (`bit`)
+
+#### Chores
+
+* Update adapter testing framework
+* Update dependencies and pre-commit hooks
+
 ### v1.2.0
 
 #### Possibly breaking change: connection encryption
