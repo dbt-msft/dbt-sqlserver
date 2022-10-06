@@ -45,7 +45,7 @@ jobs:
         run: python devops/scripts/wakeup_azure.py
 
       - name: Configure test users
-        run: sqlcmd -b -I -i devops/scripts/create_sql_users.sql
+        run: sqlcmd -b -I -i devops/scripts/init.sql
         env:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2

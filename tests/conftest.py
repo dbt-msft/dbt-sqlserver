@@ -7,7 +7,7 @@ pytest_plugins = ["dbt.tests.fixtures.project"]
 
 
 def pytest_addoption(parser):
-    parser.addoption("--profile", action="store", default="user", type=str)
+    parser.addoption("--profile", action="store", default="user_azure", type=str)
 
 
 @pytest.fixture(scope="class")
