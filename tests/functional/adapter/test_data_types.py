@@ -1,5 +1,6 @@
 import pytest
 from dbt.tests.adapter.utils.data_types.test_type_bigint import BaseTypeBigInt
+from dbt.tests.adapter.utils.data_types.test_type_boolean import BaseTypeBoolean
 from dbt.tests.adapter.utils.data_types.test_type_float import BaseTypeFloat
 from dbt.tests.adapter.utils.data_types.test_type_int import BaseTypeInt
 from dbt.tests.adapter.utils.data_types.test_type_numeric import BaseTypeNumeric
@@ -52,3 +53,7 @@ seeds:
             "expected.csv": seeds__expected_csv,
             "expected.yml": seeds__expected_yml,
         }
+
+
+class TestTypeBooleanSQLServer(BaseTypeBoolean):
+    pass
