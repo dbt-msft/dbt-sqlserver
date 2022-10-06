@@ -232,13 +232,16 @@ class TestCurrentTimestampSQLServer(BaseCurrentTimestampNaive):
     pass
 
 
+@pytest.mark.skip(reason="arrays not supported")
 class TestArrayAppendSQLServer(BaseArrayAppend):
     pass
 
 
+@pytest.mark.skip(reason="arrays not supported")
 class TestArrayConcatSQLServer(BaseArrayConcat):
     pass
 
 
+@pytest.mark.skip(reason="arrays not supported")
 class TestArrayConstructSQLServer(BaseArrayConstruct):
     pass
