@@ -154,7 +154,11 @@ end
 
 {{ log("Creating nonclustered index...") }}
 
-{% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") %}
+{% if includes -%}
+  {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") + '_includes_' + includes|join('_')|replace(" ", "_") %}
+{% else -%}
+  {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") %}
+{% endif %}
 
 if not exists(select * from sys.indexes
                 where
