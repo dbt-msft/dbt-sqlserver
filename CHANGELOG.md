@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.4.0rc1
+
+- bumped dep versions
+
 ### v1.3.0
 
 #### Features
