@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from dbt.adapters.sqlserver import SQLServerAdapter
 from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql
 from dbt.tests.adapter.simple_seed.test_seed import SeedConfigBase
 from dbt.tests.adapter.simple_seed.test_seed import TestBasicSeedTests as BaseBasicSeedTests
@@ -24,8 +25,6 @@ from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     seeds__enabled_in_config_csv,
 )
 from dbt.tests.util import get_connection, run_dbt
-
-from dbt.adapters.sqlserver import SQLServerAdapter
 
 fixed_setup_sql = seeds__expected_sql.replace("TIMESTAMP WITHOUT TIME ZONE", "DATETIME").replace(
     "TEXT", "VARCHAR(255)"

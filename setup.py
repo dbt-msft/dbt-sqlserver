@@ -6,10 +6,10 @@ import sys
 from setuptools import find_namespace_packages, setup
 from setuptools.command.install import install
 
-package_name = "dbt-sqlserver"
-authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
+package_name = "dbt-fabric"
+authors_list = ["Sam Debruyn", "Pradeep Srikakolapu"]
 dbt_version = "1.4"
-description = """A Microsoft SQL Server adapter plugin for dbt"""
+description = """A Microsoft Fabric Synapse Data Warehouse adapter plugin for dbt"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_directory, "README.md")) as f:
@@ -17,8 +17,8 @@ with open(os.path.join(this_directory, "README.md")) as f:
 
 
 # get this from a separate file
-def _dbt_sqlserver_version():
-    _version_path = os.path.join(this_directory, "dbt", "adapters", "sqlserver", "__version__.py")
+def _dbt_fabric_version():
+    _version_path = os.path.join(this_directory, "dbt", "adapters", "fabric", "__version__.py")
     _version_pattern = r"""version\s*=\s*["'](.+)["']"""
     with open(_version_path) as f:
         match = re.search(_version_pattern, f.read().strip())
@@ -27,7 +27,7 @@ def _dbt_sqlserver_version():
         return match.group(1)
 
 
-package_version = _dbt_sqlserver_version()
+package_version = _dbt_fabric_version()
 
 # the package version should be the dbt version, with maybe some things on the
 # ends of it. (0.18.1 vs 0.18.1a1, 0.18.1.1, ...)
@@ -62,7 +62,7 @@ setup(
     long_description_content_type="text/markdown",
     license="MIT",
     author=", ".join(authors_list),
-    url="https://github.com/dbt-msft/dbt-sqlserver",
+    url="https://github.com/microsoft/dbt-fabric",
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
@@ -85,6 +85,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
+    # TODO
     project_urls={
         "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile",  # noqa: E501
         "Documentation & usage": "https://docs.getdbt.com/reference/resource-configs/mssql-configs",  # noqa: E501

@@ -6,8 +6,8 @@ Create a virtual environment, [pyenv](https://github.com/pyenv/pyenv) is used in
 
 ```shell
 pyenv install 3.10.7
-pyenv virtualenv 3.10.7 dbt-sqlserver
-pyenv activate dbt-sqlserver
+pyenv virtualenv 3.10.7 dbt-fabric
+pyenv activate dbt-fabric
 ```
 
 Install the development dependencies and pre-commit and get information about possible make commands:
@@ -64,7 +64,7 @@ All CI/CD pipelines are using GitHub Actions. The following pipelines are availa
 * `publish-docker`: publishes the image we use in all other pipelines.
 * `unit-tests`: runs the unit tests for each supported Python version.
 * `integration-tests-azure`: runs the integration tests for Azure SQL Server.
-* `integration-tests-sqlserver`: runs the integration tests for SQL Server.
+* `integration-tests-fabric`: runs the integration tests for SQL Server.
 * `release-version`: publishes the adapter to PyPI.
 
 There is an additional [Pre-commit](https://pre-commit.ci/) pipeline that validates the code style.
