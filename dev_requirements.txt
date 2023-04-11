@@ -3,5 +3,6 @@ twine==4.0.2
 wheel==0.38.4
 pre-commit==2.20.0
 pytest-dotenv==0.5.2
+pytz==2023.3
 dbt-tests-adapter==1.4.1
 -e .
