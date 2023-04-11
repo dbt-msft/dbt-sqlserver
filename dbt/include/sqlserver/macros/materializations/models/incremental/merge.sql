@@ -9,7 +9,10 @@
   {{ default__get_merge_sql(target, source, unique_key, dest_columns, predicates) }};
 {% endmacro %}
 
-{% macro sqlserver__get_delete_insert_merge_sql(target, source, unique_key, dest_columns) %}
+{% macro sqlserver__get_delete_insert_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
+      {% if incremental_predicates %}
+          {{ exceptions.raise_not_implemented('incremental_predicates are not implemented in dbt-sqlserver') }}
+      {% endif %}
 
       {%- set dest_cols_csv = get_quoted_csv(dest_columns | map(attribute="name")) -%}
 

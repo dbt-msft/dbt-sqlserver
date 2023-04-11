@@ -67,8 +67,8 @@ setup(
     include_package_data=True,
     install_requires=[
         "dbt-core~=1.4.0",
-        "pyodbc>=4.0.32,!=4.0.34",
-        "azure-identity>=1.10.0",
+        "pyodbc~=4.0.35,!=4.0.36,!=4.0.37",
+        "azure-identity>=1.12.0",
     ],
     cmdclass={
         "verify": VerifyVersionCommand,
@@ -83,5 +83,6 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
 )
