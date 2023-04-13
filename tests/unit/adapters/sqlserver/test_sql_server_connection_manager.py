@@ -1,4 +1,5 @@
 import datetime as dt
+import struct
 import json
 from unittest import mock
 
@@ -8,6 +9,7 @@ from azure.identity import AzureCliCredential
 from dbt.adapters.sqlserver.sql_server_connection_manager import (
     bool_to_connection_string_arg,
     get_pyodbc_attrs_before,
+    byte_array_to_datetime
 )
 from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 
@@ -76,3 +78,31 @@ def test_get_pyodbc_attrs_before_contains_access_token_key_for_cli_authenticatio
 )
 def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> None:
     assert bool_to_connection_string_arg(key, value) == expected
+
+@pytest.mark.parametrize(
+    "value, expected", [
+        (
+            bytes([
+                0xE5, 0x07,             # year: 2022
+                0x0C, 0x00,             # month: 12
+                0x11, 0x00,             # day: 17
+                0x16, 0x00,             # hour: 22
+                0x16, 0x00,             # minute: 22
+                0x12, 0x00,             # second: 18
+                0x40, 0xE2, 0x01, 0x00, # microsecond: 123456
+                0x02, 0x00, 0x1E, 0x00  # tzinfo: +02:30
+            ]),
+            dt.datetime(
+                2021, 12, 17,
+                22, 22,
+                18, 123456,
+                dt.timezone(dt.timedelta(hours=2, minutes=30))
+            )
+        )
+    ]
+)
+def test_byte_array_to_datetime(value: bytes, expected: dt.datetime) -> None:
+    """
+    
+    """
+    assert byte_array_to_datetime(value) == expected
