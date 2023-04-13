@@ -92,17 +92,14 @@ def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> 
                 0x40, 0xE2, 0x01, 0x00, # microsecond: 123456
                 0x02, 0x00, 0x1E, 0x00  # tzinfo: +02:30
             ]),
-            dt.datetime(
-                2021, 12, 17,
-                22, 22,
-                18, 123456,
-                dt.timezone(dt.timedelta(hours=2, minutes=30))
-            )
+            "2021-12-17 22:22:18.123456+02:30"
         )
     ]
 )
 def test_byte_array_to_datetime(value: bytes, expected: dt.datetime) -> None:
     """
-    
+    Assert SQL_SS_TIMESTAMPOFFSET_STRUCT bytes convert to string in an expected isoformat
+    https://docs.python.org/3/library/datetime.html#datetime.datetime.__str__
+    https://learn.microsoft.com/sql/relational-databases/native-client-odbc-date-time/data-type-support-for-odbc-date-and-time-improvements#sql_ss_timestampoffset_struct
     """
-    assert byte_array_to_datetime(value) == expected
+    assert str(byte_array_to_datetime(value)) == expected
