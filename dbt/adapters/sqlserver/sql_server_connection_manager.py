@@ -263,7 +263,7 @@ def byte_array_to_datetime(value: bytes) -> dt.datetime:
         hour=tup[3],
         minute=tup[4],
         second=tup[5],
-        microsecond=tup[6],
+        microsecond=tup[6] // 1000, # https://bugs.python.org/issue15443
         tzinfo=dt.timezone(dt.timedelta(hours=tup[7], minutes=tup[8])),
     )
 

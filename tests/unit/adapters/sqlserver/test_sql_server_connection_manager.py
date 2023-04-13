@@ -80,7 +80,7 @@ def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> 
     assert bool_to_connection_string_arg(key, value) == expected
 
 @pytest.mark.parametrize(
-    "value, expected", [
+    "value, expected_datetime, expected_str", [
         (
             bytes([
                 0xE5, 0x07,             # year: 2022
@@ -89,17 +89,19 @@ def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> 
                 0x16, 0x00,             # hour: 22
                 0x16, 0x00,             # minute: 22
                 0x12, 0x00,             # second: 18
-                0x40, 0xE2, 0x01, 0x00, # microsecond: 123456
+                0x15, 0xCD, 0x5B, 0x07, # microsecond: 123456789
                 0x02, 0x00, 0x1E, 0x00  # tzinfo: +02:30
             ]),
+            dt.datetime(2022, 12, 17, 22, 22, 18, 123456, dt.timezone(dt.timedelta(hours=2, minutes=30))),
             "2021-12-17 22:22:18.123456+02:30"
         )
     ]
 )
-def test_byte_array_to_datetime(value: bytes, expected: dt.datetime) -> None:
+def test_byte_array_to_datetime(value: bytes, expected_datetime: dt.datetime, expected_str: str) -> None:
     """
     Assert SQL_SS_TIMESTAMPOFFSET_STRUCT bytes convert to string in an expected isoformat
     https://docs.python.org/3/library/datetime.html#datetime.datetime.__str__
     https://learn.microsoft.com/sql/relational-databases/native-client-odbc-date-time/data-type-support-for-odbc-date-and-time-improvements#sql_ss_timestampoffset_struct
     """
-    assert str(byte_array_to_datetime(value)) == expected
+    assert byte_array_to_datetime(value) == expected_datetime
+    assert str(byte_array_to_datetime(value)) == expected_str
