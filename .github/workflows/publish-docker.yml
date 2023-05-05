@@ -7,6 +7,12 @@ on:  # yamllint disable-line rule:truthy
       - '.github/workflows/publish-docker.yml'
     branches:
       - 'master'
+  pull_request:
+    paths:
+      - 'devops/**'
+      - '.github/workflows/publish-docker.yml'
+    branches:
+      - 'master'
 
 jobs:
   publish-docker-client:
