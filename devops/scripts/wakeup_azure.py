@@ -27,19 +27,21 @@ def resume_azsql():
     print("Connecting with the following connection string:")
     print(con_str_concat.replace(password, "***"))
 
-    connected = False
-    attempts = 0
-    while not connected and attempts < 20:
-        try:
-            attempts += 1
-            handle = pyodbc.connect(con_str_concat, autocommit=True)
-            cursor = handle.cursor()
-            cursor.execute("SELECT 1")
-            connected = True
-        except pyodbc.Error as e:
-            print("Failed to connect to SQL Server. Retrying...")
-            print(e)
-            time.sleep(10)
+    if password:
+        print("password is not None")
+        connected = False
+        attempts = 0
+        while not connected and attempts < 20:
+            try:
+                attempts += 1
+                handle = pyodbc.connect(con_str_concat, autocommit=True)
+                cursor = handle.cursor()
+                cursor.execute("SELECT 1")
+                connected = True
+            except pyodbc.Error as e:
+                print("Failed to connect to SQL Server. Retrying...")
+                print(e)
+                time.sleep(10)
 
 
 def main():
