@@ -61,6 +61,6 @@
   {% set max_batch_size = get_batch_size() %}
   {% set cols_sql = get_seed_column_quoted_csv(model, agate_table.column_names) %}
   {% set batch_size = calc_batch_size(cols_sql|length, max_batch_size) %}
-  
+
   {{ return(basic_load_csv_rows(model, batch_size, agate_table) )}}
 {% endmacro %}

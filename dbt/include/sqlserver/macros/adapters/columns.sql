@@ -1,34 +1,49 @@
 {% macro sqlserver__get_columns_in_relation(relation) -%}
   {% call statement('get_columns_in_relation', fetch_result=True) %}
-      SELECT
-          column_name,
-          data_type,
-          character_maximum_length,
-          numeric_precision,
-          numeric_scale
-      FROM
-          (select
-              ordinal_position,
-              column_name,
-              data_type,
-              character_maximum_length,
-              numeric_precision,
-              numeric_scale
-          from [{{ relation.database }}].INFORMATION_SCHEMA.COLUMNS
-          where table_name = '{{ relation.identifier }}'
-            and table_schema = '{{ relation.schema }}'
-          UNION ALL
-          select
-              ordinal_position,
-              column_name collate database_default,
-              data_type collate database_default,
-              character_maximum_length,
-              numeric_precision,
-              numeric_scale
-          from tempdb.INFORMATION_SCHEMA.COLUMNS
-          where table_name like '{{ relation.identifier }}%') cols
-      order by ordinal_position
 
+    with
+        regular_db_cols as (
+            select
+                ordinal_position,
+                column_name,
+                data_type,
+                character_maximum_length,
+                numeric_precision,
+                numeric_scale
+            from [{{ relation.database }}].INFORMATION_SCHEMA.COLUMNS
+            where table_name = '{{ relation.identifier }}'
+              and table_schema = '{{ relation.schema }}'
+        ),
+
+        temp_db_cols as (
+            select
+                ordinal_position,
+                column_name collate database_default as column_name,
+                data_type collate database_default as data_type,
+                character_maximum_length,
+                numeric_precision,
+                numeric_scale
+            from tempdb.INFORMATION_SCHEMA.COLUMNS
+            where table_name like '{{ relation.identifier }}%'
+        ),
+
+        all_cols as (
+            select *
+            from regular_db_cols
+            union
+            select *
+            from temp_db_cols
+        )
+
+    select
+        column_name,
+        data_type,
+        character_maximum_length,
+        numeric_precision,
+        numeric_scale
+    from
+        all_cols
+    order by ordinal_position
 
   {% endcall %}
   {% set table = load_result('get_columns_in_relation').table %}

@@ -43,6 +43,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+*.log.legacy
 
 # Translations
 *.mo
@@ -67,9 +68,6 @@ target/
 # Pycharm
 .idea
 
-# VS Code
-.vscode/
-
 # Spyder
 .spyproject/
 
@@ -90,7 +88,7 @@ target/
 .mypy_cache/
 
 # Environments
-.env
+*.env
 .venv
 env/
 venv/

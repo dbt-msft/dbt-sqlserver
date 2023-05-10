@@ -13,3 +13,7 @@
     {% endcall %}
   {% endfor %}
 {% endmacro %}
+
+{% macro sqlserver__get_true_sql() %}
+  {{ return('1=1') }}
+{% endmacro %}

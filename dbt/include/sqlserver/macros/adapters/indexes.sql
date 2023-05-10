@@ -1,7 +1,7 @@
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
-  {%- set cci_name = relation.schema ~ '_' ~ relation.identifier ~ '_cci' -%}
+  {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
   {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
-  {%- set full_relation = relation.schema ~ '.' ~ relation.identifier -%}
+  {%- set full_relation = '"' ~ relation.schema ~ '"."' ~ relation.identifier ~ '"' -%}
   use [{{ relation.database }}];
   if EXISTS (
         SELECT * FROM
@@ -132,9 +132,9 @@ select @drop_remaining_indexes_last = (
 
 {% set idx_name = this.table + '__clustered_index_on_' + columns|join('_') %}
 
-if not exists(select * from sys.indexes 
-                where 
-                name = '{{ idx_name }}' and 
+if not exists(select * from sys.indexes
+                where
+                name = '{{ idx_name }}' and
                 object_id = OBJECT_ID('{{ this }}')
 )
 begin
@@ -154,11 +154,15 @@ end
 
 {{ log("Creating nonclustered index...") }}
 
-{% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") %}
+{% if includes -%}
+  {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") + '_includes_' + includes|join('_')|replace(" ", "_") %}
+{% else -%}
+  {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") %}
+{% endif %}
 
-if not exists(select * from sys.indexes 
-                where 
-                name = '{{ idx_name }}' and 
+if not exists(select * from sys.indexes
+                where
+                name = '{{ idx_name }}' and
                 object_id = OBJECT_ID('{{ this }}')
 )
 begin

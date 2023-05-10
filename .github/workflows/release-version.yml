@@ -1,0 +1,35 @@
+---
+name: Release new version
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-version:
+    name: Release new version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install -r dev_requirements.txt
+
+      - name: Verify version match
+        run: python setup.py verify
+
+      - name: Initialize .pypirc
+        run: |
+          echo -e "[pypi]" >> ~/.pypirc
+          echo -e "username = __token__" >> ~/.pypirc
+          echo -e "password = ${{ secrets.PYPI_DBT_SQLSERVER }}" >> ~/.pypirc
+
+      - name: Build and publish package
+        run: |
+          python setup.py sdist bdist_wheel
+          twine upload dist/*

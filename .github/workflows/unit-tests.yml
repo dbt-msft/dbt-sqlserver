@@ -1,0 +1,36 @@
+---
+name: Unit tests
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - master
+      - v*
+  pull_request:
+    branches:
+      - master
+      - v*
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    strategy:
+      matrix:
+        python_version: ["3.7", "3.8", "3.9", "3.10"]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc18
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: pip install -r dev_requirements.txt
+
+      - name: Run unit tests
+        run: pytest tests/unit

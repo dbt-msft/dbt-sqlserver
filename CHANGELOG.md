@@ -1,5 +1,99 @@
 # Changelog
 
+### v1.3.0
+
+#### Features
+
+* Support for [dbt-core 1.3](https://github.com/dbt-labs/dbt-core/releases/tag/v1.3.0)
+  * Python models are currently not supported in this adapter
+  * The following cross-db macros are not supported in this adapter: `bool_or`, `array_construct`, `array_concat`, `array_append`
+
+#### Fixes
+
+* The macro `type_boolean` now returns the correct data type (`bit`)
+
+#### Chores
+
+* Update adapter testing framework
+* Update dependencies and pre-commit hooks
+
+### v1.2.0
+
+#### Possibly breaking change: connection encryption
+
+For compatibility with MS ODBC Driver 18, the settings `Encrypt` and `TrustServerCertificate` are now always added to the connection string.
+These are configured with the keys `encrypt` and `trust_cert` in your profile.
+In previous versions, these settings were only added if they were set to `True`.
+
+The new version of the MS ODBC Driver sets `Encrypt` to `True` by default.
+The adapter is following this change and also defaults to `True` for `Encrypt`.
+
+The default value for `TrustServerConnection` remains `False` as it would be a security risk otherwise.
+
+This means that connections made with this version of the adapter will now have `Encrypt=Yes` and `TrustServerCertificate=No` set if you are using the default settings.
+You should change the settings `encrypt` or `trust_cert` to accommodate for your use case.
+
+
+#### Features
+
+* Support for [dbt-core 1.2](https://github.com/dbt-labs/dbt-core/releases/tag/v1.2.0)
+  * Full support for the new [grants config](https://docs.getdbt.com/reference/resource-configs/grants)
+  * New configuration option: `auto_provision_aad_principals` - setting this to `true` will automatically create contained database users linked to Azure AD principals or groups if they don't exist yet when they're being used in grant configs
+* Support for MS ODBC Driver 18
+* Support automatic retries with new `retries` setting introduced in core
+* The correct owner of a table/view is now visible in generated documentation (and in catalog.json)
+* A lot of features of dbt-utils & T-SQL utils are now available out-of-the-box in dbt-core and this adapter. A new release of T-SQL utils will follow.
+  *  Support for all `type_*` macros
+  *  Support for all [cross-database macros](https://docs.getdbt.com/reference/dbt-jinja-functions/cross-database-macros), except:
+    *  `bool_or`
+    *  `listagg` will only work in SQL Server 2017 or newer or the cloud versions. The `limit_num` option is unsupported. `DISTINCT` cannot be used in the measure.
+
+#### Fixes
+
+* In some cases the `TIMESTAMP` would be used as data type instead of `DATETIMEOFFSET`, fixed that
+
+#### Chores
+
+* Update adapter testing framework to 1.2.1
+* Update pre-commit, tox, pytest and pre-commit hooks
+* Type hinting in connection class
+* Automated testing with SQL Server 2017, 2019 and 2022
+* Automated testing with MS ODBC 17 and MS ODBC 18
+
+### v1.1.0
+
+See changes included in v1.1.0rc1 below as well
+
+#### Fixes
+
+* [#251](https://github.com/dbt-msft/dbt-sqlserver/pull/251) fix incremental models with arrays for unique keys ([@sdebruyn](https://github.com/sdebruyn) & [@johnnytang24](https://github.com/johnnytang24))
+* [#214](https://github.com/dbt-msft/dbt-sqlserver/pull/214) fix for sources with spaces in the names ([@Freia3](https://github.com/Freia3))
+* [#238](https://github.com/dbt-msft/dbt-sqlserver/pull/238) fix snapshots breaking when new columns are added ([@jakemcaferty](https://github.com/jakemcaferty))
+
+#### Chores
+
+* [#249](https://github.com/dbt-msft/dbt-sqlserver/pull/249) & [#250](https://github.com/dbt-msft/dbt-sqlserver/pull/251) add Python 3.10 to automated testing ([@sdebruyn](https://github.com/sdebruyn))
+* [#248](https://github.com/dbt-msft/dbt-sqlserver/pull/248) update all documentation, README and include on dbt docs ([@sdebruyn](https://github.com/sdebruyn))
+* [#252](https://github.com/dbt-msft/dbt-sqlserver/pull/252) add automated test for [#214](https://github.com/dbt-msft/dbt-sqlserver/pull/214) ([@sdebruyn](https://github.com/sdebruyn))
+
+### v1.1.0.rc1
+
+#### Features
+
+* update to dbt 1.1
+
+#### Fixes
+
+* [#194](https://github.com/dbt-msft/dbt-sqlserver/pull/194) uppercased information_schema ([@TrololoLi](https://github.com/TrololoLi))
+* [#215](https://github.com/dbt-msft/dbt-sqlserver/pull/215) Escape schema names so they can contain strange characters ([@johnf](https://github.com/johnf))
+
+#### Chores
+
+* Documentation on how to contribute to the adapter
+* Automatic release process by adding a new tag
+* Consistent code style with pre-commit
+* [#201](https://github.com/dbt-msft/dbt-sqlserver/pull/201) use new dbt 1.0 logger ([@semcha](https://github.com/semcha))
+* [#216](https://github.com/dbt-msft/dbt-sqlserver/pull/216) use new dbt testing framework ([@dataders](https://github.com/dataders) & [@sdebruyn](https://github.com/sdebruyn))
 
 ### v1.0.0
 
