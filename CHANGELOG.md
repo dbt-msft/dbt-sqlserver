@@ -1,5 +1,12 @@
 # Changelog
 
+### v1.3.2
+
+#### Fixes
+
+* Install a correct version of `dbt-core` that is compatible with the library 
+
+
 ### v1.3.0
 
 #### Features
