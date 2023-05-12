@@ -266,7 +266,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def open(cls, connection: Connection) -> Connection:
-
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
@@ -276,7 +275,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
         con_str = [f"DRIVER={{{credentials.driver}}}"]
 
         if "\\" in credentials.host:
-
             # If there is a backslash \ in the host name, the host is a
             # SQL Server named instance. In this case then port number has to be omitted.
             con_str.append(f"SERVER={credentials.host}")
@@ -374,7 +372,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
         bindings: Optional[Any] = None,
         abridge_sql_log: bool = False,
     ) -> Tuple[Connection, Any]:
-
         connection = self.get_thread_connection()
 
         if auto_begin and connection.transaction_open is False:
