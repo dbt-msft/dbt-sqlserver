@@ -7,7 +7,9 @@ pytest_plugins = ["dbt.tests.fixtures.project"]
 
 
 def pytest_addoption(parser):
-    parser.addoption("--profile", action="store", default="user", type=str)
+    parser.addoption(
+        "--profile", action="store", default=os.getenv("PROFILE_NAME", "user"), type=str
+    )
 
 
 @pytest.fixture(scope="class")
@@ -105,7 +107,7 @@ def _profile_ci_sql_server():
 
 
 def _profile_user():
-    return {
+    profile = {
         **_all_profiles_base(),
         **{
             "host": os.getenv("SQLSERVER_TEST_HOST"),
@@ -116,19 +118,24 @@ def _profile_user():
             "trust_cert": bool(os.getenv("SQLSERVER_TEST_TRUST_CERT", "False")),
         },
     }
+    return profile
 
 
 def _profile_user_azure():
-    return {
+    profile = {
         **_all_profiles_base(),
         **{
             "host": os.getenv("SQLSERVER_TEST_HOST"),
-            "authentication": "auto",
+            "authentication": os.getenv("SQLSERVER_TEST_AUTH", "auto"),
             "encrypt": True,
             "trust_cert": True,
             "database": os.getenv("SQLSERVER_TEST_DBNAME"),
+            "client_id": os.getenv("SQLSERVER_TEST_CLIENT_ID"),
+            "client_secret": os.getenv("SQLSERVER_TEST_CLIENT_SECRET"),
+            "tenant_id": os.getenv("SQLSERVER_TEST_TENANT_ID"),
         },
     }
+    return profile
 
 
 @pytest.fixture(autouse=True)
