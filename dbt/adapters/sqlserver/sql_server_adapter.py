@@ -76,7 +76,6 @@ class SQLServerAdapter(SQLAdapter):
         column_names: Optional[List[str]] = None,
         except_operator: str = "EXCEPT",
     ) -> str:
-
         """
         note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjsuted
         Generate SQL for a query that returns a single row with a two
