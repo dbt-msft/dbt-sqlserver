@@ -250,23 +250,22 @@ class SQLServerConnectionManager(SQLConnectionManager):
             except pyodbc.Error:
                 logger.debug("Failed to release connection!")
 
-            raise dbt.exceptions.DatabaseException(str(e).strip()) from e
+            raise dbt.exceptions.DbtDatabaseError(str(e).strip()) from e
 
         except Exception as e:
             logger.debug(f"Error running SQL: {sql}")
             logger.debug("Rolling back transaction.")
             self.release()
-            if isinstance(e, dbt.exceptions.RuntimeException):
+            if isinstance(e, dbt.exceptions.DbtRuntimeError):
                 # during a sql query, an internal to dbt exception was raised.
                 # this sounds a lot like a signal handler and probably has
                 # useful information, so raise it without modification.
                 raise
 
-            raise dbt.exceptions.RuntimeException(e)
+            raise dbt.exceptions.DbtRuntimeError(e)
 
     @classmethod
     def open(cls, connection: Connection) -> Connection:
-
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
@@ -276,7 +275,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
         con_str = [f"DRIVER={{{credentials.driver}}}"]
 
         if "\\" in credentials.host:
-
             # If there is a backslash \ in the host name, the host is a
             # SQL Server named instance. In this case then port number has to be omitted.
             con_str.append(f"SERVER={credentials.host}")
@@ -374,7 +372,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
         bindings: Optional[Any] = None,
         abridge_sql_log: bool = False,
     ) -> Tuple[Connection, Any]:
-
         connection = self.get_thread_connection()
 
         if auto_begin and connection.transaction_open is False:

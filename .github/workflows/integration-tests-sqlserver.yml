@@ -15,7 +15,7 @@ jobs:
     name: Integration tests on SQL Server
     strategy:
       matrix:
-        python_version: ["3.7", "3.8", "3.9", "3.10"]
+        python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
     runs-on: ubuntu-latest

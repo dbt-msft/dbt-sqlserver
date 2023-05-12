@@ -15,7 +15,7 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'safe to test') || github.ref_name == 'master' || github.ref_name == 'azure-testing'
     strategy:
       matrix:
-        python_version: ["3.7", "3.8", "3.9", "3.10"]
+        python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
         profile: ["ci_azure_cli", "ci_azure_auto", "ci_azure_environment", "ci_azure_basic"]
         msodbc_version: ["17", "18"]
       max-parallel: 1
