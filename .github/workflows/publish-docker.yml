@@ -7,12 +7,18 @@ on:  # yamllint disable-line rule:truthy
       - '.github/workflows/publish-docker.yml'
     branches:
       - 'master'
+  pull_request:
+    paths:
+      - 'devops/**'
+      - '.github/workflows/publish-docker.yml'
+    branches:
+      - 'master'
 
 jobs:
   publish-docker-client:
     strategy:
       matrix:
-        python_version: ["3.7", "3.8", "3.9", "3.10"]
+        python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
         docker_target: ["msodbc17", "msodbc18"]
     runs-on: ubuntu-latest
     permissions:
