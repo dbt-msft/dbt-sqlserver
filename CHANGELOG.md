@@ -10,6 +10,8 @@
   * Replace deprecated exception functions
   * Consolidate timestamp macros
 
+
+Thanks [@i-j](https://github.com/l-j)!
 ### v1.3.0
 
 #### Features
