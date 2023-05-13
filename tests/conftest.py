@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import pytest
 from _pytest.fixtures import FixtureRequest
@@ -13,7 +14,7 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="class")
-def dbt_profile_target(request: FixtureRequest):
+def dbt_profile_target(request: FixtureRequest) -> dict[str, Any]:
     profile = request.config.getoption("--profile")
 
     if profile == "ci_sql_server":
@@ -34,7 +35,13 @@ def dbt_profile_target(request: FixtureRequest):
     raise ValueError(f"Unknown profile: {profile}")
 
 
-def _all_profiles_base():
+@pytest.fixture(scope="class")
+def is_azure(request: FixtureRequest) -> bool:
+    profile = request.config.getoption("--profile")
+    return "azure" in profile
+
+
+def _all_profiles_base() -> dict[str, Any]:
     return {
         "type": "sqlserver",
         "driver": os.getenv("SQLSERVER_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
@@ -43,7 +50,7 @@ def _all_profiles_base():
     }
 
 
-def _profile_ci_azure_base():
+def _profile_ci_azure_base() -> dict[str, Any]:
     return {
         **_all_profiles_base(),
         **{
@@ -55,7 +62,7 @@ def _profile_ci_azure_base():
     }
 
 
-def _profile_ci_azure_basic():
+def _profile_ci_azure_basic() -> dict[str, Any]:
     return {
         **_profile_ci_azure_base(),
         **{
@@ -65,7 +72,7 @@ def _profile_ci_azure_basic():
     }
 
 
-def _profile_ci_azure_cli():
+def _profile_ci_azure_cli() -> dict[str, Any]:
     return {
         **_profile_ci_azure_base(),
         **{
@@ -74,7 +81,7 @@ def _profile_ci_azure_cli():
     }
 
 
-def _profile_ci_azure_auto():
+def _profile_ci_azure_auto() -> dict[str, Any]:
     return {
         **_profile_ci_azure_base(),
         **{
@@ -83,7 +90,7 @@ def _profile_ci_azure_auto():
     }
 
 
-def _profile_ci_azure_environment():
+def _profile_ci_azure_environment() -> dict[str, Any]:
     return {
         **_profile_ci_azure_base(),
         **{
@@ -92,7 +99,7 @@ def _profile_ci_azure_environment():
     }
 
 
-def _profile_ci_sql_server():
+def _profile_ci_sql_server() -> dict[str, Any]:
     return {
         **_all_profiles_base(),
         **{
@@ -106,7 +113,7 @@ def _profile_ci_sql_server():
     }
 
 
-def _profile_user():
+def _profile_user() -> dict[str, Any]:
     profile = {
         **_all_profiles_base(),
         **{
@@ -121,7 +128,7 @@ def _profile_user():
     return profile
 
 
-def _profile_user_azure():
+def _profile_user_azure() -> dict[str, Any]:
     profile = {
         **_all_profiles_base(),
         **{
