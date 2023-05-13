@@ -13,13 +13,13 @@ cleanup_existing_sql = """
             select *
             from sys.database_principals
             where name = '{{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}')
-        drop user {{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}
+        drop user [{{ env_var('DBT_TEST_AAD_PRINCIPAL_1') }}]
 
         if exists(
             select *
             from sys.database_principals
             where name = '{{ env_var('DBT_TEST_AAD_PRINCIPAL_2') }}')
-        drop user {{ env_var('DBT_TEST_AAD_PRINCIPAL_2') }}
+        drop user [{{ env_var('DBT_TEST_AAD_PRINCIPAL_2') }}]
 
     {%- endcall -%}
 {% endmacro %}
