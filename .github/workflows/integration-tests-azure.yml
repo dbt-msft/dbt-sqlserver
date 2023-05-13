@@ -5,14 +5,14 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
-      - azure-testing
-  pull_request_target:
-    types: [labeled]
+  pull_request:
+    branches:
+      - master
+      - v*
 
 jobs:
   integration-tests-azure:
     name: Integration tests on Azure
-    if: contains(github.event.pull_request.labels.*.name, 'safe to test') || github.ref_name == 'master' || github.ref_name == 'azure-testing'
     strategy:
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
