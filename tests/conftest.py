@@ -34,6 +34,12 @@ def dbt_profile_target(request: FixtureRequest):
     raise ValueError(f"Unknown profile: {profile}")
 
 
+@pytest.fixture(scope="class")
+def is_azure(request: FixtureRequest) -> bool:
+    profile = request.config.getoption("--profile")
+    return "azure" in profile
+
+
 def _all_profiles_base():
     return {
         "type": "sqlserver",
