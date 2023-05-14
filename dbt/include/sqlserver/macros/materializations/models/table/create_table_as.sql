@@ -18,12 +18,10 @@
     {{ temp_view_sql }}
     ');
 
-    -- drop current version of the table
-   {{- sqlserver__drop_relation_script(relation) }}
-
    -- select into the table and create it that way
+   {# TempDB schema is ignored, always goes to dbo #}
    SELECT *
-   INTO {{ relation.include(database=False)  }}
+   INTO {{ relation.include(database=False, schema=(not temporary))  }}
    FROM {{ tmp_relation }}
 
    -- drop temp view
