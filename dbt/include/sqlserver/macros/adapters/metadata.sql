@@ -118,7 +118,11 @@
 {%- endmacro %}
 
 {% macro sqlserver__information_schema_name(database) -%}
-  information_schema
+  {%- if database -%}
+    [{{ database }}].INFORMATION_SCHEMA
+  {%- else -%}
+    INFORMATION_SCHEMA
+  {%- endif -%}
 {%- endmacro %}
 
 {% macro sqlserver__list_schemas(database) %}
