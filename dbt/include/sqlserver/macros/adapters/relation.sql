@@ -1,9 +1,9 @@
 {% macro sqlserver__make_temp_relation(base_relation, suffix) %}
-    {% set tmp_identifier = '#' ~  base_relation.identifier ~ suffix %}
-    {% set tmp_relation = base_relation.incorporate(
-                                path={"identifier": tmp_identifier}) -%}
+    {%- set temp_identifier = '#' ~ base_relation.identifier ~ suffix -%}
+    {%- set temp_relation = base_relation.incorporate(
+                                path={"identifier": temp_identifier}) -%}
 
-    {% do return(tmp_relation) %}
+    {{ return(temp_relation) }}
 {% endmacro %}
 
 {% macro sqlserver__drop_relation(relation) -%}
