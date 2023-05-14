@@ -19,18 +19,12 @@
     ');
 
     -- drop current version of the table
-   {{- sqlserver__drop_relation_script(relation) -}}
+   {{- sqlserver__drop_relation_script(relation) }}
 
    -- select into the table and create it that way
-   {#- see https://learn.microsoft.com/en-us/sql/t-sql/queries/select-into-clause-transact-sql?view=sql-server-ver16#b-inserting-rows-using-minimal-logging #}
-   ALTER DATABASE [{{ relation.database }}] SET RECOVERY BULK_LOGGED
-
    SELECT *
-   INTO {% if temporary %}#{% endif %}{{ relation.include(database=(not temporary), schema=(not temporary)) }}
+   INTO {{ relation.include(database=False)  }}
    FROM {{ tmp_relation }}
-
-   {#- see https://learn.microsoft.com/en-us/sql/t-sql/queries/select-into-clause-transact-sql?view=sql-server-ver16#b-inserting-rows-using-minimal-logging #}
-   ALTER DATABASE [{{ relation.database }}] SET RECOVERY FULL
 
    -- drop temp view
    {{ sqlserver__drop_relation_script(tmp_relation) }}
