@@ -15,7 +15,7 @@
     -- create temp view
    USE [{{ relation.database }}];
    EXEC('create view {{ tmp_relation.include(database=False) }} as
-    {{- temp_view_sql -}}
+    {{ temp_view_sql }}
     ');
 
     -- drop current version of the table
