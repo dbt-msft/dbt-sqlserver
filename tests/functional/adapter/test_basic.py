@@ -1,4 +1,5 @@
 import pytest
+from dbt.tests.adapter.basic.files import incremental_not_schema_change_sql
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
@@ -43,20 +44,11 @@ class TestIncrementalSQLServer(BaseIncremental):
 class TestIncrementalNotSchemaChangeSQLServer(BaseIncrementalNotSchemaChange):
     @pytest.fixture(scope="class")
     def models(self):
-        incremental_not_schema_change_sql = """
-{{ config(
-    materialized="incremental",
-    unique_key="user_id_current_time",
-    on_schema_change="sync_all_columns") }}
-select
-    1 + '-' + current_timestamp as user_id_current_time,
-    {% if is_incremental() %}
-        'thisis18characters' as platform
-    {% else %}
-        'okthisis20characters' as platform
-    {% endif %}
-            """
-        return {"incremental_not_schema_change.sql": incremental_not_schema_change_sql}
+        return {
+            "incremental_not_schema_change.sql": incremental_not_schema_change_sql.replace(
+                "||", "+"
+            )
+        }
 
 
 class TestGenericTestsSQLServer(BaseGenericTests):

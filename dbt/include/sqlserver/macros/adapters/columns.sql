@@ -1,39 +1,19 @@
 {% macro sqlserver__get_columns_in_relation(relation) -%}
   {% call statement('get_columns_in_relation', fetch_result=True) %}
 
-    with
-        regular_db_cols as (
-            select
-                ordinal_position,
-                column_name,
-                data_type,
-                character_maximum_length,
-                numeric_precision,
-                numeric_scale
-            from [{{ relation.database }}].INFORMATION_SCHEMA.COLUMNS
-            where table_name = '{{ relation.identifier }}'
-              and table_schema = '{{ relation.schema }}'
-        ),
-
-        temp_db_cols as (
-            select
-                ordinal_position,
-                column_name collate database_default as column_name,
-                data_type collate database_default as data_type,
-                character_maximum_length,
-                numeric_precision,
-                numeric_scale
-            from tempdb.INFORMATION_SCHEMA.COLUMNS
-            where table_name like '{{ relation.identifier }}%'
-        ),
-
-        all_cols as (
-            select *
-            from regular_db_cols
-            union
-            select *
-            from temp_db_cols
-        )
+    with mapping as (
+        select
+            row_number() over (partition by object_name(c.object_id) order by c.column_id) as ordinal_position,
+            c.name collate database_default as column_name,
+            t.name as data_type,
+            c.max_length as character_maximum_length,
+            c.precision as numeric_precision,
+            c.scale as numeric_scale
+        from [{{ 'tempdb' if '#' in relation.identifier else relation.database }}].sys.columns c
+        inner join sys.types t
+        on c.user_type_id = t.user_type_id
+        where c.object_id = object_id('{{ 'tempdb..' ~ relation.include(database=false, schema=false) if '#' in relation.identifier else relation }}')
+    )
 
     select
         column_name,
@@ -41,8 +21,7 @@
         character_maximum_length,
         numeric_precision,
         numeric_scale
-    from
-        all_cols
+    from mapping
     order by ordinal_position
 
   {% endcall %}
