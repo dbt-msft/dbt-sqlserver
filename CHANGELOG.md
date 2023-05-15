@@ -2,16 +2,72 @@
 
 ### v1.4.0
 
+* @Elliot2718 made their first contribution in https://github.com/dbt-msft/dbt-sqlserver/pull/204
+* @i-j made their first contribution in https://github.com/dbt-msft/dbt-sqlserver/pull/345
+
 #### Features
 
-* Support for [dbt-core 1.4](https://github.com/dbt-labs/dbt-core/releases/tag/v1.4.1)
-  * [Incremental predicates](https://docs.getdbt.com/docs/build/incremental-models#about-incremental_predicates) are currently not supported in this adapter
+* Support for [dbt-core 1.4](https://github.com/dbt-labs/dbt-core/releases/tag/v1.4.0)
+  * [Incremental predicates](https://docs.getdbt.com/docs/build/incremental-models#about-incremental_predicates)
   * Add support for Python 3.11
   * Replace deprecated exception functions
   * Consolidate timestamp macros
 
+#### Bugfixes
 
-Thanks [@i-j](https://github.com/l-j)!
+* Add `nolock` query hint to several metadata queries to avoid deadlocks by @Elliot2718 in https://github.com/dbt-msft/dbt-sqlserver/pull/204
+* Rework column metadata retrieval to avoid duplicate results and deadlocks by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/368
+* Model removal will now cascade and also drop related views so that views are no longer in a broken state by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/366
+* Fixed handling of on_schema_change for incremental models by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/376
+
+#### Under the hood
+
+* Fixed lots of testing concurrency issues
+* Added all available tests as of dbt 1.4.6
+
+**Full Changelog**: https://github.com/dbt-msft/dbt-sqlserver/compare/v1.3.1...v1.4.0
+
+<details><summary>PR changelog</summary>
+<p>
+
+* Bump pre-commit from 2.20.0 to 3.2.0 by @dependabot in https://github.com/dbt-msft/dbt-sqlserver/pull/344
+* Bump docker/build-push-action from 3.2.0 to 4.0.0 by @dependabot in https://github.com/dbt-msft/dbt-sqlserver/pull/331
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/dbt-msft/dbt-sqlserver/pull/316
+* Bump wheel from 0.38.4 to 0.40.0 by @dependabot in https://github.com/dbt-msft/dbt-sqlserver/pull/343
+* Copy for workflow schtuff by @dataders in https://github.com/dbt-msft/dbt-sqlserver/pull/350
+* avoid publishing docker from other branches than master by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/351
+* bump pre-commit by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/353
+* fix pre-commit for python 3.7 by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/354
+* use 127.0.0.1 to avoid issues with local testing by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/358
+* allow for more flexible local testing with azure auth by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/359
+* credit where due by @dataders in https://github.com/dbt-msft/dbt-sqlserver/pull/355
+* remove condition for azure testing by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/360
+* ignore owner when testing docs in azure by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/365
+* impl of information_schema name closer to default by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/367
+* Add nolock by @Elliot2718 in https://github.com/dbt-msft/dbt-sqlserver/pull/204
+* Fix concurrency issues and document create as by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/368
+* add debug tests by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/363
+* add concurrency test by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/362
+* add aliases tests by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/361
+* add ephemeral error handling test by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/364
+* mark db-wide tests as flaky by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/369
+* remove azure max parallel test runs by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/370
+* add nolock to more metadata calls to avoid deadlocks by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/374
+* add query comment tests by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/375
+* add seed tests and add cascade to drop relation by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/366
+* make testing faster by running multithreaded by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/372
+* add tests for changing relation type by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/373
+* [incremental models] add tests, various bugfixes and support for incremental predicates by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/376
+
+</p>
+</details>
+
+### 1.3.1
+
+####
+
+Minor release to loosen dependency on dbt-core and pyodbc
+ 
 ### v1.3.0
 
 #### Features
