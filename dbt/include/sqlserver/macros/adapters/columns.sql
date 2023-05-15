@@ -9,8 +9,8 @@
             c.max_length as character_maximum_length,
             c.precision as numeric_precision,
             c.scale as numeric_scale
-        from [{{ 'tempdb' if '#' in relation.identifier else relation.database }}].sys.columns c
-        inner join sys.types t
+        from [{{ 'tempdb' if '#' in relation.identifier else relation.database }}].sys.columns c with (nolock)
+        inner join sys.types t with (nolock)
         on c.user_type_id = t.user_type_id
         where c.object_id = object_id('{{ 'tempdb..' ~ relation.include(database=false, schema=false) if '#' in relation.identifier else relation }}')
     )
