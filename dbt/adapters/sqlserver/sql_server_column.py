@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict
+from typing import Any, ClassVar, Dict
 
 from dbt.adapters.base import Column
 
@@ -11,3 +11,10 @@ class SQLServerColumn(Column):
         "INTEGER": "INT",
         "BOOLEAN": "BIT",
     }
+
+    @classmethod
+    def string_type(cls, size: int) -> str:
+        return f"varchar({size if size > 0 else 'MAX'})"
+
+    def literal(self, value: Any) -> str:
+        return "cast('{}' as {})".format(value, self.data_type)

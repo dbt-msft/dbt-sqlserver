@@ -49,7 +49,7 @@ macros__schema_test = """
     {% endfor %}
 
     {% set col_type = col_types.get(column_name) %}
-    {% set col_type = 'text' if col_type and 'character varying' in col_type else col_type %}
+    {% set col_type = 'text' if col_type and 'varchar' in col_type else col_type %}
 
     {% set validation_message = 'Got a column type of ' ~ col_type ~ ', expected ' ~ type %}
 
