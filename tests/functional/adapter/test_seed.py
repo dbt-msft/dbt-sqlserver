@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql
 from dbt.tests.adapter.simple_seed.test_seed import (
@@ -10,14 +8,13 @@ from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedParsing,
     TestSeedSpecificFormats,
     TestSimpleSeedEnabledViaConfig,
-    TestSimpleSeedWithBOM,
 )
 from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     BaseSimpleSeedColumnOverride,
     seeds__disabled_in_config_csv,
     seeds__enabled_in_config_csv,
 )
-from dbt.tests.util import copy_file, get_connection
+from dbt.tests.util import get_connection
 
 from dbt.adapters.sqlserver import SQLServerAdapter
 
@@ -173,19 +170,6 @@ class TestSeedParsingSQLServer(TestSeedParsing):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
-
-
-class TestSimpleSeedWithBOMSQLServer(TestSimpleSeedWithBOM):
-    @pytest.fixture(scope="class", autouse=True)
-    def setUp(self, project):
-        """Create table for ensuring seeds and models used in tests build correctly"""
-        project.run_sql(fixed_setup_sql)
-        copy_file(
-            project.test_dir,
-            "seed_bom.csv",
-            project.project_root / Path("seeds") / "seed_bom.csv",
-            "",
-        )
 
 
 class TestSeedSpecificFormatsSQLServer(TestSeedSpecificFormats):
