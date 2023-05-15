@@ -13,17 +13,30 @@
 {% endmacro %}
 
 {% macro sqlserver__drop_relation_script(relation) -%}
-  {% if relation.type == 'view' -%}
-   {% set object_id_type = 'V' %}
-   {% elif relation.type == 'table'%}
-   {% set object_id_type = 'U' %}
-   {%- else -%} invalid target name
-   {% endif %}
-  USE [{{ relation.database }}];
-  if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
-      begin
-      drop {{ relation.type }} {{ relation.include(database=False) }}
-      end
+    {% call statement('find_references', fetch_result=true) %}
+        USE [{{ relation.database }}];
+        SELECT referencing_schema_name, referencing_entity_name
+        FROM sys.dm_sql_referencing_entities ('{{ relation.include(database=false) }}', 'object')
+    {% endcall %}
+    {% set references = load_result('find_references')['data'] %}
+    {% for reference in references -%}
+        -- dropping referenced view {{ reference[0] }}.{{ reference[1] }}
+        {{ sqlserver__drop_relation_script(relation.incorporate(
+            type="view",
+            path={"schema": reference[0], "identifier": reference[1]})) }}
+    {% endfor %}
+    {% if relation.type == 'view' -%}
+        {% set object_id_type = 'V' %}
+    {% elif relation.type == 'table'%}
+        {% set object_id_type = 'U' %}
+    {%- else -%}
+        {{ exceptions.raise_not_implemented('Invalid relation being dropped: ' ~ relation) }}
+    {% endif %}
+    USE [{{ relation.database }}];
+    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
+        begin
+            drop {{ relation.type }} {{ relation.include(database=False) }}
+        end
 {% endmacro %}
 
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
