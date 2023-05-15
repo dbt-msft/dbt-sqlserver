@@ -92,7 +92,7 @@
             column_name,
             ordinal_position as column_index,
             data_type as column_type
-        from INFORMATION_SCHEMA.COLUMNS
+        from INFORMATION_SCHEMA.COLUMNS with (nolock)
 
     )
 
@@ -129,7 +129,7 @@
   {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
     USE {{ database }};
     select  name as [schema]
-    from sys.schemas
+    from sys.schemas with (nolock)
   {% endcall %}
   {{ return(load_result('list_schemas').table) }}
 {% endmacro %}
