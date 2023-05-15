@@ -6,4 +6,5 @@ pre-commit==3.3.1;python_version>="3.8"
 pytest-dotenv==0.5.2
 dbt-tests-adapter~=1.4.5
 flaky==3.7.0
+pytest-xdist==3.3.0
 -e .
