@@ -17,7 +17,9 @@ from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     seeds__disabled_in_config_csv,
     seeds__enabled_in_config_csv,
 )
-from dbt.tests.util import copy_file
+from dbt.tests.util import copy_file, get_connection
+
+from dbt.adapters.sqlserver import SQLServerAdapter
 
 fixed_setup_sql = seeds__expected_sql.replace("TIMESTAMP WITHOUT TIME ZONE", "DATETIME").replace(
     "TEXT", "VARCHAR(255)"
@@ -157,7 +159,14 @@ class TestSeedCustomSchemaSQLServer(TestSeedCustomSchema):
 
 
 class TestSimpleSeedEnabledViaConfigSQLServer(TestSimpleSeedEnabledViaConfig):
-    pass
+    @pytest.fixture(scope="function")
+    def clear_test_schema(self, project):
+        yield
+        adapter = project.adapter
+        assert isinstance(project.adapter, SQLServerAdapter)
+        with get_connection(project.adapter):
+            rel = adapter.Relation.create(database=project.database, schema=project.test_schema)
+            adapter.drop_schema(rel)
 
 
 class TestSeedParsingSQLServer(TestSeedParsing):
