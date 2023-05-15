@@ -55,3 +55,18 @@
   {%- endcall -%}
 
 {% endmacro %}
+
+
+{% macro sqlserver__alter_relation_add_remove_columns(relation, add_columns, remove_columns) %}
+  {% call statement('add_drop_columns') -%}
+    {% if add_columns %}
+        alter {{ relation.type }} {{ relation }}
+        add {% for column in add_columns %}{{ column.name }} {{ column.data_type }}{{ ', ' if not loop.last }}{% endfor %};
+    {% endif %}
+
+    {% if remove_columns %}
+        alter {{ relation.type }} {{ relation }}
+        drop column {% for column in remove_columns %}{{ column.name }}{{ ',' if not loop.last }}{% endfor %};
+    {% endif %}
+  {%- endcall -%}
+{% endmacro %}
