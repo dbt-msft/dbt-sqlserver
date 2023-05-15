@@ -1,13 +1,19 @@
 import pytest
 from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql
+from dbt.tests.adapter.simple_seed.test_seed import TestBasicSeedTests as BaseBasicSeedTests
 from dbt.tests.adapter.simple_seed.test_seed import (
-    TestBasicSeedTests,
-    TestSeedConfigFullRefreshOff,
-    TestSeedConfigFullRefreshOn,
-    TestSeedCustomSchema,
-    TestSeedParsing,
-    TestSeedSpecificFormats,
-    TestSimpleSeedEnabledViaConfig,
+    TestSeedConfigFullRefreshOff as BaseSeedConfigFullRefreshOff,
+)
+from dbt.tests.adapter.simple_seed.test_seed import (
+    TestSeedConfigFullRefreshOn as BaseSeedConfigFullRefreshOn,
+)
+from dbt.tests.adapter.simple_seed.test_seed import TestSeedCustomSchema as BaseSeedCustomSchema
+from dbt.tests.adapter.simple_seed.test_seed import TestSeedParsing as BaseSeedParsing
+from dbt.tests.adapter.simple_seed.test_seed import (
+    TestSeedSpecificFormats as BaseSeedSpecificFormats,
+)
+from dbt.tests.adapter.simple_seed.test_seed import (
+    TestSimpleSeedEnabledViaConfig as BaseSimpleSeedEnabledViaConfig,
 )
 from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     BaseSimpleSeedColumnOverride,
@@ -131,31 +137,31 @@ class TestSimpleSeedColumnOverrideSQLServer(BaseSimpleSeedColumnOverride):
         }
 
 
-class TestBasicSeedTestsSQLServer(TestBasicSeedTests):
+class TestBasicSeedTestsSQLServer(BaseBasicSeedTests):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedConfigFullRefreshOnSQLServer(TestSeedConfigFullRefreshOn):
+class TestSeedConfigFullRefreshOnSQLServer(BaseSeedConfigFullRefreshOn):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedConfigFullRefreshOffSQLServer(TestSeedConfigFullRefreshOff):
+class TestSeedConfigFullRefreshOffSQLServer(BaseSeedConfigFullRefreshOff):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedCustomSchemaSQLServer(TestSeedCustomSchema):
+class TestSeedCustomSchemaSQLServer(BaseSeedCustomSchema):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSimpleSeedEnabledViaConfigSQLServer(TestSimpleSeedEnabledViaConfig):
+class TestSimpleSeedEnabledViaConfigSQLServer(BaseSimpleSeedEnabledViaConfig):
     @pytest.fixture(scope="function")
     def clear_test_schema(self, project):
         yield
@@ -166,11 +172,11 @@ class TestSimpleSeedEnabledViaConfigSQLServer(TestSimpleSeedEnabledViaConfig):
             adapter.drop_schema(rel)
 
 
-class TestSeedParsingSQLServer(TestSeedParsing):
+class TestSeedParsingSQLServer(BaseSeedParsing):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedSpecificFormatsSQLServer(TestSeedSpecificFormats):
+class TestSeedSpecificFormatsSQLServer(BaseSeedSpecificFormats):
     pass
