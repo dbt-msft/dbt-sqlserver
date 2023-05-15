@@ -39,17 +39,17 @@ linecheck: ## Checks for all Python lines 100 characters or more
 .PHONY: unit
 unit: ## Runs unit tests.
 	@\
-	pytest -ra -v tests/unit
+	pytest -n auto -ra -v tests/unit
 
 .PHONY: functional
 functional: ## Runs functional tests.
 	@\
-	pytest -ra -v tests/functional
+	pytest -n auto -ra -v tests/functional
 
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
 	@\
-	pytest -v tests/unit; \
+	pytest -n auto -ra -v tests/unit; \
 	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run flake8-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"

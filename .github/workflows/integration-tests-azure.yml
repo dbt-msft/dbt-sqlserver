@@ -69,4 +69,4 @@ jobs:
           DBT_TEST_AAD_PRINCIPAL_1: ${{ secrets.DBT_TEST_AAD_PRINCIPAL_1 }}
           DBT_TEST_AAD_PRINCIPAL_2: ${{ secrets.DBT_TEST_AAD_PRINCIPAL_2 }}
           SQLSERVER_TEST_DRIVER: 'ODBC Driver ${{ matrix.msodbc_version }} for SQL Server'
-        run: pytest -ra -v tests/functional --profile "${{ matrix.profile }}"
+        run: pytest -n auto -ra -v tests/functional --profile "${{ matrix.profile }}"
