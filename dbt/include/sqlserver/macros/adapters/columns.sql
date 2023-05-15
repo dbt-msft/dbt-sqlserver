@@ -46,12 +46,16 @@
   {%- set tmp_column = column_name + "__dbt_alter" -%}
 
   {% call statement('alter_column_type') -%}
-
-    alter {{ relation.type }} {{ relation }} add {{ tmp_column }} {{ new_column_type }};
-    update {{ relation }} set {{ tmp_column }} = {{ column_name }};
-    alter {{ relation.type }} {{ relation }} drop column {{ column_name }};
+    alter {{ relation.type }} {{ relation }} add "{{ tmp_column }}" {{ new_column_type }};
+  {%- endcall -%}
+  {% call statement('alter_column_type') -%}
+    update {{ relation }} set "{{ tmp_column }}" = "{{ column_name }}";
+  {%- endcall -%}
+  {% call statement('alter_column_type') -%}
+    alter {{ relation.type }} {{ relation }} drop column "{{ column_name }}";
+  {%- endcall -%}
+  {% call statement('alter_column_type') -%}
     exec sp_rename '{{ relation | replace('"', '') }}.{{ tmp_column }}', '{{ column_name }}', 'column'
-
   {%- endcall -%}
 
 {% endmacro %}
@@ -61,12 +65,12 @@
   {% call statement('add_drop_columns') -%}
     {% if add_columns %}
         alter {{ relation.type }} {{ relation }}
-        add {% for column in add_columns %}{{ column.name }} {{ column.data_type }}{{ ', ' if not loop.last }}{% endfor %};
+        add {% for column in add_columns %}"{{ column.name }}" {{ column.data_type }}{{ ', ' if not loop.last }}{% endfor %};
     {% endif %}
 
     {% if remove_columns %}
         alter {{ relation.type }} {{ relation }}
-        drop column {% for column in remove_columns %}{{ column.name }}{{ ',' if not loop.last }}{% endfor %};
+        drop column {% for column in remove_columns %}"{{ column.name }}"{{ ',' if not loop.last }}{% endfor %};
     {% endif %}
   {%- endcall -%}
 {% endmacro %}
