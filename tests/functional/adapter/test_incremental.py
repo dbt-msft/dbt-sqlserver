@@ -8,9 +8,7 @@ from dbt.tests.adapter.incremental.fixtures import (
     _MODELS__INCREMENTAL_FAIL,
     _MODELS__INCREMENTAL_IGNORE_TARGET,
     _MODELS__INCREMENTAL_SYNC_ALL_COLUMNS,
-    _MODELS__INCREMENTAL_SYNC_ALL_COLUMNS_TARGET,
     _MODELS__INCREMENTAL_SYNC_REMOVE_ONLY,
-    _MODELS__INCREMENTAL_SYNC_REMOVE_ONLY_TARGET,
 )
 from dbt.tests.adapter.incremental.test_incremental_on_schema_change import (
     BaseIncrementalOnSchemaChange,
@@ -45,6 +43,47 @@ WHERE id NOT IN (SELECT id from {{ this }} )
 SELECT TOP 3 id, field1, field2 FROM source_data
 
 {% endif %}
+"""
+
+_MODELS__INCREMENTAL_SYNC_REMOVE_ONLY_TARGET = """
+{{
+    config(materialized='table')
+}}
+
+with source_data as (
+
+    select * from {{ ref('model_a') }}
+
+)
+
+{% set string_type = dbt.type_string() %}
+
+select id
+       ,cast(field1 as {{string_type}}) as field1
+
+from source_data
+"""
+
+_MODELS__INCREMENTAL_SYNC_ALL_COLUMNS_TARGET = """
+{{
+    config(materialized='table')
+}}
+
+with source_data as (
+
+    select * from {{ ref('model_a') }}
+
+)
+
+{% set string_type = dbt.type_string() %}
+
+select id
+       ,cast(field1 as {{string_type}}) as field1
+       --,field2
+       ,cast(case when id <= 3 then null else field3 end as {{string_type}}) as field3
+       ,cast(case when id <= 3 then null else field4 end as {{string_type}}) as field4
+
+from source_data
 """
 
 
