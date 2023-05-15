@@ -5,7 +5,7 @@
      https://getdbt.slack.com/archives/C50NEBJGG/p1636045535056600
   #}
 
-{% macro sqlserver__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
+{% macro sqlserver__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates=none) %}
   {{ default__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) }};
 {% endmacro %}
 
