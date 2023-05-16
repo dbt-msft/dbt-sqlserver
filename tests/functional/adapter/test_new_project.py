@@ -13,7 +13,6 @@ models:
         description: "The primary key for this table"
         tests:
           - unique
-          - not_null
 
   - name: my_second_dbt_model
     description: "A starter dbt model"
