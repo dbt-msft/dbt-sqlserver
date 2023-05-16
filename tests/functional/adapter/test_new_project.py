@@ -78,3 +78,11 @@ class TestNewProjectSQLServer:
     def test_new_project(self, project):
         results = run_dbt(["build"])
         assert len(results) == 5
+
+    def test_run_same_model_multiple_times(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+
+        for i in range(10):
+            run_dbt(["run", "-s", "my_second_dbt_model"])
+            assert len(results) == 2
