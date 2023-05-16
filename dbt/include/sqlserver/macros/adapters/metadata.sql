@@ -9,7 +9,7 @@
             name as principal_name,
             principal_id as principal_id
         from
-            sys.database_principals
+            sys.database_principals with (nolock)
     ),
 
     schemas as (
@@ -18,7 +18,7 @@
             schema_id as schema_id,
             principal_id as principal_id
         from
-            sys.schemas
+            sys.schemas with (nolock)
     ),
 
     tables as (
@@ -28,7 +28,7 @@
             principal_id as principal_id,
             'BASE TABLE' as table_type
         from
-            sys.tables
+            sys.tables with (nolock)
     ),
 
     tables_with_metadata as (
@@ -49,7 +49,7 @@
             principal_id as principal_id,
             'VIEW' as table_type
         from
-            sys.views
+            sys.views with (nolock)
     ),
 
     views_with_metadata as (
