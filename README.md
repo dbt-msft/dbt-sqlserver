@@ -10,7 +10,7 @@ E.g. version 1.1.x of the adapter will be compatible with dbt-core 1.1.x.
 We've bundled all documentation on the dbt docs site:
 
 * [Profile setup & authentication](https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile)
-* [Adapter-specific configuration](https://docs.getdbt.com/reference/resource-configs/mssql-configs)
+* [Adapter documentation, usage and important notes](https://docs.getdbt.com/reference/resource-configs/mssql-configs)
 
 Join us on the [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W) to ask questions, get help, or to discuss the project.
 
