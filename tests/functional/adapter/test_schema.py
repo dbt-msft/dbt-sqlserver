@@ -4,15 +4,14 @@ from dbt.tests.util import run_dbt
 
 class TestSchemaCreation:
     @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"name": "schema_tests"}
-
-    @pytest.fixture(scope="class")
     def models(self):
         return {
-            "dummy.sql": "select 1 as id",
+            "dummy.sql": """
+{{ config(schema='custom_test_schema') }}
+select 1 as id
+""",
             "dummy_with_auth.sql": """
-{{ config(schema_authorization=env_var('DBT_TEST_USER_1')) }}
+{{ config(schema='custom_test_schema', schema_authorization=env_var('DBT_TEST_USER_1')) }}
 select 1 as id
 """,
         }
