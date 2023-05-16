@@ -77,4 +77,4 @@ class TestNewProjectSQLServer:
 
     def test_new_project(self, project):
         results = run_dbt(["build"])
-        assert len(results) > 0
+        assert len(results) == 5
