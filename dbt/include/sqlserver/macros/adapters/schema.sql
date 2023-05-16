@@ -1,5 +1,5 @@
 {% macro sqlserver__create_schema(relation) -%}
-{% auth = config.get("schema_authorization") %}
+  {% set schema_authorization = config.get("schema_authorization") %}
   {% call statement('create_schema') -%}
     USE [{{ relation.database }}];
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
