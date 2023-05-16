@@ -1,10 +1,10 @@
 {% macro sqlserver__create_schema(relation) -%}
-{% auth = config.get("auth") %}
+{% auth = config.get("schema_authorization") %}
   {% call statement('create_schema') -%}
     USE [{{ relation.database }}];
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA [{{ relation.without_identifier().schema }}] {%- if auth -%} AUTHORIZATION: [{{auth}}]')
+    EXEC('CREATE SCHEMA [{{ relation.schema }}] {% if schema_authorization %} AUTHORIZATION: [{{ schema_authorization }}] {% endif %}')
     END
   {% endcall %}
 {% endmacro %}
