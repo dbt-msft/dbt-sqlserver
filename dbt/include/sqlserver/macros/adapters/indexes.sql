@@ -4,8 +4,9 @@
   {%- set full_relation = '"' ~ relation.schema ~ '"."' ~ relation.identifier ~ '"' -%}
   use [{{ relation.database }}];
   if EXISTS (
-        SELECT * FROM
-        sys.indexes WHERE name = '{{cci_name}}'
+        SELECT *
+        FROM sys.indexes with (nolock)
+        WHERE name = '{{cci_name}}'
         AND object_id=object_id('{{relation_name}}')
     )
   DROP index {{full_relation}}.{{cci_name}}
@@ -32,8 +33,9 @@
 declare @drop_xml_indexes nvarchar(max);
 select @drop_xml_indexes = (
     select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ''' + sys.indexes.[name] + ''', ''IndexId'') IS NOT NULL DROP INDEX [' + sys.indexes.[name] + '] ON ' + '[' + SCHEMA_NAME(sys.tables.[schema_id]) + '].[' + OBJECT_NAME(sys.tables.[object_id]) + ']; '
-	from sys.indexes
-    inner join sys.tables on sys.indexes.object_id = sys.tables.object_id
+	from sys.indexes with (nolock)
+    inner join sys.tables with (nolock)
+    on sys.indexes.object_id = sys.tables.object_id
     where sys.indexes.[name] is not null
       and sys.indexes.type_desc = 'XML'
       and sys.tables.[name] = '{{ this.table }}'
@@ -52,8 +54,9 @@ select @drop_xml_indexes = (
 declare @drop_spatial_indexes nvarchar(max);
 select @drop_spatial_indexes = (
     select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ''' + sys.indexes.[name] + ''', ''IndexId'') IS NOT NULL DROP INDEX [' + sys.indexes.[name] + '] ON ' + '[' + SCHEMA_NAME(sys.tables.[schema_id]) + '].[' + OBJECT_NAME(sys.tables.[object_id]) + ']; '
-    from sys.indexes
-    inner join sys.tables on sys.indexes.object_id = sys.tables.object_id
+    from sys.indexes with (nolock)
+    inner join sys.tables with (nolock)
+    on sys.indexes.object_id = sys.tables.object_id
     where sys.indexes.[name] is not null
       and sys.indexes.type_desc = 'Spatial'
       and sys.tables.[name] = '{{ this.table }}'
@@ -116,8 +119,9 @@ select @drop_pk_constraints = (
 declare @drop_remaining_indexes_last nvarchar(max);
 select @drop_remaining_indexes_last = (
     select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ''' + sys.indexes.[name] + ''', ''IndexId'') IS NOT NULL DROP INDEX [' + sys.indexes.[name] + '] ON ' + '[' + SCHEMA_NAME(sys.tables.[schema_id]) + '].[' + OBJECT_NAME(sys.tables.[object_id]) + ']; '
-    from sys.indexes
-    inner join sys.tables on sys.indexes.object_id = sys.tables.object_id
+    from sys.indexes with (nolock)
+    inner join sys.tables with (nolock)
+    on sys.indexes.object_id = sys.tables.object_id
     where sys.indexes.[name] is not null
       and sys.tables.[name] = '{{ this.table }}'
     for xml path('')
@@ -132,10 +136,10 @@ select @drop_remaining_indexes_last = (
 
 {% set idx_name = this.table + '__clustered_index_on_' + columns|join('_') %}
 
-if not exists(select * from sys.indexes
-                where
-                name = '{{ idx_name }}' and
-                object_id = OBJECT_ID('{{ this }}')
+if not exists(select *
+                from sys.indexes with (nolock)
+                where name = '{{ idx_name }}'
+                and object_id = OBJECT_ID('{{ this }}')
 )
 begin
 
@@ -160,10 +164,10 @@ end
   {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") %}
 {% endif %}
 
-if not exists(select * from sys.indexes
-                where
-                name = '{{ idx_name }}' and
-                object_id = OBJECT_ID('{{ this }}')
+if not exists(select *
+                from sys.indexes with (nolock)
+                where name = '{{ idx_name }}'
+                and object_id = OBJECT_ID('{{ this }}')
 )
 begin
 create nonclustered index
