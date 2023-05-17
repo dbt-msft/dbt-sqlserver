@@ -16,7 +16,7 @@ select 1 as id
 
     @staticmethod
     @pytest.fixture(scope="class")
-    def profile_extra_options():
+    def profiles_config_update():
         return {"schema_authorization": "{{ env_var('DBT_TEST_USER_1') }}"}
 
     @staticmethod
