@@ -13,25 +13,30 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="class")
-def dbt_profile_target(request: FixtureRequest):
+def dbt_profile_target(request: FixtureRequest, profile_extra_options):
     profile = request.config.getoption("--profile")
 
     if profile == "ci_sql_server":
-        return _profile_ci_sql_server()
+        return _profile_ci_sql_server() | profile_extra_options
     if profile == "ci_azure_cli":
-        return _profile_ci_azure_cli()
+        return _profile_ci_azure_cli() | profile_extra_options
     if profile == "ci_azure_auto":
-        return _profile_ci_azure_auto()
+        return _profile_ci_azure_auto() | profile_extra_options
     if profile == "ci_azure_environment":
-        return _profile_ci_azure_environment()
+        return _profile_ci_azure_environment() | profile_extra_options
     if profile == "ci_azure_basic":
-        return _profile_ci_azure_basic()
+        return _profile_ci_azure_basic() | profile_extra_options
     if profile == "user":
-        return _profile_user()
+        return _profile_user() | profile_extra_options
     if profile == "user_azure":
-        return _profile_user_azure()
+        return _profile_user_azure() | profile_extra_options
 
     raise ValueError(f"Unknown profile: {profile}")
+
+
+@pytest.fixture(scope="class")
+def profile_extra_options():
+    return {}
 
 
 @pytest.fixture(scope="class")
