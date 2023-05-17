@@ -29,11 +29,11 @@ sources:
 """
 
 select_from_source_regular = """
-select * from {{ source("regular", "VIEWS") }}
+select * from {{ source("regular", "VIEWS") }} with (nolock)
 """
 
 select_from_source_space_in_name = """
-select * from {{ source("space in name", "VIEWS") }}
+select * from {{ source("space in name", "VIEWS") }} with (nolock)
 """
 
 
