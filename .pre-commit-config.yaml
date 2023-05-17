@@ -84,6 +84,7 @@ repos:
         args:
           - '--show-error-codes'
           - '--ignore-missing-imports'
+          - '--explicit-package-bases'
         files: '^dbt/adapters'
       - id: mypy
         alias: mypy-check
