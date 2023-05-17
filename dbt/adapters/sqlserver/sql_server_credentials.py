@@ -21,6 +21,7 @@ class SQLServerCredentials(Credentials):
     encrypt: Optional[bool] = True  # default value in MS ODBC Driver 18 as well
     trust_cert: Optional[bool] = False  # default value in MS ODBC Driver 18 as well
     retries: int = 1
+    schema_authorization: Optional[str] = None
 
     _ALIASES = {
         "user": "UID",
@@ -33,6 +34,7 @@ class SQLServerCredentials(Credentials):
         "app_id": "client_id",
         "app_secret": "client_secret",
         "TrustServerCertificate": "trust_cert",
+        "schema_auth": "schema_authorization",
     }
 
     @property

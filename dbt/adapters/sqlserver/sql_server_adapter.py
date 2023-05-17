@@ -2,7 +2,11 @@ from typing import List, Optional
 
 import agate
 from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.cache import _make_ref_key_msg
 from dbt.adapters.sql import SQLAdapter
+from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME
+from dbt.events.functions import fire_event
+from dbt.events.types import SchemaCreation
 
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
@@ -13,6 +17,21 @@ class SQLServerAdapter(SQLAdapter):
     ConnectionManager = SQLServerConnectionManager
     Column = SQLServerColumn
     AdapterSpecificConfigs = SQLServerConfigs
+
+    def create_schema(self, relation: BaseRelation) -> None:
+        relation = relation.without_identifier()
+        fire_event(SchemaCreation(relation=_make_ref_key_msg(relation)))
+        macro_name = CREATE_SCHEMA_MACRO_NAME
+        kwargs = {
+            "relation": relation,
+        }
+
+        if self.config.credentials.schema_authorization:
+            kwargs["schema_authorization"] = self.config.credentials.schema_authorization
+            macro_name = "sqlserver__create_schema_with_authorization"
+
+        self.execute_macro(macro_name, kwargs=kwargs)
+        self.commit_if_has_connection()
 
     @classmethod
     def date_function(cls):

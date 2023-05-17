@@ -1,9 +1,19 @@
 {% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
     USE [{{ relation.database }}];
-    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.without_identifier().schema }}')
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA [{{ relation.without_identifier().schema }}]')
+    EXEC('CREATE SCHEMA [{{ relation.schema }}]')
+    END
+  {% endcall %}
+{% endmacro %}
+
+{% macro sqlserver__create_schema_with_authorization(relation, schema_authorization) -%}
+  {% call statement('create_schema') -%}
+    USE [{{ relation.database }}];
+    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
+    BEGIN
+    EXEC('CREATE SCHEMA [{{ relation.schema }}] AUTHORIZATION [{{ schema_authorization }}]')
     END
   {% endcall %}
 {% endmacro %}
