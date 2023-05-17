@@ -1,5 +1,4 @@
 import datetime as dt
-import struct
 import json
 from unittest import mock
 
@@ -8,8 +7,8 @@ from azure.identity import AzureCliCredential
 
 from dbt.adapters.sqlserver.sql_server_connection_manager import (
     bool_to_connection_string_arg,
+    byte_array_to_datetime,
     get_pyodbc_attrs_before,
-    byte_array_to_datetime
 )
 from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 
@@ -79,20 +78,35 @@ def test_get_pyodbc_attrs_before_contains_access_token_key_for_cli_authenticatio
 def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> None:
     assert bool_to_connection_string_arg(key, value) == expected
 
+
 @pytest.mark.parametrize(
-    "value, expected_datetime, expected_str", [
+    "value, expected_datetime, expected_str",
+    [
         (
-            bytes([
-                0xE5, 0x07,             #  2022       year            unsigned short
-                0x0C, 0x00,             #  12         month           unsigned short
-                0x11, 0x00,             #  17         day             unsigned short
-                0x16, 0x00,             #  17         hour            unsigned short
-                0x16, 0x00,             #  52         minute          unsigned short
-                0x12, 0x00,             #  18         second          unsigned short
-                0xBC, 0xCC, 0x5B, 0x07, #  123456700  10⁻⁷ second     unsigned long
-                0xFE, 0xFF,             # -2          offset hour     signed short
-                0xE2, 0xFF              # -30         offset minute   signed short
-            ]),
+            bytes(
+                [
+                    0xE5,
+                    0x07,  #  2022       year            unsigned short
+                    0x0C,
+                    0x00,  #  12         month           unsigned short
+                    0x11,
+                    0x00,  #  17         day             unsigned short
+                    0x16,
+                    0x00,  #  17         hour            unsigned short
+                    0x16,
+                    0x00,  #  52         minute          unsigned short
+                    0x12,
+                    0x00,  #  18         second          unsigned short
+                    0xBC,
+                    0xCC,
+                    0x5B,
+                    0x07,  #  123456700  10⁻⁷ second     unsigned long
+                    0xFE,
+                    0xFF,  # -2          offset hour     signed short
+                    0xE2,
+                    0xFF,  # -30         offset minute   signed short
+                ]
+            ),
             dt.datetime(
                 year=2022,
                 month=12,
@@ -100,14 +114,16 @@ def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> 
                 hour=17,
                 minute=52,
                 second=18,
-                microsecond=123456700 // 1000, # 10⁻⁶ second
-                tzinfo=dt.timezone(dt.timedelta(hours=-2, minutes=-30))
+                microsecond=123456700 // 1000,  # 10⁻⁶ second
+                tzinfo=dt.timezone(dt.timedelta(hours=-2, minutes=-30)),
             ),
-            "2021-12-17 17:52:18.123456-02:30"
+            "2021-12-17 17:52:18.123456-02:30",
         )
-    ]
+    ],
 )
-def test_byte_array_to_datetime(value: bytes, expected_datetime: dt.datetime, expected_str: str) -> None:
+def test_byte_array_to_datetime(
+    value: bytes, expected_datetime: dt.datetime, expected_str: str
+) -> None:
     """
     Assert SQL_SS_TIMESTAMPOFFSET_STRUCT bytes are converted to datetime and str
     https://learn.microsoft.com/sql/relational-databases/native-client-odbc-date-time/data-type-support-for-odbc-date-and-time-improvements#sql_ss_timestampoffset_struct

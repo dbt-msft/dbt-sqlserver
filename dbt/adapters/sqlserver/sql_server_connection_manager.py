@@ -1,6 +1,6 @@
+import datetime as dt
 import struct
 import time
-import datetime as dt
 from contextlib import contextmanager
 from itertools import chain, repeat
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
@@ -237,16 +237,16 @@ def bool_to_connection_string_arg(key: str, value: bool) -> str:
 def byte_array_to_datetime(value: bytes) -> dt.datetime:
     """
     Converts a DATETIMEOFFSET byte array to a timezone-aware datetime object
-    
+
     Parameters
     ----------
     value : buffer
         A binary value conforming to SQL_SS_TIMESTAMPOFFSET_STRUCT
-    
+
     Returns
     -------
     out : datetime
-    
+
     Source
     ------
     SQL_SS_TIMESTAMPOFFSET datatype and SQL_SS_TIMESTAMPOFFSET_STRUCT layout:
@@ -263,9 +263,10 @@ def byte_array_to_datetime(value: bytes) -> dt.datetime:
         hour=tup[3],
         minute=tup[4],
         second=tup[5],
-        microsecond=tup[6] // 1000, # https://bugs.python.org/issue15443
+        microsecond=tup[6] // 1000,  # https://bugs.python.org/issue15443
         tzinfo=dt.timezone(dt.timedelta(hours=tup[7], minutes=tup[8])),
     )
+
 
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
@@ -431,7 +432,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             # convert DATETIMEOFFSET binary structures to datetime ojbects
             # https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
             connection.handle.add_output_converter(-155, byte_array_to_datetime)
-            
+
             logger.debug(
                 "SQL status: {} in {:0.2f} seconds".format(
                     self.get_response(cursor), (time.time() - pre)
