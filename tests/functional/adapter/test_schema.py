@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from dbt.tests.util import run_dbt
 
@@ -17,6 +19,19 @@ select 1 as id
     def profile_extra_options():
         return {"schema_authorization": "{{ env_var('DBT_TEST_USER_1') }}"}
 
-    def test_schema_creation(self, project):
-        res = run_dbt(["run", "-s", "dummy"])
+    @staticmethod
+    def _verify_schema_owner(schema_name, owner, project):
+        get_schema_owner = f"""
+select schema_owner from information_schema.schemata where schema_name = '{schema_name}'
+        """
+        result = project.run_sql(get_schema_owner, fetch="one")[0]
+        assert result == owner
+
+    def test_schema_creation(self, project, unique_schema):
+        res = run_dbt(["run"])
         assert len(res) == 1
+
+        self._verify_schema_owner(unique_schema, os.getenv("DBT_TEST_USER_1"), project)
+        self._verify_schema_owner(
+            unique_schema + "_with_custom_auth", os.getenv("DBT_TEST_USER_1"), project
+        )
