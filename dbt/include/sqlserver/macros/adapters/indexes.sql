@@ -134,7 +134,7 @@ select @drop_remaining_indexes_last = (
 
 {{ log("Creating clustered index...") }}
 
-{% set idx_name = this.table + '__clustered_index_on_' + columns|join('_') %}
+{% set idx_name = "clustered_" + local_md5(columns | join("_")) %}
 
 if not exists(select *
                 from sys.indexes with (nolock)
@@ -159,9 +159,14 @@ end
 {{ log("Creating nonclustered index...") }}
 
 {% if includes -%}
-  {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") + '_includes_' + includes|join('_')|replace(" ", "_") %}
+    {% set idx_name = (
+        "nonclustered_"
+        + local_md5(columns | join("_"))
+        + "_incl_"
+        + local_md5(includes | join("_"))
+    ) %}
 {% else -%}
-  {% set idx_name = this.table + '__index_on_' + columns|join('_')|replace(" ", "_") %}
+    {% set idx_name = "nonclustered_" + local_md5(columns | join("_")) %}
 {% endif %}
 
 if not exists(select *
