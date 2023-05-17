@@ -17,19 +17,19 @@ def dbt_profile_target(request: FixtureRequest, profile_extra_options):
     profile = request.config.getoption("--profile")
 
     if profile == "ci_sql_server":
-        return _profile_ci_sql_server() | profile_extra_options
+        return _profile_ci_sql_server().update(profile_extra_options)
     if profile == "ci_azure_cli":
-        return _profile_ci_azure_cli() | profile_extra_options
+        return _profile_ci_azure_cli().update(profile_extra_options)
     if profile == "ci_azure_auto":
-        return _profile_ci_azure_auto() | profile_extra_options
+        return _profile_ci_azure_auto().update(profile_extra_options)
     if profile == "ci_azure_environment":
-        return _profile_ci_azure_environment() | profile_extra_options
+        return _profile_ci_azure_environment().update(profile_extra_options)
     if profile == "ci_azure_basic":
-        return _profile_ci_azure_basic() | profile_extra_options
+        return _profile_ci_azure_basic().update(profile_extra_options)
     if profile == "user":
-        return _profile_user() | profile_extra_options
+        return _profile_user().update(profile_extra_options)
     if profile == "user_azure":
-        return _profile_user_azure() | profile_extra_options
+        return _profile_user_azure().update(profile_extra_options)
 
     raise ValueError(f"Unknown profile: {profile}")
 
