@@ -1,6 +1,7 @@
 ---
 name: Integration tests on SQL Server
 on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
   push:
     branches:
       - master
