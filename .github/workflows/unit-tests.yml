@@ -1,6 +1,7 @@
 ---
 name: Unit tests
 on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
   push:
     branches:
       - master

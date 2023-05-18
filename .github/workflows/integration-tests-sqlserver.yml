@@ -1,6 +1,7 @@
 ---
 name: Integration tests on SQL Server
 on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -12,7 +13,7 @@ on:  # yamllint disable-line rule:truthy
 
 jobs:
   integration-tests-sql-server:
-    name: Integration tests on SQL Server
+    name: Regular
     strategy:
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
@@ -37,7 +38,7 @@ jobs:
         run: pip install -r dev_requirements.txt
 
       - name: Run functional tests
-        run: pytest -n auto -ra -v tests/functional --profile "ci_sql_server"
+        run: pytest -ra -v tests/functional --profile "ci_sql_server"
         env:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
