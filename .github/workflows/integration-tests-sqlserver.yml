@@ -13,7 +13,7 @@ on:  # yamllint disable-line rule:truthy
 
 jobs:
   integration-tests-sql-server:
-    name: Integration tests on SQL Server
+    name: Regular
     strategy:
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
