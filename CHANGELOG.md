@@ -1,5 +1,34 @@
 # Changelog
 
+### v1.4.1
+
+This is a minor release following up on 1.4.0 with fixes of long outstanding issues.
+Thanks to all the people who contributed to this release!
+
+#### Features
+
+* Added support for a custom schema owner. You can now add `schema_authorization` (or `schema_auth`) to your profile.
+If you do so, dbt will create schemas with the `authorization` option suffixed by this value.
+If you are authorizing dbt users or service principals on Azure SQL based on an Azure AD group,
+it's recommended to set this value to the name of the group.
+* Documentation: added more information about the permissions which you'll need to grant to run dbt.
+* Support for `DATETIMEOFFSET` as type to be used in dbt source freshness tests.
+* `nolock` for all information_schema/sys tables and views. dbt runs a lot of queries on these metadata schemas.
+This can often lead to deadlock issues if you are using a high number of threads
+or if you are running multiple dbt commands in parallel. Adding `nolock` to these queries avoids the deadlocks.
+
+#### Bugfixes
+
+* Fixed issues with databases with a case-sensitive collation.
+* Index names are now MD5 hashed to avoid running into the maximum amount of characters in index names.
+* Fixed the batch size calculation for seeds. Seeds will run more efficiently now.
+
+#### Under the hood
+
+* Fixed more concurrency issues with automated Azure integration testing.
+* Removed extra `__init__.py` files.
+* Added commits to be ignored in git blame for easier blaming.
+
 ### v1.4.0
 
 * @Elliot2718 made their first contribution in https://github.com/dbt-msft/dbt-sqlserver/pull/204
