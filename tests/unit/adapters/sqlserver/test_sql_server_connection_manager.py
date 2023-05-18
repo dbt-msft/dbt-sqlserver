@@ -86,21 +86,21 @@ def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> 
             bytes(
                 [
                     0xE6,
-                    0x07,  #  2022       year            unsigned short
+                    0x07,  # 2022       year            unsigned short
                     0x0C,
-                    0x00,  #  12         month           unsigned short
+                    0x00,  # 12         month           unsigned short
                     0x11,
-                    0x00,  #  17         day             unsigned short
+                    0x00,  # 17         day             unsigned short
                     0x11,
-                    0x00,  #  17         hour            unsigned short
+                    0x00,  # 17         hour            unsigned short
                     0x34,
-                    0x00,  #  52         minute          unsigned short
+                    0x00,  # 52         minute          unsigned short
                     0x12,
-                    0x00,  #  18         second          unsigned short
+                    0x00,  # 18         second          unsigned short
                     0xBC,
                     0xCC,
                     0x5B,
-                    0x07,  #  123456700  10⁻⁷ second     unsigned long
+                    0x07,  # 123456700  10⁻⁷ second     unsigned long
                     0xFE,
                     0xFF,  # -2          offset hour     signed short
                     0xE2,
