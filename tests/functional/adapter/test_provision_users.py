@@ -60,7 +60,9 @@ class BaseTestProvisionAzureSQL:
         run_dbt(["run"])
 
 
-@pytest.mark.only_with_profile("ci_azure_cli", "ci_azure_auto", "ci_azure_environment")
+@pytest.mark.only_with_profile(
+    "ci_azure_cli", "ci_azure_auto", "ci_azure_environment", "user_azure"
+)
 @pytest.mark.flaky(max_runs=5, min_passes=1)
 class TestProvisionSingleUserAzureSQL(BaseTestProvisionAzureSQL):
     @pytest.fixture(scope="class")
@@ -71,7 +73,9 @@ class TestProvisionSingleUserAzureSQL(BaseTestProvisionAzureSQL):
         }
 
 
-@pytest.mark.only_with_profile("ci_azure_cli", "ci_azure_auto", "ci_azure_environment")
+@pytest.mark.only_with_profile(
+    "ci_azure_cli", "ci_azure_auto", "ci_azure_environment", "user_azure"
+)
 @pytest.mark.flaky(max_runs=5, min_passes=1)
 class TestProvisionMultipleUsersAzureSQL(BaseTestProvisionAzureSQL):
     @pytest.fixture(scope="class")

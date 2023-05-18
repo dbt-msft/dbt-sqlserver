@@ -38,7 +38,7 @@ jobs:
         run: pip install -r dev_requirements.txt
 
       - name: Run functional tests
-        run: pytest -n auto -ra -v tests/functional --profile "ci_sql_server"
+        run: pytest -ra -v tests/functional --profile "ci_sql_server"
         env:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
