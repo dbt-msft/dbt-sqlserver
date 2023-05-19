@@ -1,3 +1,4 @@
+import datetime as dt
 import struct
 import time
 from contextlib import contextmanager
@@ -233,6 +234,40 @@ def bool_to_connection_string_arg(key: str, value: bool) -> str:
     return f'{key}={"Yes" if value else "No"}'
 
 
+def byte_array_to_datetime(value: bytes) -> dt.datetime:
+    """
+    Converts a DATETIMEOFFSET byte array to a timezone-aware datetime object
+
+    Parameters
+    ----------
+    value : buffer
+        A binary value conforming to SQL_SS_TIMESTAMPOFFSET_STRUCT
+
+    Returns
+    -------
+    out : datetime
+
+    Source
+    ------
+    SQL_SS_TIMESTAMPOFFSET datatype and SQL_SS_TIMESTAMPOFFSET_STRUCT layout:
+    https://learn.microsoft.com/sql/relational-databases/native-client-odbc-date-time/data-type-support-for-odbc-date-and-time-improvements
+    """
+    # unpack 20 bytes of data into a tuple of 9 values
+    tup = struct.unpack("<6hI2h", value)
+
+    # construct a datetime object
+    return dt.datetime(
+        year=tup[0],
+        month=tup[1],
+        day=tup[2],
+        hour=tup[3],
+        minute=tup[4],
+        second=tup[5],
+        microsecond=tup[6] // 1000,  # https://bugs.python.org/issue15443
+        tzinfo=dt.timezone(dt.timedelta(hours=tup[7], minutes=tup[8])),
+    )
+
+
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
 
@@ -393,6 +428,10 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 cursor.execute(sql)
             else:
                 cursor.execute(sql, bindings)
+
+            # convert DATETIMEOFFSET binary structures to datetime ojbects
+            # https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
+            connection.handle.add_output_converter(-155, byte_array_to_datetime)
 
             logger.debug(
                 "SQL status: {} in {:0.2f} seconds".format(
