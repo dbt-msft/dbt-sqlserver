@@ -19,6 +19,7 @@ jobs:
         python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
+        collation: ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
@@ -31,6 +32,7 @@ jobs:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
           DBT_TEST_USER_3: DBT_TEST_USER_3
+          COLLATION: ${{ matrix.collation }}
     steps:
       - uses: actions/checkout@v3
 

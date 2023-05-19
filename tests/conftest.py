@@ -113,7 +113,7 @@ def _profile_ci_sql_server():
             "host": "sqlserver",
             "user": "SA",
             "pass": "5atyaNadella",
-            "database": "msdb",
+            "database": "TestDB",
             "encrypt": True,
             "trust_cert": True,
         },
