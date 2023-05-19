@@ -117,7 +117,7 @@ def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> 
                 microsecond=123456700 // 1000,  # 10⁻⁶ second
                 tzinfo=dt.timezone(dt.timedelta(hours=-2, minutes=-30)),
             ),
-            "2021-12-17 17:52:18.123456-02:30",
+            "2022-12-17 17:52:18.123456-02:30",
         )
     ],
 )
