@@ -16,6 +16,10 @@ from dbt.tests.adapter.incremental.test_incremental_on_schema_change import (
 from dbt.tests.adapter.incremental.test_incremental_predicates import BaseIncrementalPredicates
 from dbt.tests.adapter.incremental.test_incremental_unique_id import BaseIncrementalUniqueKey
 
+from tests.adapter.dbt.tests.adapter.incremental.test_incremental_merge_exclude_columns import (
+    BaseMergeExcludeColumns,
+)
+
 _MODELS__INCREMENTAL_IGNORE = """
 {{
     config(
@@ -118,3 +122,7 @@ class TestPredicatesDeleteInsertSQLServer(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"models": {"+predicates": ["id != 2"], "+incremental_strategy": "delete+insert"}}
+
+
+class TestBaseMergeExcludeColumnsSQLServer(BaseMergeExcludeColumns):
+    pass
