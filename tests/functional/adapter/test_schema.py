@@ -22,7 +22,7 @@ select 1 as id
     @staticmethod
     def _verify_schema_owner(schema_name, owner, project):
         get_schema_owner = f"""
-select schema_owner from information_schema.schemata where schema_name = '{schema_name}'
+select SCHEMA_OWNER from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME = '{schema_name}'
         """
         result = project.run_sql(get_schema_owner, fetch="one")[0]
         assert result == owner
