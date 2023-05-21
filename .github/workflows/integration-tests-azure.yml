@@ -15,6 +15,7 @@ jobs:
   integration-tests-azure:
     name: Regular
     strategy:
+      fail-fast: false
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
         profile: ["ci_azure_cli", "ci_azure_auto", "ci_azure_environment", "ci_azure_basic"]
