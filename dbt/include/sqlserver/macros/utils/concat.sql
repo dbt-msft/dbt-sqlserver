@@ -1,3 +1,3 @@
 {% macro sqlserver__concat(fields) -%}
-    concat({{ fields|join(', ') }}, '')
+    concat({{ fields|join(', ') }})
 {%- endmacro %}

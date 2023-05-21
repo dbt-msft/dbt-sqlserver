@@ -83,7 +83,15 @@ class TestCastBoolToTextSQLServer(BaseFixedMacro, BaseCastBoolToText):
 
 
 class TestConcatSQLServer(BaseFixedMacro, BaseConcat):
-    pass
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "data_concat.csv": """input_1,input_2,output
+a,b,ab
+a,,a
+,b,b
+"""
+        }
 
 
 class TestDateTruncSQLServer(BaseFixedMacro, BaseDateTrunc):
