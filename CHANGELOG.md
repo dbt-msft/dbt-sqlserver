@@ -2,37 +2,43 @@
 
 ### v1.4.1
 
-This is a minor release following up on 1.4.0 with fixes of long outstanding issues.
-Thanks to all the people who contributed to this release!
+This is a minor release following up on 1.4.0 with fixes for long outstanding issues.
+Contributors to this release are [@cbini](https://github.com/cbini), [@rlshuhart](https://github.com/rlshuhart), [@jacobm001](https://github.com/jacobm001), [@baldwicc](https://github.com/baldwicc) and [@sdebruyn](https://github.com/sdebruyn).
 
 #### Features
 
 * Added support for a custom schema owner. You can now add `schema_authorization` (or `schema_auth`) to your profile.
 If you do so, dbt will create schemas with the `authorization` option suffixed by this value.
 If you are authorizing dbt users or service principals on Azure SQL based on an Azure AD group,
-it's recommended to set this value to the name of the group.
+it's recommended to set this value to the name of the group. [#153](https://github.com/dbt-msft/dbt-sqlserver/issues/153) [#382](https://github.com/dbt-msft/dbt-sqlserver/issues/382)
 * Documentation: added more information about the permissions which you'll need to grant to run dbt.
-* Support for `DATETIMEOFFSET` as type to be used in dbt source freshness tests.
-* `nolock` for all information_schema/sys tables and views. dbt runs a lot of queries on these metadata schemas.
-This can often lead to deadlock issues if you are using a high number of threads
-or if you are running multiple dbt commands in parallel. Adding `nolock` to these queries avoids the deadlocks.
+* Support for `DATETIMEOFFSET` as type to be used in dbt source freshness tests. [#254](https://github.com/dbt-msft/dbt-sqlserver/issues/254) [#346](https://github.com/dbt-msft/dbt-sqlserver/issues/346)
+* Added 2 options related to timeouts to the profile: `login_timeout` and `query_timeout`.
+The default values are `0` (no timeout). [#162](https://github.com/dbt-msft/dbt-sqlserver/issues/162) [#395](https://github.com/dbt-msft/dbt-sqlserver/issues/395)
 
 #### Bugfixes
 
-* Fixed issues with databases with a case-sensitive collation.
-* Index names are now MD5 hashed to avoid running into the maximum amount of characters in index names.
-* Fixed the batch size calculation for seeds. Seeds will run more efficiently now.
+* Fixed issues with databases with a case-sensitive collation
+and added automated testing for it so that we won't break it again. [#212](https://github.com/dbt-msft/dbt-sqlserver/issues/212) [#391](https://github.com/dbt-msft/dbt-sqlserver/issues/391)
+* Index names are now MD5 hashed to avoid running into the maximum amount of characters in index names
+with index with lots of columns with long names. [#317](https://github.com/dbt-msft/dbt-sqlserver/issues/317) [#386](https://github.com/dbt-msft/dbt-sqlserver/issues/386)
+* Fixed the batch size calculation for seeds. Seeds will run more efficiently now. [#396](https://github.com/dbt-msft/dbt-sqlserver/issues/396) [#179](https://github.com/dbt-msft/dbt-sqlserver/issues/179) [#210](https://github.com/dbt-msft/dbt-sqlserver/issues/210) [#211](https://github.com/dbt-msft/dbt-sqlserver/issues/211)
+* Added `nolock` to queries for all information_schema/sys tables and views.
+dbt runs a lot of queries on these metadata schemas.
+This can often lead to deadlock issues if you are using a high number of threads or dbt processes.
+Adding `nolock` to these queries avoids the deadlocks. [#379](https://github.com/dbt-msft/dbt-sqlserver/issues/379) [#381](https://github.com/dbt-msft/dbt-sqlserver/issues/381)
+* Fixed implementation of `{{ hash(...) }}` for null values. [#392](https://github.com/dbt-msft/dbt-sqlserver/issues/392)
 
 #### Under the hood
 
 * Fixed more concurrency issues with automated Azure integration testing.
-* Removed extra `__init__.py` files.
-* Added commits to be ignored in git blame for easier blaming.
+* Removed extra `__init__.py` files. [#171](https://github.com/dbt-msft/dbt-sqlserver/issues/171) [#202](https://github.com/dbt-msft/dbt-sqlserver/issues/202)
+* Added commits to be ignored in git blame for easier blaming. [#385](https://github.com/dbt-msft/dbt-sqlserver/issues/385)
 
 ### v1.4.0
 
-* @Elliot2718 made their first contribution in https://github.com/dbt-msft/dbt-sqlserver/pull/204
-* @i-j made their first contribution in https://github.com/dbt-msft/dbt-sqlserver/pull/345
+* [@Elliot2718](https://github.com/Elliot2718) made their first contribution in https://github.com/dbt-msft/dbt-sqlserver/pull/204
+* [@i-j](https://github.com/i-j) made their first contribution in https://github.com/dbt-msft/dbt-sqlserver/pull/345
 
 #### Features
 
@@ -44,10 +50,10 @@ or if you are running multiple dbt commands in parallel. Adding `nolock` to thes
 
 #### Bugfixes
 
-* Add `nolock` query hint to several metadata queries to avoid deadlocks by @Elliot2718 in https://github.com/dbt-msft/dbt-sqlserver/pull/204
-* Rework column metadata retrieval to avoid duplicate results and deadlocks by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/368
-* Model removal will now cascade and also drop related views so that views are no longer in a broken state by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/366
-* Fixed handling of on_schema_change for incremental models by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/376
+* Add `nolock` query hint to several metadata queries to avoid deadlocks by [@Elliot2718](https://github.com/Elliot2718) in https://github.com/dbt-msft/dbt-sqlserver/pull/204
+* Rework column metadata retrieval to avoid duplicate results and deadlocks by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/368
+* Model removal will now cascade and also drop related views so that views are no longer in a broken state by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/366
+* Fixed handling of on_schema_change for incremental models by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/376
 
 #### Under the hood
 
@@ -59,34 +65,34 @@ or if you are running multiple dbt commands in parallel. Adding `nolock` to thes
 <details><summary>PR changelog</summary>
 <p>
 
-* Bump pre-commit from 2.20.0 to 3.2.0 by @dependabot in https://github.com/dbt-msft/dbt-sqlserver/pull/344
-* Bump docker/build-push-action from 3.2.0 to 4.0.0 by @dependabot in https://github.com/dbt-msft/dbt-sqlserver/pull/331
-* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/dbt-msft/dbt-sqlserver/pull/316
-* Bump wheel from 0.38.4 to 0.40.0 by @dependabot in https://github.com/dbt-msft/dbt-sqlserver/pull/343
-* Copy for workflow schtuff by @dataders in https://github.com/dbt-msft/dbt-sqlserver/pull/350
-* avoid publishing docker from other branches than master by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/351
-* bump pre-commit by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/353
-* fix pre-commit for python 3.7 by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/354
-* use 127.0.0.1 to avoid issues with local testing by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/358
-* allow for more flexible local testing with azure auth by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/359
-* credit where due by @dataders in https://github.com/dbt-msft/dbt-sqlserver/pull/355
-* remove condition for azure testing by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/360
-* ignore owner when testing docs in azure by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/365
-* impl of information_schema name closer to default by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/367
-* Add nolock by @Elliot2718 in https://github.com/dbt-msft/dbt-sqlserver/pull/204
-* Fix concurrency issues and document create as by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/368
-* add debug tests by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/363
-* add concurrency test by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/362
-* add aliases tests by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/361
-* add ephemeral error handling test by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/364
-* mark db-wide tests as flaky by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/369
-* remove azure max parallel test runs by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/370
-* add nolock to more metadata calls to avoid deadlocks by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/374
-* add query comment tests by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/375
-* add seed tests and add cascade to drop relation by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/366
-* make testing faster by running multithreaded by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/372
-* add tests for changing relation type by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/373
-* [incremental models] add tests, various bugfixes and support for incremental predicates by @sdebruyn in https://github.com/dbt-msft/dbt-sqlserver/pull/376
+* Bump pre-commit from 2.20.0 to 3.2.0 by [@dependabot](https://github.com/dependabot) in https://github.com/dbt-msft/dbt-sqlserver/pull/344
+* Bump docker/build-push-action from 3.2.0 to 4.0.0 by [@dependabot](https://github.com/dependabot) in https://github.com/dbt-msft/dbt-sqlserver/pull/331
+* [pre-commit.ci] pre-commit autoupdate by [@pre-commit-ci](https://github.com/pre-commit-ci) in https://github.com/dbt-msft/dbt-sqlserver/pull/316
+* Bump wheel from 0.38.4 to 0.40.0 by [@dependabot](https://github.com/dependabot) in https://github.com/dbt-msft/dbt-sqlserver/pull/343
+* Copy for workflow schtuff by [@dataders](https://github.com/dataders) in https://github.com/dbt-msft/dbt-sqlserver/pull/350
+* avoid publishing docker from other branches than master by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/351
+* bump pre-commit by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/353
+* fix pre-commit for python 3.7 by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/354
+* use 127.0.0.1 to avoid issues with local testing by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/358
+* allow for more flexible local testing with azure auth by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/359
+* credit where due by [@dataders](https://github.com/dataders) in https://github.com/dbt-msft/dbt-sqlserver/pull/355
+* remove condition for azure testing by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/360
+* ignore owner when testing docs in azure by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/365
+* impl of information_schema name closer to default by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/367
+* Add nolock by [@Elliot2718](https://github.com/Elliot2718) in https://github.com/dbt-msft/dbt-sqlserver/pull/204
+* Fix concurrency issues and document create as by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/368
+* add debug tests by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/363
+* add concurrency test by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/362
+* add aliases tests by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/361
+* add ephemeral error handling test by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/364
+* mark db-wide tests as flaky by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/369
+* remove azure max parallel test runs by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/370
+* add nolock to more metadata calls to avoid deadlocks by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/374
+* add query comment tests by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/375
+* add seed tests and add cascade to drop relation by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/366
+* make testing faster by running multithreaded by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/372
+* add tests for changing relation type by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/373
+* [incremental models] add tests, various bugfixes and support for incremental predicates by [@sdebruyn](https://github.com/sdebruyn) in https://github.com/dbt-msft/dbt-sqlserver/pull/376
 
 </p>
 </details>
@@ -96,7 +102,7 @@ or if you are running multiple dbt commands in parallel. Adding `nolock` to thes
 ####
 
 Minor release to loosen dependency on dbt-core and pyodbc
- 
+
 ### v1.3.0
 
 #### Features
@@ -215,7 +221,7 @@ Please see [dbt-core v1.0.0 release notes](https://github.com/dbt-labs/dbt-core/
 ### v0.21.0
 
 Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core/releases/tag/v0.21.0) for upstream changes
- 
+
 #### fixes
 
 - in dbt-sqlserver v0.20.0, users couldn't use some out of the box tests, such as accepted_values. users can now also use CTEs in their ~bespoke~ custom data tests
@@ -239,7 +245,7 @@ Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core
 
 - `sqlserver__load_csv_rows` now has a safety provided by `calc_batch_size()` to ensure the insert statements won't exceed SQL Server's 2100 parameter limit. [#127](https://github.com/dbt-msft/dbt-sqlserver/issues/127) and [#151](https://github.com/dbt-msft/dbt-sqlserver/pull/151) thanks [@jacobm001](https://github.com/jacobm001)
 - switched to using a `MANIFEST.in` to declare which files should be included
-- updated `pyodbc` and `azure-identity` dependencies to their latest versions 
+- updated `pyodbc` and `azure-identity` dependencies to their latest versions
 ### v0.19.2
 
 #### fixes
@@ -268,7 +274,7 @@ Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core
 ### v0.19.0.2
 
 #### fixes
-- solved a bug in snapshots introduced in v0.19.0. Fixes: [#108](https://github.com/dbt-msft/dbt-sqlserver/issues/108), [#117](https://github.com/dbt-msft/dbt-sqlserver/issues/117). 
+- solved a bug in snapshots introduced in v0.19.0. Fixes: [#108](https://github.com/dbt-msft/dbt-sqlserver/issues/108), [#117](https://github.com/dbt-msft/dbt-sqlserver/issues/117).
 
 ### v0.19.0.1
 
@@ -296,18 +302,18 @@ Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core
 ### v0.18.1
 #### New Features:
 Adds support for:
-- SQL Server down to version 2012 
+- SQL Server down to version 2012
 - authentication via:
-    - Azure CLI (see #71, thanks @JCZuurmond !), and
-    - MSFT ODBC Active Directory options (#53 #55 #58 thanks to @NandanHegde15 and @alieus) 
-- using a named instance (#51 thanks @alangsbo)
+    - Azure CLI (see #71, thanks [@JCZuurmond](https://github.com/JCZuurmond) !), and
+    - MSFT ODBC Active Directory options (#53 #55 #58 thanks to [@NandanHegde15](https://github.com/NandanHegde15) and [@alieus](https://github.com/alieus))
+- using a named instance (#51 thanks [@alangsbo](https://github.com/alangsbo))
 - Adds support down to SQL Server 2012
-- The adapter is now automatically tested with Fishtowns official adapter-tests to increase stability when making 
+- The adapter is now automatically tested with Fishtowns official adapter-tests to increase stability when making
 changes and upgrades to the adapter.
 
 #### Fixes:
 - Fix for lack of precision in the snapshot check strategy. Previously when executing two check snapshots the same
-second, there was inconsistent data as a result. This was mostly noted when running the automatic adapter tests. 
+second, there was inconsistent data as a result. This was mostly noted when running the automatic adapter tests.
 NOTE: This fix will create a new snapshot version in the target table
 on first run after upgrade.
 
@@ -316,10 +322,10 @@ on first run after upgrade.
 - Adds support for Azure Active Directory as authentication provider
 
 #### Fixes:
-- Fix for lack of precision in the snapshot check strategy. (#74 and #56 thanks @qed) Previously when executing two check snapshots the same second, there was inconsistent data as a result. This was mostly noted when running the automatic adapter tests. 
+- Fix for lack of precision in the snapshot check strategy. (#74 and #56 thanks [@qed](https://github.com/qed)) Previously when executing two check snapshots the same second, there was inconsistent data as a result. This was mostly noted when running the automatic adapter tests.
 NOTE: This fix will create a new snapshot version in the target table
 on first run after upgrade.
-- #52 Fix deprecation warning (Thanks @jnoynaert)
+- #52 Fix deprecation warning (Thanks [@jnoynaert](https://github.com/jnoynaert))
 
 #### Testing
 - The adapter is now automatically tested with Fishtowns official adapter-tests to increase stability when making changes and upgrades to the adapter. (#62 #64 #69 #74)
