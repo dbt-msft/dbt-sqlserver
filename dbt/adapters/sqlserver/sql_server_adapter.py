@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import agate
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.cache import _make_ref_key_msg
+from dbt.adapters.cache import _make_ref_key_dict
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME
 from dbt.events.functions import fire_event
@@ -20,7 +20,7 @@ class SQLServerAdapter(SQLAdapter):
 
     def create_schema(self, relation: BaseRelation) -> None:
         relation = relation.without_identifier()
-        fire_event(SchemaCreation(relation=_make_ref_key_msg(relation)))
+        fire_event(SchemaCreation(relation=_make_ref_key_dict(relation)))
         macro_name = CREATE_SCHEMA_MACRO_NAME
         kwargs = {
             "relation": relation,
