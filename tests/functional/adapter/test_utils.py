@@ -30,16 +30,31 @@ from dbt.tests.adapter.utils.test_split_part import BaseSplitPart
 from dbt.tests.adapter.utils.test_string_literal import BaseStringLiteral
 
 
-class TestAnyValueSQLServer(BaseAnyValue):
+class BaseFixedMacro:
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {
+            "test_assert_equal.sql": """
+    {% test assert_equal(model, actual, expected) %}
+    select * from {{ model }}
+    where {{ actual }} != {{ expected }}
+    or ({{ actual }} is null and {{ expected }} is not null)
+    or ({{ expected }} is null and {{ actual }} is not null)
+    {% endtest %}
+    """
+        }
+
+
+class TestAnyValueSQLServer(BaseFixedMacro, BaseAnyValue):
     pass
 
 
 @pytest.mark.skip("bool_or not supported in this adapter")
-class TestBoolOrSQLServer(BaseBoolOr):
+class TestBoolOrSQLServer(BaseFixedMacro, BaseBoolOr):
     pass
 
 
-class TestCastBoolToTextSQLServer(BaseCastBoolToText):
+class TestCastBoolToTextSQLServer(BaseFixedMacro, BaseCastBoolToText):
     @pytest.fixture(scope="class")
     def models(self):
         models__test_cast_bool_to_text_sql = """
@@ -67,51 +82,67 @@ class TestCastBoolToTextSQLServer(BaseCastBoolToText):
         }
 
 
-class TestConcatSQLServer(BaseConcat):
+class TestConcatSQLServer(BaseFixedMacro, BaseConcat):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "data_concat.csv": """input_1,input_2,output
+a,b,ab
+a,,a
+,b,b
+"""
+        }
+
+
+class TestDateTruncSQLServer(BaseFixedMacro, BaseDateTrunc):
     pass
 
 
-class TestDateTruncSQLServer(BaseDateTrunc):
+seeds__data_hash_csv = """input_1,output
+ab,187ef4436122d1cc2f40dc2b92f0eba0
+a,0cc175b9c0f1b6a831c399e269772661
+1,c4ca4238a0b923820dcc509a6f75849b
+,d41d8cd98f00b204e9800998ecf8427e"""
+
+
+class TestHashSQLServer(BaseFixedMacro, BaseHash):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"data_hash.csv": seeds__data_hash_csv}
+
+
+class TestStringLiteralSQLServer(BaseFixedMacro, BaseStringLiteral):
     pass
 
 
-class TestHashSQLServer(BaseHash):
+class TestSplitPartSQLServer(BaseFixedMacro, BaseSplitPart):
     pass
 
 
-class TestStringLiteralSQLServer(BaseStringLiteral):
+class TestDateDiffSQLServer(BaseFixedMacro, BaseDateDiff):
     pass
 
 
-class TestSplitPartSQLServer(BaseSplitPart):
+class TestEscapeSingleQuotesSQLServer(BaseFixedMacro, BaseEscapeSingleQuotesQuote):
     pass
 
 
-class TestDateDiffSQLServer(BaseDateDiff):
+class TestIntersectSQLServer(BaseFixedMacro, BaseIntersect):
     pass
 
 
-class TestEscapeSingleQuotesSQLServer(BaseEscapeSingleQuotesQuote):
+class TestLastDaySQLServer(BaseFixedMacro, BaseLastDay):
     pass
 
 
-class TestIntersectSQLServer(BaseIntersect):
+class TestLengthSQLServer(BaseFixedMacro, BaseLength):
     pass
 
 
-class TestLastDaySQLServer(BaseLastDay):
-    pass
-
-
-class TestLengthSQLServer(BaseLength):
-    pass
-
-
-class TestListaggSQLServer(BaseListagg):
+class TestListaggSQLServer(BaseFixedMacro, BaseListagg):
     #  Only supported in SQL Server 2017 and later or cloud versions
     #  DISTINCT not supported
     #  limit not supported
-
     @pytest.fixture(scope="class")
     def seeds(self):
         seeds__data_listagg_output_csv = """group_col,expected,version
@@ -190,15 +221,15 @@ and calculate.version = data_output.version
         }
 
 
-class TestRightSQLServer(BaseRight):
+class TestRightSQLServer(BaseFixedMacro, BaseRight):
     pass
 
 
-class TestSafeCastSQLServer(BaseSafeCast):
+class TestSafeCastSQLServer(BaseFixedMacro, BaseSafeCast):
     pass
 
 
-class TestDateAddSQLServer(BaseDateAdd):
+class TestDateAddSQLServer(BaseFixedMacro, BaseDateAdd):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -216,15 +247,15 @@ class TestDateAddSQLServer(BaseDateAdd):
         }
 
 
-class TestExceptSQLServer(BaseExcept):
+class TestExceptSQLServer(BaseFixedMacro, BaseExcept):
     pass
 
 
-class TestPositionSQLServer(BasePosition):
+class TestPositionSQLServer(BaseFixedMacro, BasePosition):
     pass
 
 
-class TestReplaceSQLServer(BaseReplace):
+class TestReplaceSQLServer(BaseFixedMacro, BaseReplace):
     pass
 
 
@@ -233,15 +264,15 @@ class TestCurrentTimestampSQLServer(BaseCurrentTimestampNaive):
 
 
 @pytest.mark.skip(reason="arrays not supported")
-class TestArrayAppendSQLServer(BaseArrayAppend):
+class TestArrayAppendSQLServer(BaseFixedMacro, BaseArrayAppend):
+    pass
+
+
+@pytest.mark.skip(reason="arrays not supporteTd")
+class TestArrayConcatSQLServer(BaseFixedMacro, BaseArrayConcat):
     pass
 
 
 @pytest.mark.skip(reason="arrays not supported")
-class TestArrayConcatSQLServer(BaseArrayConcat):
-    pass
-
-
-@pytest.mark.skip(reason="arrays not supported")
-class TestArrayConstructSQLServer(BaseArrayConstruct):
+class TestArrayConstructSQLServer(BaseFixedMacro, BaseArrayConstruct):
     pass
