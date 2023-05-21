@@ -29,34 +29,32 @@ from dbt.tests.adapter.utils.test_safe_cast import BaseSafeCast
 from dbt.tests.adapter.utils.test_split_part import BaseSplitPart
 from dbt.tests.adapter.utils.test_string_literal import BaseStringLiteral
 
-macros__test_assert_equal_sql = """
-{% test assert_equal(model, actual, expected) %}
-select * from {{ model }}
-where {{ actual }} != {{ expected }}
-or ({{ actual }} is null and {{ expected }} is not null)
-or ({{ expected }} is null and {{ actual }} is not null)
-{% endtest %}
-"""
 
-
-class TestAnyValueSQLServer(BaseAnyValue):
+class BaseFixedMacro:
     @pytest.fixture(scope="class")
     def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+        return {
+            "test_assert_equal.sql": """
+    {% test assert_equal(model, actual, expected) %}
+    select * from {{ model }}
+    where {{ actual }} != {{ expected }}
+    or ({{ actual }} is null and {{ expected }} is not null)
+    or ({{ expected }} is null and {{ actual }} is not null)
+    {% endtest %}
+    """
+        }
+
+
+class TestAnyValueSQLServer(BaseFixedMacro, BaseAnyValue):
+    pass
 
 
 @pytest.mark.skip("bool_or not supported in this adapter")
-class TestBoolOrSQLServer(BaseBoolOr):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestBoolOrSQLServer(BaseFixedMacro, BaseBoolOr):
+    pass
 
 
-class TestCastBoolToTextSQLServer(BaseCastBoolToText):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
-
+class TestCastBoolToTextSQLServer(BaseFixedMacro, BaseCastBoolToText):
     @pytest.fixture(scope="class")
     def models(self):
         models__test_cast_bool_to_text_sql = """
@@ -84,75 +82,59 @@ class TestCastBoolToTextSQLServer(BaseCastBoolToText):
         }
 
 
-class TestConcatSQLServer(BaseConcat):
+class TestConcatSQLServer(BaseFixedMacro, BaseConcat):
+    pass
+
+
+class TestDateTruncSQLServer(BaseFixedMacro, BaseDateTrunc):
+    pass
+
+
+seeds__data_hash_csv = """input_1,output
+ab,187ef4436122d1cc2f40dc2b92f0eba0
+a,0cc175b9c0f1b6a831c399e269772661
+1,c4ca4238a0b923820dcc509a6f75849b
+,d41d8cd98f00b204e9800998ecf8427e"""
+
+
+class TestHashSQLServer(BaseFixedMacro, BaseHash):
     @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+    def seeds(self):
+        return {"data_hash.csv": seeds__data_hash_csv}
 
 
-class TestDateTruncSQLServer(BaseDateTrunc):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestStringLiteralSQLServer(BaseFixedMacro, BaseStringLiteral):
+    pass
 
 
-class TestHashSQLServer(BaseHash):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestSplitPartSQLServer(BaseFixedMacro, BaseSplitPart):
+    pass
 
 
-class TestStringLiteralSQLServer(BaseStringLiteral):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestDateDiffSQLServer(BaseFixedMacro, BaseDateDiff):
+    pass
 
 
-class TestSplitPartSQLServer(BaseSplitPart):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestEscapeSingleQuotesSQLServer(BaseFixedMacro, BaseEscapeSingleQuotesQuote):
+    pass
 
 
-class TestDateDiffSQLServer(BaseDateDiff):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestIntersectSQLServer(BaseFixedMacro, BaseIntersect):
+    pass
 
 
-class TestEscapeSingleQuotesSQLServer(BaseEscapeSingleQuotesQuote):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestLastDaySQLServer(BaseFixedMacro, BaseLastDay):
+    pass
 
 
-class TestIntersectSQLServer(BaseIntersect):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestLengthSQLServer(BaseFixedMacro, BaseLength):
+    pass
 
 
-class TestLastDaySQLServer(BaseLastDay):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
-
-
-class TestLengthSQLServer(BaseLength):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
-
-
-class TestListaggSQLServer(BaseListagg):
+class TestListaggSQLServer(BaseFixedMacro, BaseListagg):
     #  Only supported in SQL Server 2017 and later or cloud versions
     #  DISTINCT not supported
     #  limit not supported
-
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
-
     @pytest.fixture(scope="class")
     def seeds(self):
         seeds__data_listagg_output_csv = """group_col,expected,version
@@ -231,23 +213,15 @@ and calculate.version = data_output.version
         }
 
 
-class TestRightSQLServer(BaseRight):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestRightSQLServer(BaseFixedMacro, BaseRight):
+    pass
 
 
-class TestSafeCastSQLServer(BaseSafeCast):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestSafeCastSQLServer(BaseFixedMacro, BaseSafeCast):
+    pass
 
 
-class TestDateAddSQLServer(BaseDateAdd):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
-
+class TestDateAddSQLServer(BaseFixedMacro, BaseDateAdd):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -265,22 +239,16 @@ class TestDateAddSQLServer(BaseDateAdd):
         }
 
 
-class TestExceptSQLServer(BaseExcept):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestExceptSQLServer(BaseFixedMacro, BaseExcept):
+    pass
 
 
-class TestPositionSQLServer(BasePosition):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestPositionSQLServer(BaseFixedMacro, BasePosition):
+    pass
 
 
-class TestReplaceSQLServer(BaseReplace):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestReplaceSQLServer(BaseFixedMacro, BaseReplace):
+    pass
 
 
 class TestCurrentTimestampSQLServer(BaseCurrentTimestampNaive):
@@ -288,21 +256,15 @@ class TestCurrentTimestampSQLServer(BaseCurrentTimestampNaive):
 
 
 @pytest.mark.skip(reason="arrays not supported")
-class TestArrayAppendSQLServer(BaseArrayAppend):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestArrayAppendSQLServer(BaseFixedMacro, BaseArrayAppend):
+    pass
+
+
+@pytest.mark.skip(reason="arrays not supporteTd")
+class TestArrayConcatSQLServer(BaseFixedMacro, BaseArrayConcat):
+    pass
 
 
 @pytest.mark.skip(reason="arrays not supported")
-class TestArrayConcatSQLServer(BaseArrayConcat):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
-
-
-@pytest.mark.skip(reason="arrays not supported")
-class TestArrayConstructSQLServer(BaseArrayConstruct):
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"test_assert_equal.sql": macros__test_assert_equal_sql}
+class TestArrayConstructSQLServer(BaseFixedMacro, BaseArrayConstruct):
+    pass
