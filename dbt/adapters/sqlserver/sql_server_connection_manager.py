@@ -377,7 +377,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 con_str_concat,
                 attrs_before=attrs_before,
                 autocommit=True,
+                timeout=credentials.login_timeout,
             )
+            handle.timeout = credentials.query_timeout
             logger.debug(f"Connected to db: {credentials.database}")
             return handle
 

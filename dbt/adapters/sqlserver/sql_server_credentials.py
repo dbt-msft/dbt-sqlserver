@@ -22,6 +22,8 @@ class SQLServerCredentials(Credentials):
     trust_cert: Optional[bool] = False  # default value in MS ODBC Driver 18 as well
     retries: int = 1
     schema_authorization: Optional[str] = None
+    login_timeout: Optional[int] = None
+    query_timeout: Optional[int] = None
 
     _ALIASES = {
         "user": "UID",
@@ -58,6 +60,8 @@ class SQLServerCredentials(Credentials):
             "encrypt",
             "trust_cert",
             "retries",
+            "login_timeout",
+            "query_timeout",
         )
 
     @property
