@@ -85,4 +85,10 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
+    project_urls={
+        "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile",  # noqa: E501
+        "Documentation & usage": "https://docs.getdbt.com/reference/resource-configs/mssql-configs",  # noqa: E501
+        "Changelog": "https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md",  # noqa: E501
+        "Issue Tracker": "https://github.com/dbt-msft/dbt-sqlserver/issues",  # noqa: E501
+    },
 )
