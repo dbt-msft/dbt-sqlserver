@@ -1,5 +1,11 @@
 # Changelog
 
+### v1.4.2
+
+Minor release to follow up on 1.4.1 and 1.4.0.
+
+Adding `nolock` to information_schema and sys tables/views can be overriden with the dispatched `information_schema_hints` macro. This is required for adapters inheriting from this one.
+
 ### v1.4.1
 
 This is a minor release following up on 1.4.0 with fixes for long outstanding issues.
