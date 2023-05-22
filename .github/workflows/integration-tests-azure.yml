@@ -68,8 +68,6 @@ jobs:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
           DBT_TEST_USER_3: DBT_TEST_USER_3
-          DBT_TEST_AAD_PRINCIPAL_1: ${{ secrets.DBT_TEST_AAD_PRINCIPAL_1 }}
-          DBT_TEST_AAD_PRINCIPAL_2: ${{ secrets.DBT_TEST_AAD_PRINCIPAL_2 }}
           SQLSERVER_TEST_DRIVER: 'ODBC Driver ${{ matrix.msodbc_version }} for SQL Server'
         run: pytest --ignore=tests/functional/adapter/test_provision_users.py -ra -v tests/functional --profile "${{ matrix.profile }}"
 
