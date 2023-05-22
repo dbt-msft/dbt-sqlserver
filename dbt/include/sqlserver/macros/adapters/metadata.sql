@@ -1,3 +1,9 @@
+{% macro information_schema_hints() %}
+    {{ return(adapter.dispatch('information_schema_hints')()) }}
+{% endmacro %}
+
+{% macro default__information_schema_hints() %}{% endmacro %}
+{% macro sqlserver__information_schema_hints() %}with (nolock){% endmacro %}
 
 {% macro sqlserver__get_catalog(information_schemas, schemas) -%}
 
@@ -9,7 +15,7 @@
             name as principal_name,
             principal_id as principal_id
         from
-            sys.database_principals with (nolock)
+            sys.database_principals {{ information_schema_hints() }}
     ),
 
     schemas as (
@@ -18,7 +24,7 @@
             schema_id as schema_id,
             principal_id as principal_id
         from
-            sys.schemas with (nolock)
+            sys.schemas {{ information_schema_hints() }}
     ),
 
     tables as (
@@ -28,7 +34,7 @@
             principal_id as principal_id,
             'BASE TABLE' as table_type
         from
-            sys.tables with (nolock)
+            sys.tables {{ information_schema_hints() }}
     ),
 
     tables_with_metadata as (
@@ -49,7 +55,7 @@
             principal_id as principal_id,
             'VIEW' as table_type
         from
-            sys.views with (nolock)
+            sys.views {{ information_schema_hints() }}
     ),
 
     views_with_metadata as (
@@ -92,7 +98,7 @@
             column_name,
             ordinal_position as column_index,
             data_type as column_type
-        from INFORMATION_SCHEMA.COLUMNS with (nolock)
+        from INFORMATION_SCHEMA.COLUMNS {{ information_schema_hints() }}
 
     )
 
@@ -129,7 +135,7 @@
   {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
     USE {{ database }};
     select  name as [schema]
-    from sys.schemas with (nolock)
+    from sys.schemas {{ information_schema_hints() }}
   {% endcall %}
   {{ return(load_result('list_schemas').table) }}
 {% endmacro %}
@@ -153,7 +159,7 @@
            else table_type
       end as table_type
 
-    from [{{ schema_relation.database }}].INFORMATION_SCHEMA.TABLES with (nolock)
+    from [{{ schema_relation.database }}].INFORMATION_SCHEMA.TABLES {{ information_schema_hints() }}
     where table_schema = '{{ schema_relation.schema }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
