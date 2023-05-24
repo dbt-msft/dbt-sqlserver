@@ -8,25 +8,25 @@ from dbt.tests.adapter.aliases.test_aliases import (
 )
 
 
-class TestAliasesSQLServer(BaseAliases):
+class TestAliasesFabric(BaseAliases):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-class TestAliasErrorsSQLServer(BaseAliasErrors):
+class TestAliasErrorsFabric(BaseAliasErrors):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-class TestSameAliasDifferentSchemasSQLServer(BaseSameAliasDifferentSchemas):
+class TestSameAliasDifferentSchemasFabric(BaseSameAliasDifferentSchemas):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-class TestSameAliasDifferentDatabasesSQLServer(BaseSameAliasDifferentDatabases):
+class TestSameAliasDifferentDatabasesFabric(BaseSameAliasDifferentDatabases):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}

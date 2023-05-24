@@ -6,7 +6,7 @@ from dbt.tests.adapter.dbt_debug.test_dbt_debug import BaseDebug, BaseDebugProfi
 from dbt.tests.util import run_dbt
 
 
-class TestDebugSQLServer(BaseDebug):
+class TestDebugFabric(BaseDebug):
     def test_ok(self, project):
         run_dbt(["debug"])
         assert "ERROR" not in self.capsys.readouterr().out
@@ -24,11 +24,11 @@ class TestDebugSQLServer(BaseDebug):
         self.assertGotValue(re.compile(r"\s+output 'none_target'"), "misconfigured")
 
 
-class TestDebugProfileVariableSQLServer(BaseDebugProfileVariable):
+class TestDebugProfileVariableFabric(BaseDebugProfileVariable):
     pass
 
 
-class TestDebugInvalidProjectSQLServer(BaseDebug):
+class TestDebugInvalidProjectFabric(BaseDebug):
     def test_empty_project(self, project):
         with open("dbt_project.yml", "w") as f:  # noqa: F841
             pass

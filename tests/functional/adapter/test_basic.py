@@ -16,32 +16,32 @@ from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestam
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 
 
-class TestSimpleMaterializationsSQLServer(BaseSimpleMaterializations):
+class TestSimpleMaterializationsFabric(BaseSimpleMaterializations):
     pass
 
 
-class TestSingularTestsSQLServer(BaseSingularTests):
+class TestSingularTestsFabric(BaseSingularTests):
     pass
 
 
 @pytest.mark.skip(reason="ephemeral not supported")
-class TestSingularTestsEphemeralSQLServer(BaseSingularTestsEphemeral):
+class TestSingularTestsEphemeralFabric(BaseSingularTestsEphemeral):
     pass
 
 
-class TestEmptySQLServer(BaseEmpty):
+class TestEmptyFabric(BaseEmpty):
     pass
 
 
-class TestEphemeralSQLServer(BaseEphemeral):
+class TestEphemeralFabric(BaseEphemeral):
     pass
 
 
-class TestIncrementalSQLServer(BaseIncremental):
+class TestIncrementalFabric(BaseIncremental):
     pass
 
 
-class TestIncrementalNotSchemaChangeSQLServer(BaseIncrementalNotSchemaChange):
+class TestIncrementalNotSchemaChangeFabric(BaseIncrementalNotSchemaChange):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -51,21 +51,21 @@ class TestIncrementalNotSchemaChangeSQLServer(BaseIncrementalNotSchemaChange):
         }
 
 
-class TestGenericTestsSQLServer(BaseGenericTests):
+class TestGenericTestsFabric(BaseGenericTests):
     pass
 
 
-class TestSnapshotCheckColsSQLServer(BaseSnapshotCheckCols):
+class TestSnapshotCheckColsFabric(BaseSnapshotCheckCols):
     pass
 
 
-class TestSnapshotTimestampSQLServer(BaseSnapshotTimestamp):
+class TestSnapshotTimestampFabric(BaseSnapshotTimestamp):
     pass
 
 
-class TestBaseCachingSQLServer(BaseAdapterMethod):
+class TestBaseCachingFabric(BaseAdapterMethod):
     pass
 
 
-class TestValidateConnectionSQLServer(BaseValidateConnection):
+class TestValidateConnectionFabric(BaseValidateConnection):
     pass

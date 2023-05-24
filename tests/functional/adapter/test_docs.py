@@ -16,7 +16,7 @@ from dbt.tests.adapter.basic.test_docs_generate import (
 )
 
 
-class TestDocsGenerateSQLServer(BaseDocsGenerate):
+class TestDocsGenerateFabric(BaseDocsGenerate):
     @staticmethod
     @pytest.fixture(scope="class")
     def dbt_profile_target_update():
@@ -36,7 +36,7 @@ class TestDocsGenerateSQLServer(BaseDocsGenerate):
         )
 
 
-class TestDocsGenReferencesSQLServer(BaseDocsGenReferences):
+class TestDocsGenReferencesFabric(BaseDocsGenReferences):
     @staticmethod
     @pytest.fixture(scope="class")
     def dbt_profile_target_update():

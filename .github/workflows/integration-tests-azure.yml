@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
-        profile: ["ci_azure_cli", "ci_azure_auto", "ci_azure_environment", "ci_azure_basic"]
+        profile: ["ci_azure_cli", "ci_azure_auto", "ci_azure_environment"]
         msodbc_version: ["17", "18"]
     runs-on: ubuntu-latest
     container:
@@ -36,69 +36,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r dev_requirements.txt
 
-      - name: Wake up server
-        env:
-          DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
-          DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
-          DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
-          DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
-          MSODBC_VERSION: ${{ matrix.msodbc_version }}
-        run: python devops/scripts/wakeup_azure.py
-
-      - name: Configure test users
-        run: sqlcmd -b -I -i devops/scripts/init.sql
-        env:
-          DBT_TEST_USER_1: DBT_TEST_USER_1
-          DBT_TEST_USER_2: DBT_TEST_USER_2
-          DBT_TEST_USER_3: DBT_TEST_USER_3
-          SQLCMDUSER: ${{ secrets.DBT_AZURESQL_UID }}
-          SQLCMDPASSWORD: ${{ secrets.DBT_AZURESQL_PWD }}
-          SQLCMDSERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
-          SQLCMDDBNAME: ${{ secrets.DBT_AZURESQL_DB }}
-
       - name: Run functional tests
         env:
           DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
           DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
-          DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
-          DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
           AZURE_CLIENT_ID: ${{ secrets.DBT_AZURE_SP_NAME }}
           AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}
-          DBT_TEST_USER_1: DBT_TEST_USER_1
-          DBT_TEST_USER_2: DBT_TEST_USER_2
-          DBT_TEST_USER_3: DBT_TEST_USER_3
           SQLSERVER_TEST_DRIVER: 'ODBC Driver ${{ matrix.msodbc_version }} for SQL Server'
-        run: pytest --ignore=tests/functional/adapter/test_provision_users.py -ra -v tests/functional --profile "${{ matrix.profile }}"
-
-  flaky-tests-azure:
-    name: Flaky tests on Azure
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/${{ github.repository }}:CI-3.11-msodbc18
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: pip install -r dev_requirements.txt
-
-      - name: Wake up server
-        env:
-          DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
-          DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
-          DBT_AZURESQL_UID: ${{ secrets.DBT_AZURESQL_UID }}
-          DBT_AZURESQL_PWD: ${{ secrets.DBT_AZURESQL_PWD }}
-          MSODBC_VERSION: ${{ matrix.msodbc_version }}
-        run: python devops/scripts/wakeup_azure.py
-
-      - name: Run auto provisioning tests
-        env:
-          DBT_AZURESQL_SERVER: ${{ secrets.DBT_AZURESQL_SERVER }}
-          DBT_AZURESQL_DB: ${{ secrets.DBT_AZURESQL_DB }}
-          AZURE_CLIENT_ID: ${{ secrets.DBT_AZURE_SP_NAME }}
-          AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
-          AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}
-          DBT_TEST_AAD_PRINCIPAL_1: ${{ secrets.DBT_TEST_AAD_PRINCIPAL_1 }}
-          DBT_TEST_AAD_PRINCIPAL_2: ${{ secrets.DBT_TEST_AAD_PRINCIPAL_2 }}
-          SQLSERVER_TEST_DRIVER: 'ODBC Driver 18 for SQL Server'
-        run: pytest -ra -v tests/functional/adapter/test_provision_users.py --profile "ci_azure_environment"
+        run: pytest -ra -v tests/functional --profile "${{ matrix.profile }}"

@@ -12,23 +12,23 @@ from dbt.tests.adapter.utils.data_types.test_type_timestamp import (
 
 
 @pytest.mark.skip(reason="SQL Server shows 'numeric' if you don't explicitly cast it to bigint")
-class TestTypeBigIntSQLServer(BaseTypeBigInt):
+class TestTypeBigIntFabric(BaseTypeBigInt):
     pass
 
 
-class TestTypeFloatSQLServer(BaseTypeFloat):
+class TestTypeFloatFabric(BaseTypeFloat):
     pass
 
 
-class TestTypeIntSQLServer(BaseTypeInt):
+class TestTypeIntFabric(BaseTypeInt):
     pass
 
 
-class TestTypeNumericSQLServer(BaseTypeNumeric):
+class TestTypeNumericFabric(BaseTypeNumeric):
     pass
 
 
-class TestTypeStringSQLServer(BaseTypeString):
+class TestTypeStringFabric(BaseTypeString):
     def assert_columns_equal(self, project, expected_cols, actual_cols):
         #  ignore the size of the varchar since we do
         #  an optimization to not use varchar(max) all the time
@@ -37,7 +37,7 @@ class TestTypeStringSQLServer(BaseTypeString):
         ), f"Type difference detected: {expected_cols} vs. {actual_cols}"
 
 
-class TestTypeTimestampSQLServer(BaseTypeTimestamp):
+class TestTypeTimestampFabric(BaseTypeTimestamp):
     @pytest.fixture(scope="class")
     def seeds(self):
         seeds__expected_yml = """
@@ -55,5 +55,5 @@ seeds:
         }
 
 
-class TestTypeBooleanSQLServer(BaseTypeBoolean):
+class TestTypeBooleanFabric(BaseTypeBoolean):
     pass

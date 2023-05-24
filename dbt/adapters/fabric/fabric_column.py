@@ -5,7 +5,7 @@ from dbt.adapters.base import Column
 
 class FabricColumn(Column):
     TYPE_LABELS: ClassVar[Dict[str, str]] = {
-        "STRING": "VARCHAR(MAX)",
+        "STRING": "VARCHAR(8000)",
         "TIMESTAMP": "DATETIMEOFFSET",
         "FLOAT": "FLOAT",
         "INTEGER": "INT",

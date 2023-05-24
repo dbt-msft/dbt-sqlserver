@@ -48,7 +48,7 @@ class FabricAdapter(SQLAdapter):
 
     @classmethod
     def convert_datetime_type(cls, agate_table, col_idx):
-        return "datetime"
+        return "datetime2(6)"
 
     @classmethod
     def convert_boolean_type(cls, agate_table, col_idx):
@@ -61,7 +61,7 @@ class FabricAdapter(SQLAdapter):
 
     @classmethod
     def convert_time_type(cls, agate_table, col_idx):
-        return "datetime"
+        return "datetime2(6)"
 
     # Methods used in adapter tests
     def timestamp_add_sql(self, add_to: str, number: int = 1, interval: str = "hour") -> str:

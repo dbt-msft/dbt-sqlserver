@@ -2,7 +2,7 @@ import pytest
 from dbt.tests.adapter.utils.test_timestamps import BaseCurrentTimestamps
 
 
-class TestCurrentTimestampSQLServer(BaseCurrentTimestamps):
+class TestCurrentTimestampFabric(BaseCurrentTimestamps):
     @pytest.fixture(scope="class")
     def models(self):
         return {

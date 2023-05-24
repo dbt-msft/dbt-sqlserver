@@ -1,7 +1,6 @@
 import os
 
 import pytest
-from dbt.adapters.sqlserver import SQLServerAdapter
 from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql
 from dbt.tests.adapter.simple_seed.test_seed import SeedConfigBase
 from dbt.tests.adapter.simple_seed.test_seed import TestBasicSeedTests as BaseBasicSeedTests
@@ -25,6 +24,8 @@ from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     seeds__enabled_in_config_csv,
 )
 from dbt.tests.util import get_connection, run_dbt
+
+from dbt.adapters.fabric import FabricAdapter
 
 fixed_setup_sql = seeds__expected_sql.replace("TIMESTAMP WITHOUT TIME ZONE", "DATETIME").replace(
     "TEXT", "VARCHAR(255)"
@@ -119,7 +120,7 @@ seeds:
 """
 
 
-class TestSimpleSeedColumnOverrideSQLServer(BaseSimpleSeedColumnOverride):
+class TestSimpleSeedColumnOverrideFabric(BaseSimpleSeedColumnOverride):
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
@@ -139,52 +140,52 @@ class TestSimpleSeedColumnOverrideSQLServer(BaseSimpleSeedColumnOverride):
         }
 
 
-class TestBasicSeedTestsSQLServer(BaseBasicSeedTests):
+class TestBasicSeedTestsFabric(BaseBasicSeedTests):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedConfigFullRefreshOnSQLServer(BaseSeedConfigFullRefreshOn):
+class TestSeedConfigFullRefreshOnFabric(BaseSeedConfigFullRefreshOn):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedConfigFullRefreshOffSQLServer(BaseSeedConfigFullRefreshOff):
+class TestSeedConfigFullRefreshOffFabric(BaseSeedConfigFullRefreshOff):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedCustomSchemaSQLServer(BaseSeedCustomSchema):
+class TestSeedCustomSchemaFabric(BaseSeedCustomSchema):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSimpleSeedEnabledViaConfigSQLServer(BaseSimpleSeedEnabledViaConfig):
+class TestSimpleSeedEnabledViaConfigFabric(BaseSimpleSeedEnabledViaConfig):
     @pytest.fixture(scope="function")
     def clear_test_schema(self, project):
         yield
         adapter = project.adapter
-        assert isinstance(project.adapter, SQLServerAdapter)
+        assert isinstance(project.adapter, FabricAdapter)
         with get_connection(project.adapter):
             rel = adapter.Relation.create(database=project.database, schema=project.test_schema)
             adapter.drop_schema(rel)
 
 
-class TestSeedParsingSQLServer(BaseSeedParsing):
+class TestSeedParsingFabric(BaseSeedParsing):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
 
-class TestSeedSpecificFormatsSQLServer(BaseSeedSpecificFormats):
+class TestSeedSpecificFormatsFabric(BaseSeedSpecificFormats):
     pass
 
 
-class TestSeedBatchSizeMaxSQLServer(SeedConfigBase):
+class TestSeedBatchSizeMaxFabric(SeedConfigBase):
     @pytest.fixture(scope="class")
     def seeds(self, test_data_dir):
         return {
@@ -202,7 +203,7 @@ class TestSeedBatchSizeMaxSQLServer(SeedConfigBase):
         assert "Inserting batches of 400 records" in logs
 
 
-class TestSeedBatchSizeCustomSQLServer(SeedConfigBase):
+class TestSeedBatchSizeCustomFabric(SeedConfigBase):
     @pytest.fixture(scope="class")
     def seeds(self, test_data_dir):
         return {

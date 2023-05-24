@@ -10,7 +10,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--profile",
         action="store",
-        default=os.getenv("PROFILE_NAME", "_profile_user_azure"),
+        default=os.getenv("PROFILE_NAME", "user_azure"),
         type=str,
     )
 
@@ -53,7 +53,7 @@ def is_azure(request: FixtureRequest) -> bool:
 
 def _all_profiles_base():
     return {
-        "type": "sqlserver",
+        "type": "fabric",
         "driver": os.getenv("SQLSERVER_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
         "port": int(os.getenv("SQLSERVER_TEST_PORT", "1433")),
         "retries": 2,
@@ -113,7 +113,7 @@ def _profile_ci_sql_server():
     return {
         **_all_profiles_base(),
         **{
-            "host": "sqlserver",
+            "host": "fabric",
             "user": "SA",
             "pass": "5atyaNadella",
             "database": "TestDB",

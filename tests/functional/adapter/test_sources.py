@@ -37,7 +37,7 @@ select * from {{ source("space in name", "VIEWS") }} with (nolock)
 """
 
 
-class TestSourcesSQLServer:
+class TestSourcesFabric:
     @pytest.fixture(scope="class")
     def models(self):
         return {
