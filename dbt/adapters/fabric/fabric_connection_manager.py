@@ -429,6 +429,10 @@ class FabricConnectionManager(SQLConnectionManager):
             if bindings is None:
                 cursor.execute(sql)
             else:
+                bindings = [
+                    binding if not isinstance(binding, dt.datetime) else binding.isoformat()
+                    for binding in bindings
+                ]
                 cursor.execute(sql, bindings)
 
             # convert DATETIMEOFFSET binary structures to datetime ojbects

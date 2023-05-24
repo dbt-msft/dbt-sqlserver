@@ -1,8 +1,5 @@
 {% macro fabric__create_table_as(temporary, relation, sql) -%}
 
-   {{ log("In CREATE_TABLE_AS Macro. " ~ relation, info=True) }}
-
-   {%- set as_columnstore = config.get('as_columnstore', default=false) -%}
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
@@ -17,7 +14,7 @@
 
    {{ log(relation.include(database=False), info=True) }}
 
-   CREATE TABLE {{ relation.include(database=False) }}
+   CREATE TABLE {{ relation.include(database=(not temporary), schema=(not temporary)) }}
    AS (SELECT * FROM {{ tmp_relation.include(database=False) }})
 
    {{ fabric__drop_relation_script(tmp_relation) }}

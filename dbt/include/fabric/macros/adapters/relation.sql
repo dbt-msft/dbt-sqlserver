@@ -78,6 +78,6 @@
       {% call statement('rename_relation') %}
         create table {{ to_relation.include(database=False) }} as select * from {{ from_relation.include(database=False) }}
       {%- endcall %}
-      {{ fabric__drop_relation(from_relation) }}
+      {{ sqlserver__drop_relation(from_relation) }}
   {% endif %}
 {% endmacro %}
