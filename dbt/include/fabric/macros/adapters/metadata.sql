@@ -1,3 +1,9 @@
+{% macro information_schema_hints() %}
+    {{ return(adapter.dispatch('information_schema_hints')()) }}
+{% endmacro %}
+
+{% macro default__information_schema_hints() %}{% endmacro %}
+{% macro fabric__information_schema_hints() %}{% endmacro %}
 
 {% macro fabric__get_catalog(information_schemas, schemas) -%}
 
