@@ -6,7 +6,8 @@ on:  # yamllint disable-line rule:truthy
       - 'devops/**'
       - '.github/workflows/publish-docker.yml'
     branches:
-      - 'master'
+      - master
+      - v*
 
 jobs:
   publish-docker-client:
