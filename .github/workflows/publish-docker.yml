@@ -40,32 +40,3 @@ jobs:
           platforms: linux/amd64
           target: ${{ matrix.docker_target }}
           tags: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-${{ matrix.docker_target }}
-
-  publish-docker-server:
-    strategy:
-      matrix:
-        mssql_version: ["2017", "2019", "2022"]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v2.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4.0.0
-        with:
-          context: devops
-          build-args: MSSQL_VERSION=${{ matrix.mssql_version }}
-          file: devops/server.Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository }}:server-${{ matrix.mssql_version }}
