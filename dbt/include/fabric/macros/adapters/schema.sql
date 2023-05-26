@@ -1,6 +1,6 @@
 {% macro fabric__create_schema(relation) -%}
   {% call statement('create_schema') -%}
-    USE [{{ relation.database }}];
+    {{ use_database_hint() }}
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
     EXEC('CREATE SCHEMA [{{ relation.schema }}]')
@@ -10,7 +10,7 @@
 
 {% macro fabric__create_schema_with_authorization(relation, schema_authorization) -%}
   {% call statement('create_schema') -%}
-    USE [{{ relation.database }}];
+    {{ use_database_hint() }}
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
     EXEC('CREATE SCHEMA [{{ relation.schema }}] AUTHORIZATION [{{ schema_authorization }}]')
@@ -31,8 +31,6 @@
   {%- endfor %}
 
   {% call statement('drop_schema') -%}
-      IF EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
-      BEGIN
-      EXEC('DROP SCHEMA {{ relation.schema }}')
-      END  {% endcall %}
+      EXEC('DROP SCHEMA IF EXISTS {{ relation.schema }}')
+  {% endcall %}
 {% endmacro %}

@@ -1,3 +1,12 @@
+{% macro use_database_hint() %}
+    {{ return(adapter.dispatch('use_database_hint')()) }}
+{% endmacro %}
+
+{% macro default__use_database_hint() %}{% endmacro %}
+{% macro fabric__use_database_hint() %}
+    {# USE [{{ relation.database }}]; #}
+{% endmacro %}
+
 {% macro information_schema_hints() %}
     {{ return(adapter.dispatch('information_schema_hints')()) }}
 {% endmacro %}
@@ -129,7 +138,7 @@
 
 {% macro fabric__list_schemas(database) %}
   {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
-    USE {{ database }};
+    {{ use_database_hint() }}
     select  name as [schema]
     from sys.schemas
   {% endcall %}
@@ -138,7 +147,7 @@
 
 {% macro fabric__check_schema_exists(information_schema, schema) -%}
   {% call statement('check_schema_exists', fetch_result=True, auto_begin=False) -%}
-    --USE {{ database_name }}
+
     SELECT count(*) as schema_exist FROM sys.schemas WHERE name = '{{ schema }}'
   {%- endcall %}
   {{ return(load_result('check_schema_exists').table) }}

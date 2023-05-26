@@ -28,7 +28,7 @@ class FabricAdapter(SQLAdapter):
 
         if self.config.credentials.schema_authorization:
             kwargs["schema_authorization"] = self.config.credentials.schema_authorization
-            macro_name = "sqlserver__create_schema_with_authorization"
+            macro_name = "fabric__create_schema_with_authorization"
 
         self.execute_macro(macro_name, kwargs=kwargs)
         self.commit_if_has_connection()

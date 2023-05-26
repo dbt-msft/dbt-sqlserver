@@ -14,7 +14,7 @@
 
 {% macro fabric__drop_relation_script(relation) -%}
     {% call statement('find_references', fetch_result=true) %}
-        USE [{{ relation.database }}];
+        {{ use_database_hint() }}
         select
             sch.name as schema_name,
             obj.name as view_name
@@ -43,11 +43,10 @@
     {%- else -%}
         {{ exceptions.raise_not_implemented('Invalid relation being dropped: ' ~ relation) }}
     {% endif %}
-    USE [{{ relation.database }}];
-    if object_id ('{{ relation.include(database=False) }}','{{ object_id_type }}') is not null
-        begin
-            drop {{ relation.type }} {{ relation.include(database=False) }}
-        end
+
+    {{ use_database_hint() }}
+    DROP {{ relation.type }} IF EXISTS {{ relation.include(database=False) }}
+
 {% endmacro %}
 
 {% macro fabric__rename_relation(from_relation, to_relation) -%}
@@ -60,24 +59,40 @@
         and TABLE_NAME = '{{ from_relation.identifier }}'
     {% endcall %}
     {% set view_def_full = load_result('get_view_definition')['data'][0][0] %}
-    {{ log("Found view definition " ~ view_def_full) }}
+
     {% set view_def_sql_matches = modules.re.match('^create\\s+view\\s+[0-9a-z.\\"\\[\\]_]+\\s+as\\s+\\(?(.*)\\)?\\s+;?\\s+$', view_def_full, modules.re.I) %}
     {% if not view_def_sql_matches %}
         {{ exceptions.raise_compiler_error("Could not extract view definition to rename") }}
     {% endif %}
     {% set view_def_sql = view_def_sql_matches.group(1) %}
-    {{ log("Found view SQL " ~ view_def_sql) }}
+
     {% call statement('create_new_view') %}
         {{ create_view_as(to_relation, view_def_sql) }}
     {% endcall %}
     {% call statement('drop_old_view') %}
-        drop view {{ from_relation.include(database=False) }};
+        DROP VIEW IF EXISTS {{ from_relation.include(database=False) }};
     {% endcall %}
   {% endif %}
   {% if from_relation.type == 'table' %}
       {% call statement('rename_relation') %}
         create table {{ to_relation.include(database=False) }} as select * from {{ from_relation.include(database=False) }}
       {%- endcall %}
-      {{ sqlserver__drop_relation(from_relation) }}
+      {{ fabric__drop_relation(from_relation) }}
   {% endif %}
+{% endmacro %}
+
+-- DROP synapsevnext__truncate_relation when TRUNCATE TABLE is supported
+{% macro fabric__truncate_relation(relation) -%}
+
+  {% set tempTableName %}
+    {{ relation.identifier.replace("#", "") }}_{{ range(21000, 109000) | random }}
+  {% endset %}
+
+  {% call statement('truncate_relation') -%}
+    CREATE TABLE {{ tempTableName }} AS SELECT * FROM {{ relation }} WHERE 1=2
+    DROP TABLE IF EXISTS {{ relation }}
+    CREATE TABLE {{ relation }} AS SELECT * FROM {{ tempTableName }}
+    DROP TABLE IF EXISTS {{ tempTableName }}
+  {%- endcall %}
+
 {% endmacro %}

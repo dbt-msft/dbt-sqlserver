@@ -9,13 +9,12 @@
    {% do run_query(fabric__drop_relation_script(tmp_relation)) %}
    {% do run_query(fabric__drop_relation_script(relation)) %}
 
-   USE [{{ relation.database }}];
-   EXEC('create view {{ tmp_relation.include(database=False) }} as {{ temp_view_sql }}');
+   {{ use_database_hint() }}
+   {{ fabric__create_view_as(tmp_relation, temp_view_sql) }}
+   {# EXEC('create view {{ tmp_relation.include(database=False) }} as {{ temp_view_sql }}'); #}
 
-   {{ log(relation.include(database=False), info=True) }}
-
-   CREATE TABLE {{ relation.include(database=(not temporary), schema=(not temporary)) }}
-   AS (SELECT * FROM {{ tmp_relation.include(database=False) }})
+   CREATE TABLE {{ relation }}
+   AS (SELECT * FROM {{ tmp_relation }})
 
    {{ fabric__drop_relation_script(tmp_relation) }}
 
