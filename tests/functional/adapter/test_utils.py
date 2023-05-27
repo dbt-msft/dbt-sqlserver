@@ -45,16 +45,16 @@ class BaseFixedMacro:
         }
 
 
-class TestAnyValueSQLServer(BaseFixedMacro, BaseAnyValue):
+class TestAnyValueFabric(BaseFixedMacro, BaseAnyValue):
     pass
 
 
 @pytest.mark.skip("bool_or not supported in this adapter")
-class TestBoolOrSQLServer(BaseFixedMacro, BaseBoolOr):
+class TestBoolOrFabric(BaseFixedMacro, BaseBoolOr):
     pass
 
 
-class TestCastBoolToTextSQLServer(BaseFixedMacro, BaseCastBoolToText):
+class TestCastBoolToTextFabric(BaseFixedMacro, BaseCastBoolToText):
     @pytest.fixture(scope="class")
     def models(self):
         models__test_cast_bool_to_text_sql = """
@@ -82,7 +82,7 @@ class TestCastBoolToTextSQLServer(BaseFixedMacro, BaseCastBoolToText):
         }
 
 
-class TestConcatSQLServer(BaseFixedMacro, BaseConcat):
+class TestConcatFabric(BaseFixedMacro, BaseConcat):
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
@@ -94,7 +94,7 @@ a,,a
         }
 
 
-class TestDateTruncSQLServer(BaseFixedMacro, BaseDateTrunc):
+class TestDateTruncFabric(BaseFixedMacro, BaseDateTrunc):
     pass
 
 
@@ -105,41 +105,41 @@ a,0cc175b9c0f1b6a831c399e269772661
 ,d41d8cd98f00b204e9800998ecf8427e"""
 
 
-class TestHashSQLServer(BaseFixedMacro, BaseHash):
+class TestHashFabric(BaseFixedMacro, BaseHash):
     @pytest.fixture(scope="class")
     def seeds(self):
         return {"data_hash.csv": seeds__data_hash_csv}
 
 
-class TestStringLiteralSQLServer(BaseFixedMacro, BaseStringLiteral):
+class TestStringLiteralFabric(BaseFixedMacro, BaseStringLiteral):
     pass
 
 
-class TestSplitPartSQLServer(BaseFixedMacro, BaseSplitPart):
+class TestSplitPartFabric(BaseFixedMacro, BaseSplitPart):
     pass
 
 
-class TestDateDiffSQLServer(BaseFixedMacro, BaseDateDiff):
+class TestDateDiffFabric(BaseFixedMacro, BaseDateDiff):
     pass
 
 
-class TestEscapeSingleQuotesSQLServer(BaseFixedMacro, BaseEscapeSingleQuotesQuote):
+class TestEscapeSingleQuotesFabric(BaseFixedMacro, BaseEscapeSingleQuotesQuote):
     pass
 
 
-class TestIntersectSQLServer(BaseFixedMacro, BaseIntersect):
+class TestIntersectFabric(BaseFixedMacro, BaseIntersect):
     pass
 
 
-class TestLastDaySQLServer(BaseFixedMacro, BaseLastDay):
+class TestLastDayFabric(BaseFixedMacro, BaseLastDay):
     pass
 
 
-class TestLengthSQLServer(BaseFixedMacro, BaseLength):
+class TestLengthFabric(BaseFixedMacro, BaseLength):
     pass
 
 
-class TestListaggSQLServer(BaseFixedMacro, BaseListagg):
+class TestListaggFabric(BaseFixedMacro, BaseListagg):
     #  Only supported in SQL Server 2017 and later or cloud versions
     #  DISTINCT not supported
     #  limit not supported
@@ -221,15 +221,15 @@ and calculate.version = data_output.version
         }
 
 
-class TestRightSQLServer(BaseFixedMacro, BaseRight):
+class TestRightFabric(BaseFixedMacro, BaseRight):
     pass
 
 
-class TestSafeCastSQLServer(BaseFixedMacro, BaseSafeCast):
+class TestSafeCastFabric(BaseFixedMacro, BaseSafeCast):
     pass
 
 
-class TestDateAddSQLServer(BaseFixedMacro, BaseDateAdd):
+class TestDateAddFabric(BaseFixedMacro, BaseDateAdd):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -247,32 +247,32 @@ class TestDateAddSQLServer(BaseFixedMacro, BaseDateAdd):
         }
 
 
-class TestExceptSQLServer(BaseFixedMacro, BaseExcept):
+class TestExceptFabric(BaseFixedMacro, BaseExcept):
     pass
 
 
-class TestPositionSQLServer(BaseFixedMacro, BasePosition):
+class TestPositionFabric(BaseFixedMacro, BasePosition):
     pass
 
 
-class TestReplaceSQLServer(BaseFixedMacro, BaseReplace):
+class TestReplaceFabric(BaseFixedMacro, BaseReplace):
     pass
 
 
-class TestCurrentTimestampSQLServer(BaseCurrentTimestampNaive):
+class TestCurrentTimestampFabric(BaseCurrentTimestampNaive):
     pass
 
 
 @pytest.mark.skip(reason="arrays not supported")
-class TestArrayAppendSQLServer(BaseFixedMacro, BaseArrayAppend):
+class TestArrayAppendFabric(BaseFixedMacro, BaseArrayAppend):
     pass
 
 
 @pytest.mark.skip(reason="arrays not supporteTd")
-class TestArrayConcatSQLServer(BaseFixedMacro, BaseArrayConcat):
+class TestArrayConcatFabric(BaseFixedMacro, BaseArrayConcat):
     pass
 
 
 @pytest.mark.skip(reason="arrays not supported")
-class TestArrayConstructSQLServer(BaseFixedMacro, BaseArrayConstruct):
+class TestArrayConstructFabric(BaseFixedMacro, BaseArrayConstruct):
     pass

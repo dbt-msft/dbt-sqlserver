@@ -16,12 +16,6 @@
 {% macro fabric__get_delete_insert_merge_sql(target, source, unique_key, dest_columns, incremental_predicates=none) %}
     {%- set dest_cols_csv = get_quoted_csv(dest_columns | map(attribute="name")) -%}
 
-    {{ log("target: "~ target, info=True) }}
-      {{ log("source: "~ source, info=True) }}
-      {{ log("unique_key: "~ unique_key, info=True) }}
-      {{ log("destination columns: "~ dest_columns, info=True) }}
-      {{ log("dest_cols_csv: "~ dest_cols_csv, info=True) }}
-
     {% if unique_key %}
         {% if unique_key is sequence and unique_key is not string %}
             delete from {{ target }}

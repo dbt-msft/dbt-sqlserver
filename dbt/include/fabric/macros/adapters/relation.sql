@@ -52,22 +52,60 @@
 {% macro fabric__rename_relation(from_relation, to_relation) -%}
   {% if from_relation.type == 'view' %}
     {% call statement('get_view_definition', fetch_result=True) %}
-        select VIEW_DEFINITION
-        from INFORMATION_SCHEMA.VIEWS
-        where TABLE_CATALOG = '{{ from_relation.database }}'
-        and TABLE_SCHEMA = '{{ from_relation.schema }}'
-        and TABLE_NAME = '{{ from_relation.identifier }}'
+        SELECT LOWER(m.[definition]) AS VIEW_DEFINITION
+        FROM sys.objects o
+        INNER JOIN sys.sql_modules m
+            ON m.[object_id] = o.[object_id]
+        INNER JOIN sys.views v
+            ON o.[object_id] = v.[object_id]
+        INNER JOIN sys.schemas s
+            ON o.schema_id = s.schema_id
+            AND s.schema_id = v.schema_id
+        WHERE s.name = '{{ from_relation.schema }}'
+            AND v.name = '{{ from_relation.identifier }}'
+            AND o.[type] = 'V';
     {% endcall %}
     {% set view_def_full = load_result('get_view_definition')['data'][0][0] %}
 
-    {% set view_def_sql_matches = modules.re.match('^create\\s+view\\s+[0-9a-z.\\"\\[\\]_]+\\s+as\\s+\\(?(.*)\\)?\\s+;?\\s+$', view_def_full, modules.re.I) %}
+    {{ log("logging full view definition- " ~ view_def_full, info=True) }}
+
+    {%set view_name = from_relation.identifier.replace("\"","") %}
+    {%set schema_name = from_relation.schema.replace("\"","") %}
+
+    {{ log("view_name - " ~ view_name, info=True) }}
+    {{ log("schema_name - " ~ schema_name, info=True) }}
+
+    {% set final_view_sql = view_def_full.replace("create view ", "") %}
+
+    {%set doublequoteview = "\""~schema_name~"\""~".\""~view_name~"\" as "%}
+    {{ log("doublequoteview - " ~ doublequoteview, info=True) }}
+    {% set final_view_sql = final_view_sql.replace(doublequoteview, "") %}
+    {{ log("Final view after double brackets - " ~ final_view_sql, info=True) }}
+    {{ log("final_view_sql - " ~ final_view_sql, info=True) }}
+
+
+    {%set squarebracketview = "["~schema_name~"]"~".["~view_name~"] as "%}
+    {{ log("squarebracketview - " ~ squarebracketview, info=True) }}
+    {% set final_view_sql = final_view_sql.replace(squarebracketview, "") %}
+    {% set final_view_sql = final_view_sql.replace(doublequoteview, "") %}
+    {{ log("Final view after square brackets - " ~ final_view_sql, info=True) }}
+
+    {%set regularview = schema_name~"."~view_name~ "as "%}
+    {{ log("regularview - " ~ regularview, info=True) }}
+    {% set final_view_sql = final_view_sql.replace(regularview, "") %}
+    {% set final_view_sql = final_view_sql.replace(regularview, "") %}
+    {{ log("Final view after regular view - " ~ final_view_sql, info=True) }}
+
+{#
+    {% set view_def_sql_matches = modules.re.match('(create\s+view\s+[0-9a-z.\"\[\]_]+\s+as)[.|\n|\W|\w]*', view_def_full, modules.re.I) %}
+
     {% if not view_def_sql_matches %}
         {{ exceptions.raise_compiler_error("Could not extract view definition to rename") }}
     {% endif %}
-    {% set view_def_sql = view_def_sql_matches.group(1) %}
-
+    {% set final_view_sql = view_def_full.replace(view_def_sql_matches.group(1), "") %}
+#}
     {% call statement('create_new_view') %}
-        {{ create_view_as(to_relation, view_def_sql) }}
+        {{ create_view_as(to_relation, final_view_sql) }}
     {% endcall %}
     {% call statement('drop_old_view') %}
         DROP VIEW IF EXISTS {{ from_relation.include(database=False) }};
@@ -80,6 +118,8 @@
       {{ fabric__drop_relation(from_relation) }}
   {% endif %}
 {% endmacro %}
+
+
 
 -- DROP synapsevnext__truncate_relation when TRUNCATE TABLE is supported
 {% macro fabric__truncate_relation(relation) -%}

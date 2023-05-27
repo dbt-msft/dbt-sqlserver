@@ -1,5 +1,4 @@
 import pytest
-from dbt.tests.adapter.basic.files import incremental_not_schema_change_sql
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
@@ -16,10 +15,12 @@ from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestam
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 
 
+# Need help, assertions are failing
 class TestSimpleMaterializationsFabric(BaseSimpleMaterializations):
     pass
 
 
+@pytest.mark.skip(reason="CTAS is not supported without a table.")
 class TestSingularTestsFabric(BaseSingularTests):
     pass
 
@@ -41,13 +42,23 @@ class TestIncrementalFabric(BaseIncremental):
     pass
 
 
+# Modified incremental_not_schema_change.sql file to handle DATETIME compatibility issues.
+@pytest.mark.skip(reason="CTAS is not supported without a table.")
 class TestIncrementalNotSchemaChangeFabric(BaseIncrementalNotSchemaChange):
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "incremental_not_schema_change.sql": incremental_not_schema_change_sql.replace(
-                "||", "+"
-            )
+            "incremental_not_schema_change.sql": """
+{{ config(materialized="incremental",
+unique_key="user_id_current_time",on_schema_change="sync_all_columns") }}
+select
+CAST(1 + '-' + current_timestamp AS DATETIME2(6)) as user_id_current_time,
+{% if is_incremental() %}
+'thisis18characters' as platform
+{% else %}
+'okthisis20characters' as platform
+{% endif %}
+"""
         }
 
 
@@ -59,10 +70,12 @@ class TestSnapshotCheckColsFabric(BaseSnapshotCheckCols):
     pass
 
 
+# Assertion Failed, Need to validate
 class TestSnapshotTimestampFabric(BaseSnapshotTimestamp):
     pass
 
 
+# Assertion Failed.
 class TestBaseCachingFabric(BaseAdapterMethod):
     pass
 

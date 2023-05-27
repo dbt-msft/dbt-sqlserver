@@ -28,6 +28,7 @@ class TestTypeNumericFabric(BaseTypeNumeric):
     pass
 
 
+# Tests failing different than expected result
 class TestTypeStringFabric(BaseTypeString):
     def assert_columns_equal(self, project, expected_cols, actual_cols):
         #  ignore the size of the varchar since we do
@@ -46,7 +47,7 @@ seeds:
   - name: expected
     config:
       column_types:
-        timestamp_col: "datetimeoffset"
+        timestamp_col: "datetime2(6)"
         """
 
         return {

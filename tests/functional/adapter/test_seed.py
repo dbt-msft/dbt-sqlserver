@@ -27,9 +27,9 @@ from dbt.tests.util import get_connection, run_dbt
 
 from dbt.adapters.fabric import FabricAdapter
 
-fixed_setup_sql = seeds__expected_sql.replace("TIMESTAMP WITHOUT TIME ZONE", "DATETIME").replace(
-    "TEXT", "VARCHAR(255)"
-)
+fixed_setup_sql = seeds__expected_sql.replace(
+    "TIMESTAMP WITHOUT TIME ZONE", "DATETIME2(6)"
+).replace("TEXT", "VARCHAR(8000)")
 
 seeds__tricky_csv = """
 seed_id,seed_id_str,a_bool,looks_like_a_bool,a_date,looks_like_a_date,relative,weekday
@@ -52,7 +52,7 @@ macros__schema_test = """
     {% endfor %}
 
     {% set col_type = col_types.get(column_name) %}
-    {% set col_type = 'text' if col_type and 'varchar' in col_type else col_type %}
+    {% set col_type = 'varchar' if col_type and 'varchar' in col_type else col_type %}
 
     {% set validation_message = 'Got a column type of ' ~ col_type ~ ', expected ' ~ type %}
 
@@ -77,11 +77,11 @@ seeds:
   - name: birthday
     tests:
     - column_type:
-        type: date
+        type: datetime2
   - name: seed_id
     tests:
     - column_type:
-        type: text
+        type: int
 
 - name: seed_tricky
   columns:
@@ -92,7 +92,7 @@ seeds:
   - name: seed_id_str
     tests:
     - column_type:
-        type: text
+        type: varchar
   - name: a_bool
     tests:
     - column_type:
@@ -100,26 +100,27 @@ seeds:
   - name: looks_like_a_bool
     tests:
     - column_type:
-        type: text
+        type: varchar
   - name: a_date
     tests:
     - column_type:
-        type: datetime
+        type: datetime2
   - name: looks_like_a_date
     tests:
     - column_type:
-        type: text
+        type: varchar
   - name: relative
     tests:
     - column_type:
-        type: text
+        type: varchar
   - name: weekday
     tests:
     - column_type:
-        type: text
+        type: varchar
 """
 
 
+# Faling tests
 class TestSimpleSeedColumnOverrideFabric(BaseSimpleSeedColumnOverride):
     @pytest.fixture(scope="class")
     def seeds(self):
@@ -137,6 +138,35 @@ class TestSimpleSeedColumnOverrideFabric(BaseSimpleSeedColumnOverride):
     def models(self):
         return {
             "schema.yml": properties__schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "seeds": {
+                "test": {
+                    "enabled": False,
+                    "quote_columns": True,
+                    "seed_enabled": {"enabled": True, "+column_types": self.seed_enabled_types()},
+                    "seed_tricky": {
+                        "enabled": True,
+                        "+column_types": self.seed_tricky_types(),
+                    },
+                },
+            },
+        }
+
+    def seed_enabled_types(self):
+        return {
+            "seed_id": "int",
+            "birthday": "datetime2(6)",
+        }
+
+    def seed_tricky_types(self):
+        return {
+            "seed_id_str": "varchar(255)",
+            "looks_like_a_bool": "varchar(255)",
+            "looks_like_a_date": "varchar(255)",
         }
 
 

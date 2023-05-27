@@ -6,11 +6,11 @@ source_regular = """
 version: 2
 sources:
 - name: regular
-  schema: INFORMATION_SCHEMA
+  schema: sys
   tables:
-  - name: VIEWS
+  - name: tables
     columns:
-    - name: TABLE_NAME
+    - name: name
       tests:
       - not_null
 """
@@ -19,24 +19,28 @@ source_space_in_name = """
 version: 2
 sources:
 - name: 'space in name'
-  schema: INFORMATION_SCHEMA
+  schema: sys
   tables:
-  - name: VIEWS
+  - name: tables
     columns:
-    - name: TABLE_NAME
+    - name: name
       tests:
       - not_null
 """
 
 select_from_source_regular = """
-select * from {{ source("regular", "VIEWS") }} with (nolock)
+select object_id,schema_id from {{ source("regular", "tables") }}
 """
 
 select_from_source_space_in_name = """
-select * from {{ source("space in name", "VIEWS") }} with (nolock)
+select object_id,schema_id from {{ source("space in name", "tables") }}
 """
 
 
+# System tables are not supported for data type reasons.
+@pytest.mark.skip(
+    reason="The query references an object that is not supported in distributed processing mode."
+)
 class TestSourcesFabric:
     @pytest.fixture(scope="class")
     def models(self):

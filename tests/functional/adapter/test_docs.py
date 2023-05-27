@@ -16,6 +16,7 @@ from dbt.tests.adapter.basic.test_docs_generate import (
 )
 
 
+# Assertion Failures
 class TestDocsGenerateFabric(BaseDocsGenerate):
     @staticmethod
     @pytest.fixture(scope="class")
@@ -36,6 +37,7 @@ class TestDocsGenerateFabric(BaseDocsGenerate):
         )
 
 
+# SQl errors
 class TestDocsGenReferencesFabric(BaseDocsGenReferences):
     @staticmethod
     @pytest.fixture(scope="class")
