@@ -53,10 +53,6 @@
   {%- endcall %}
 {% endmacro %}
 
-{% macro synapsevnext__get_true_sql() %}
-  {{ return('1=1') }}
-{% endmacro %}
-
 {% macro fabric__get_true_sql() %}
   {{ return('1=1') }}
 {% endmacro %}

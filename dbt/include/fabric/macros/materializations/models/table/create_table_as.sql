@@ -9,12 +9,10 @@
    {% do run_query(fabric__drop_relation_script(tmp_relation)) %}
    {% do run_query(fabric__drop_relation_script(relation)) %}
 
-   {{ use_database_hint() }}
    {{ fabric__create_view_as(tmp_relation, temp_view_sql) }}
    {# EXEC('create view {{ tmp_relation.include(database=False) }} as {{ temp_view_sql }}'); #}
 
-   CREATE TABLE {{ relation.include(database=False) }}
-   AS (SELECT * FROM {{ tmp_relation.include(database=False) }})
+   EXEC('CREATE TABLE {{ relation.include(database=False) }} AS (SELECT * FROM {{ tmp_relation.include(database=False) }});');
 
    {{ fabric__drop_relation_script(tmp_relation) }}
 

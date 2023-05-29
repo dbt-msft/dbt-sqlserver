@@ -4,8 +4,7 @@
 
 {% macro fabric__create_view_exec(relation, sql) -%}
     {#- TODO: add contracts here when in dbt 1.5 -#}
-    {# {%- set temp_view_sql = sql.replace("''", "'") -%}
-    {%- set temp_view_sql = sql.replace("'", "''") -%} #}
+    {%- set temp_view_sql = sql.replace("'", "''") -%}
     {{ use_database_hint() }}
-    create view {{ relation.include(database=False) }} as {{ sql }}
+    EXEC('create view {{ relation.include(database=False) }} as {{ temp_view_sql }};');
 {% endmacro %}

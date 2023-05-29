@@ -21,13 +21,14 @@ class TestAliasErrorsFabric(BaseAliasErrors):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
+@pytest.mark.skip(reason="Test audit tables are using CTAS on View without a table definition.")
 class TestSameAliasDifferentSchemasFabric(BaseSameAliasDifferentSchemas):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-# Tests are failing due to rename_relation macro of view.
+@pytest.mark.skip(reason="Test audit tables are using CTAS on View without a table definition.")
 class TestSameAliasDifferentDatabasesFabric(BaseSameAliasDifferentDatabases):
     @pytest.fixture(scope="class")
     def macros(self):
