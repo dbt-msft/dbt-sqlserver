@@ -2,14 +2,9 @@
 name: Integration tests on Azure
 on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
-  push:
-    branches:
-      - master
-      - v*
   pull_request:
     branches:
       - master
-      - v*
 
 jobs:
   integration-tests-azure:
@@ -44,5 +39,5 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.DBT_AZURE_SP_NAME }}
           AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}
-          SQLSERVER_TEST_DRIVER: 'ODBC Driver ${{ matrix.msodbc_version }} for SQL Server'
+          FABRIC_TEST_DRIVER: 'ODBC Driver ${{ matrix.msodbc_version }} for SQL Server'
         run: pytest -ra -v tests/functional --profile "${{ matrix.profile }}"
