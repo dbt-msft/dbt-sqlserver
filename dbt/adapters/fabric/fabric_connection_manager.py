@@ -79,7 +79,7 @@ def get_cli_access_token(credentials: FabricCredentials) -> AccessToken:
 
     Parameters
     ----------
-    credentials: SQLServerConnectionManager
+    credentials: FabricConnectionManager
         The credentials.
 
     Returns
@@ -98,7 +98,7 @@ def get_msi_access_token(credentials: FabricCredentials) -> AccessToken:
 
     Parameters
     -----------
-    credentials: SQLServerCredentials
+    credentials: FabricCredentials
         Credentials.
 
     Returns
@@ -116,7 +116,7 @@ def get_auto_access_token(credentials: FabricCredentials) -> AccessToken:
 
     Parameters
     -----------
-    credentials: SQLServerCredentials
+    credentials: FabricCredentials
         Credentials.
 
     Returns
@@ -134,7 +134,7 @@ def get_environment_access_token(credentials: FabricCredentials) -> AccessToken:
 
     Parameters
     -----------
-    credentials: SQLServerCredentials
+    credentials: FabricCredentials
         Credentials.
 
     Returns
@@ -152,7 +152,7 @@ def get_sp_access_token(credentials: FabricCredentials) -> AccessToken:
 
     Parameters
     ----------
-    credentials : SQLServerCredentials
+    credentials : FabricCredentials
         Credentials.
 
     Returns
@@ -181,7 +181,7 @@ def get_pyodbc_attrs_before(credentials: FabricCredentials) -> Dict:
 
     Parameters
     ----------
-    credentials : SQLServerCredentials
+    credentials : FabricCredentials
         Credentials.
 
     Returns

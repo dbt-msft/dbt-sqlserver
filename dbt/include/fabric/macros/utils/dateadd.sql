@@ -3,7 +3,7 @@
     dateadd(
         {{ datepart }},
         {{ interval }},
-        cast({{ from_date_or_timestamp }} as datetime)
+        cast({{ from_date_or_timestamp }} as datetime2(6))
         )
 
 {% endmacro %}

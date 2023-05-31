@@ -7,7 +7,7 @@ from setuptools import find_namespace_packages, setup
 from setuptools.command.install import install
 
 package_name = "dbt-fabric"
-authors_list = ["Sam Debruyn", "Pradeep Srikakolapu"]
+authors_list = ["Pradeep Srikakolapu"]
 dbt_version = "1.4"
 description = """A Microsoft Fabric Synapse Data Warehouse adapter plugin for dbt"""
 
@@ -87,9 +87,9 @@ setup(
     ],
     # TODO
     project_urls={
-        "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile",  # noqa: E501
-        "Documentation & usage": "https://docs.getdbt.com/reference/resource-configs/mssql-configs",  # noqa: E501
-        "Changelog": "https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md",  # noqa: E501
-        "Issue Tracker": "https://github.com/dbt-msft/dbt-sqlserver/issues",  # noqa: E501
+        "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/fabric-profile",  # noqa: E501
+        "Documentation & usage": "https://docs.getdbt.com/reference/resource-configs/fabric-configs",  # noqa: E501
+        "Changelog": "https://github.com/microsoft/dbt-fabric/blob/master/CHANGELOG.md",  # noqa: E501
+        "Issue Tracker": "https://github.com/microsoft/dbt-fabric/issues",  # noqa: E501
     },
 )

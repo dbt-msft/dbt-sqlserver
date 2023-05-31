@@ -21,9 +21,9 @@ CHECK_OUTPUT = AzureCliCredential.__module__ + ".subprocess.check_output"
 def credentials() -> FabricCredentials:
     credentials = FabricCredentials(
         driver="ODBC Driver 17 for SQL Server",
-        host="fake.sql.sqlserver.net",
+        host="fake.sql.fabric.net",
         database="dbt",
-        schema="sqlserver",
+        schema="fabric",
     )
     return credentials
 
