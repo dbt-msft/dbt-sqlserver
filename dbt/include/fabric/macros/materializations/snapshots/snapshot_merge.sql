@@ -22,7 +22,5 @@
 
   INSERT INTO {{ target_table }} ({{ insert_cols_csv }})
   SELECT {{target_columns}} FROM {{ source_table }} as DBT_INTERNAL_SOURCE
-  INNER JOIN {{ target_table }} as DBT_INTERNAL_DEST
-  on DBT_INTERNAL_SOURCE.dbt_scd_id = DBT_INTERNAL_DEST.dbt_scd_id
   WHERE  DBT_INTERNAL_SOURCE.dbt_change_type = 'insert';
 {% endmacro %}

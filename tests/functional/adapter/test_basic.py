@@ -66,12 +66,10 @@ class TestGenericTestsFabric(BaseGenericTests):
     pass
 
 
-# Failing due to additional single quotes added
 class TestSnapshotCheckColsFabric(BaseSnapshotCheckCols):
     pass
 
 
-# Failing due to additional single quotes added
 class TestSnapshotTimestampFabric(BaseSnapshotTimestamp):
     pass
 

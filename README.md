@@ -31,13 +31,13 @@ sudo apt-get install -y unixodbc-dev
 </p>
 </details>
 
-Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-sqlserver?label=latest%20stable&logo=pypi): TODO
+Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-fabric?label=latest%20stable&logo=pypi): TODO
 
 ```shell
 pip install -U dbt-fabric
 ```
 
-Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/microsoft/dbt-sqlserver?include_prereleases&label=latest%20pre-release&logo=pypi): TODO
+Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/microsoft/dbt-fabric?include_prereleases&label=latest%20pre-release&logo=pypi): TODO
 
 ```shell
 pip install -U --pre dbt-fabric
@@ -49,18 +49,18 @@ See [the changelog](CHANGELOG.md)
 
 ## Contributing
 
-[![Unit tests](https://github.com/microsoft/dbt-fabric/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/microsoft/dbt-sqlserver/actions/workflows/unit-tests.yml)
-[![Integration tests on Microsoft Fabric Synapse Data Warehouse](https://github.com/microsoft/dbt-fabric/actions/workflows/integration-tests-sqlserver.yml/badge.svg)](https://github.com/microsoft/dbt-fabric/actions/workflows/integration-tests-sqlserver.yml)
+[![Unit tests](https://github.com/microsoft/dbt-fabric/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/microsoft/dbt-fabric/actions/workflows/unit-tests.yml)
 [![Integration tests on Azure](https://github.com/microsoft/dbt-fabric/actions/workflows/integration-tests-azure.yml/badge.svg)](https://github.com/microsoft/dbt-fabric/actions/workflows/integration-tests-azure.yml)
+[![Publish Docker images for CI/CD](https://github.com/microsoft/dbt-fabric/actions/workflows/publish-docker.yml/badge.svg)](https://github.com/microsoft/dbt-fabric/actions/workflows/publish-docker.yml)
 
-This adapter is community-maintained.
+This adapter is Microsoft-maintained.
 You are welcome to contribute by creating issues, opening or reviewing pull requests.
 If you're unsure how to get started, check out our [contributing guide](CONTRIBUTING.md).
 
 ## License
 
-[![PyPI - License](https://img.shields.io/pypi/l/dbt-fabric)](https://github.com/microsoft/dbt-fabric/blob/master/LICENSE)
+[![PyPI - License](https://img.shields.io/pypi/l/dbt-fabric)](https://github.com/microsoft/dbt-fabric/blob/main/LICENSE)
 
 ## Code of Conduct
 
-This project and everyone involved is expected to follow the [Microsoft Code of Conduct](https://community.getdbt.com/code-of-conduct).
+This project and everyone involved is expected to follow the [Microsoft Code of Conduct](https://opensource.microsoft.com/codeofconduct/).

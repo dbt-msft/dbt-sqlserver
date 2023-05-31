@@ -120,7 +120,7 @@ seeds:
 """
 
 
-# Faling tests
+@pytest.mark.skip(reason="Test audit tables are using CTAS on View without a table definition.")
 class TestSimpleSeedColumnOverrideFabric(BaseSimpleSeedColumnOverride):
     @pytest.fixture(scope="class")
     def seeds(self):
