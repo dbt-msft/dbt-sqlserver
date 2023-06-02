@@ -61,7 +61,6 @@
                 AND c.COLUMN_NAME <> REPLACE('{{column_name}}','"','')
         ) T
     {% endset %}
-    {{ log(generate_tmp_relation_script, info=True) }}
 
     {%- set query_result = run_query(generate_tmp_relation_script) -%}
     {%- set query_result_text = query_result.rows[0][0] -%}
@@ -74,8 +73,6 @@
         CREATE TABLE {{tempTableName}}
         AS SELECT {{query_result_text}}, CAST({{ column_name }} AS {{new_column_type}}) AS {{column_name}} FROM {{ relation.schema }}.{{ relation.identifier }}
     {% endset %}
-
-    {{ log(tempTable, info=True) }}
 
     {% call statement('create_temp_table') -%}
         {{ tempTable }}

@@ -38,9 +38,6 @@
             path={"schema": reference[0], "identifier": reference[1]})) }}
     {% endfor %}
 
-    {{ log("Name of the relation: "~ relation.include(database=False) , info=True) }}
-    {{ log("Type of the relation: "~ relation.type, info=True) }}
-
     {% if relation.type == 'view' -%}
         {% set object_id_type = 'V' %}
     {% elif relation.type == 'table'%}

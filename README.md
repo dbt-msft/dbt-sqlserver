@@ -9,8 +9,8 @@ E.g. version 1.1.x of the adapter will be compatible with dbt-core 1.1.x.
 
 We've bundled all documentation on the dbt docs site:
 TODO
-* [Profile setup & authentication](https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile)
-* [Adapter documentation, usage and important notes](https://docs.getdbt.com/reference/resource-configs/mssql-configs)
+* [Profile setup & authentication](https://docs-getdbt-com.netlify.app/reference/warehouse-setups/fabric-setup)
+* [Adapter documentation, usage and important notes](https://docs-getdbt-com.netlify.app/reference/resource-configs/fabric-configs)
 
 ## Installation
 
@@ -31,16 +31,10 @@ sudo apt-get install -y unixodbc-dev
 </p>
 </details>
 
-Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-fabric?label=latest%20stable&logo=pypi): TODO
+Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-fabric?label=latest&logo=pypi)
 
 ```shell
 pip install -U dbt-fabric
-```
-
-Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/microsoft/dbt-fabric?include_prereleases&label=latest%20pre-release&logo=pypi): TODO
-
-```shell
-pip install -U --pre dbt-fabric
 ```
 
 ## Changelog
