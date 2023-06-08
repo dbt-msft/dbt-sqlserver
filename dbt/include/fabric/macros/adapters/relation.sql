@@ -67,19 +67,11 @@
             AND v.name = '{{ from_relation.identifier }}'
             AND o.[type] = 'V';
     {% endcall %}
+
     {% set view_def_full = load_result('get_view_definition')['data'][0][0] %}
+    {# Jinja does not allow bitwise operators and we need re.I | re.M here. So calculated manually this becomes 10. #}
+    {% set final_view_sql = modules.re.sub("create\s+view\s+.*?\s+as\s+","",view_def_full, 10) %}
 
-    {%set view_name = from_relation.identifier.replace("\"","") %}
-    {%set schema_name = from_relation.schema.replace("\"","") %}
-
-    {% set final_view_sql = modules.re.sub("create view ","",view_def_full, modules.re.I) %}
-    {%set doublequoteview = "\""~schema_name~"\""~".\""~view_name~"\" as "%}
-    {% set final_view_sql = modules.re.sub(doublequoteview,"",final_view_sql, modules.re.I) %}
-
-    {%set squarebracketview = "["~schema_name~"]"~".["~view_name~"] as "%}
-    {% set final_view_sql = modules.re.sub(squarebracketview,"",final_view_sql, modules.re.I) %}
-    {%set regularview = schema_name~"."~view_name~ "as "%}
-    {% set final_view_sql = modules.re.sub(regularview,"",final_view_sql, modules.re.I) %}
     {% call statement('create_new_view') %}
         {{ create_view_as(to_relation, final_view_sql) }}
     {% endcall %}
@@ -89,7 +81,7 @@
   {% endif %}
   {% if to_relation.type == 'table' %}
       {% call statement('rename_relation') %}
-        EXEC('create table {{ to_relation.include(database=False) }} as select * from {{ from_relation.include(database=False) }};');
+        EXEC('create table {{ to_relation.include(database=False) }} as select * from {{ from_relation.include(database=False) }}');
       {%- endcall %}
       {{ fabric__drop_relation(from_relation) }}
   {% endif %}
