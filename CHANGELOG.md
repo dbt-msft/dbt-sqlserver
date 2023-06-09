@@ -1,6 +1,11 @@
 # Changelog
 
-### pr. preview 1.4.3
+### v1.4.0-rc2
+
+Fixed view rename relation macro.
+Bumped required python packages versions.
+
+### v1.4.0-rc1
 
 Requires dbt 1.4.5 and previous versions are not supported by Fabric Data Warehouse. Microsoft is actively releasing/adding T-SQL support. Please raise issues in case of any bugs.
 
