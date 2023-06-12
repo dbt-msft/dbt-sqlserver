@@ -7,10 +7,9 @@ E.g. version 1.1.x of the adapter will be compatible with dbt-core 1.1.x.
 
 ## Documentation
 
-We've bundled all documentation on the dbt docs site:
-TODO
-* [Profile setup & authentication](https://docs-getdbt-com.netlify.app/reference/warehouse-setups/fabric-setup)
-* [Adapter documentation, usage and important notes](https://docs-getdbt-com.netlify.app/reference/resource-configs/fabric-configs)
+We've bundled all documentation on the dbt docs site
+* [Profile setup & authentication](https://docs.getdbt.com/docs/core/connect-data-platform/fabric-setup)
+* [Adapter documentation, usage and important notes](https://docs.getdbt.com/reference/resource-configs/fabric-configs)
 
 ## Installation
 
