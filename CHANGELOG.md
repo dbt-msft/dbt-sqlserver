@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.4.0-rc3
+
+Updated connection property to track dbt telemetry
+
 ### v1.4.0-rc2
 
 Fixed view rename relation macro.
