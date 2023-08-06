@@ -3,7 +3,7 @@ import struct
 import time
 from contextlib import contextmanager
 from itertools import chain, repeat
-from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 
 import agate
 import dbt.exceptions
@@ -29,6 +29,27 @@ _TOKEN: Optional[AccessToken] = None
 AZURE_AUTH_FUNCTION_TYPE = Callable[[FabricCredentials], AccessToken]
 
 logger = AdapterLogger("fabric")
+
+# https://github.com/mkleehammer/pyodbc/wiki/Data-Types
+datatypes = {
+    # "str": "char",
+    "str": "varchar",
+    "uuid.UUID": "uniqueidentifier",
+    "uuid": "uniqueidentifier",
+    # "float": "real",
+    # "float": "float",
+    "float": "bigint",
+    # "int": "smallint",
+    # "int": "tinyint",
+    "int": "int",
+    "bytes": "varbinary",
+    "bool": "bit",
+    "datetime.date": "date",
+    "datetime.datetime": "datetime2(6)",
+    "datetime.time": "time",
+    "decimal.Decimal": "decimal",
+    # "decimal.Decimal": "numeric",
+}
 
 
 def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
@@ -468,6 +489,11 @@ class FabricConnectionManager(SQLConnectionManager):
             # code=code,
             rows_affected=rows,
         )
+
+    @classmethod
+    def data_type_code_to_name(cls, type_code: Union[str, str]) -> str:
+        data_type = str(type_code)[str(type_code).index("'") + 1 : str(type_code).rindex("'")]
+        return datatypes[data_type]
 
     def execute(
         self, sql: str, auto_begin: bool = True, fetch: bool = False

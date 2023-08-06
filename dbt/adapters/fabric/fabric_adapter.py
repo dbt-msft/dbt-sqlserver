@@ -1,12 +1,18 @@
 from typing import List, Optional
 
 import agate
+from dbt.adapters.base import Column as BaseColumn
+
+# from dbt.events.functions import fire_event
+# from dbt.events.types import SchemaCreation
+from dbt.adapters.base.impl import ConstraintSupport
+from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.cache import _make_ref_key_msg
+
+# from dbt.adapters.cache import _make_ref_key_msg
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME
-from dbt.events.functions import fire_event
-from dbt.events.types import SchemaCreation
+from dbt.contracts.graph.nodes import ColumnLevelConstraint, ConstraintType, ModelLevelConstraint
 
 from dbt.adapters.fabric.fabric_column import FabricColumn
 from dbt.adapters.fabric.fabric_configs import FabricConfigs
@@ -18,9 +24,44 @@ class FabricAdapter(SQLAdapter):
     Column = FabricColumn
     AdapterSpecificConfigs = FabricConfigs
 
+    CONSTRAINT_SUPPORT = {
+        ConstraintType.check: ConstraintSupport.NOT_SUPPORTED,
+        ConstraintType.not_null: ConstraintSupport.ENFORCED,
+        ConstraintType.unique: ConstraintSupport.ENFORCED,
+        ConstraintType.primary_key: ConstraintSupport.ENFORCED,
+        ConstraintType.foreign_key: ConstraintSupport.ENFORCED,
+    }
+
+    @available.parse(lambda *a, **k: [])
+    def get_column_schema_from_query(self, sql: str) -> List[BaseColumn]:
+        """Get a list of the Columns with names and data types from the given sql."""
+        _, cursor = self.connections.add_select_query(sql)
+
+        columns = [
+            self.Column.create(
+                column_name, self.connections.data_type_code_to_name(column_type_code)
+            )
+            # https://peps.python.org/pep-0249/#description
+            for column_name, column_type_code, *_ in cursor.description
+        ]
+        return columns
+
+    @classmethod
+    def convert_boolean_type(cls, agate_table, col_idx):
+        return "bit"
+
+    @classmethod
+    def convert_datetime_type(cls, agate_table, col_idx):
+        return "datetime2(6)"
+
+    @classmethod
+    def convert_number_type(cls, agate_table, col_idx):
+        decimals = agate_table.aggregate(agate.MaxPrecision(col_idx))
+        return "float" if decimals else "int"
+
     def create_schema(self, relation: BaseRelation) -> None:
         relation = relation.without_identifier()
-        fire_event(SchemaCreation(relation=_make_ref_key_msg(relation)))
+        # fire_event(SchemaCreation(relation=_make_ref_key_msg(relation)))
         macro_name = CREATE_SCHEMA_MACRO_NAME
         kwargs = {
             "relation": relation,
@@ -34,10 +75,6 @@ class FabricAdapter(SQLAdapter):
         self.commit_if_has_connection()
 
     @classmethod
-    def date_function(cls):
-        return "getdate()"
-
-    @classmethod
     def convert_text_type(cls, agate_table, col_idx):
         column = agate_table.columns[col_idx]
         # see https://github.com/fishtown-analytics/dbt/pull/2255
@@ -47,21 +84,12 @@ class FabricAdapter(SQLAdapter):
         return "varchar({})".format(length)
 
     @classmethod
-    def convert_datetime_type(cls, agate_table, col_idx):
-        return "datetime2(6)"
-
-    @classmethod
-    def convert_boolean_type(cls, agate_table, col_idx):
-        return "bit"
-
-    @classmethod
-    def convert_number_type(cls, agate_table, col_idx):
-        decimals = agate_table.aggregate(agate.MaxPrecision(col_idx))
-        return "float" if decimals else "int"
-
-    @classmethod
     def convert_time_type(cls, agate_table, col_idx):
         return "time(6)"
+
+    @classmethod
+    def date_function(cls):
+        return "getdate()"
 
     # Methods used in adapter tests
     def timestamp_add_sql(self, add_to: str, number: int = 1, interval: str = "hour") -> str:
@@ -144,6 +172,70 @@ class FabricAdapter(SQLAdapter):
             raise
         finally:
             conn.transaction_open = False
+
+    @available
+    @classmethod
+    def render_column_constraint(cls, constraint: ColumnLevelConstraint) -> Optional[str]:
+        rendered_column_constraint = None
+        if constraint.type == ConstraintType.not_null:
+            rendered_column_constraint = "not null "
+        else:
+            rendered_column_constraint = ""
+
+        if rendered_column_constraint:
+            rendered_column_constraint = rendered_column_constraint.strip()
+
+        return rendered_column_constraint
+
+    @classmethod
+    def render_model_constraint(cls, constraint: ModelLevelConstraint) -> Optional[str]:
+        constraint_prefix = "add constraint "
+        column_list = ", ".join(constraint.columns)
+        constraint_name_list = "_".join(constraint.columns)
+
+        if constraint.type == ConstraintType.unique:
+            if constraint.name:
+                constraint_expression = (
+                    constraint_prefix
+                    + f"{constraint.name} unique nonclustered({column_list}) not enforced"
+                )
+            else:
+                constraint_expression = (
+                    constraint_prefix
+                    + f"uk_{constraint_name_list} unique nonclustered({column_list}) not enforced"
+                )
+            return constraint_expression
+        elif constraint.type == ConstraintType.primary_key:
+            if constraint.name:
+                constraint_expression = (
+                    constraint_prefix
+                    + f"{constraint.name}  primary key nonclustered({column_list}) not enforced"
+                )
+            else:
+                constraint_expression = (
+                    constraint_prefix
+                    + f"pk_{constraint_name_list} primary key "
+                    + f"nonclustered({column_list}) not enforced"
+                )
+            return constraint_expression
+        elif constraint.type == ConstraintType.foreign_key and constraint.expression:
+            if constraint.name:
+                constraint_expression = (
+                    constraint_prefix
+                    + f"{constraint.name} foreign key({column_list}) references "
+                    + f"{constraint.expression} not enforced"
+                )
+            else:
+                constraint_expression = (
+                    constraint_prefix
+                    + f"fk_{constraint_name_list} foreign key({column_list}) references "
+                    + f"{constraint.expression} not enforced"
+                )
+            return constraint_expression
+        elif constraint.type == ConstraintType.custom and constraint.expression:
+            return f"{constraint_prefix}{constraint.expression}"
+        else:
+            return None
 
 
 COLUMNS_EQUAL_SQL = """

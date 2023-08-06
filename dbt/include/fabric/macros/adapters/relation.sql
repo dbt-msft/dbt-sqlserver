@@ -14,37 +14,34 @@
 
 {% macro fabric__drop_relation_script(relation) -%}
 
-    {% call statement('find_references', fetch_result=true) %}
-        {{ use_database_hint() }}
-        select
-            sch.name as schema_name,
-            obj.name as view_name
-        from sys.sql_expression_dependencies refs
-        inner join sys.objects obj
-        on refs.referencing_id = obj.object_id
-        inner join sys.schemas sch
-        on obj.schema_id = sch.schema_id
-        where refs.referenced_database_name = '{{ relation.database }}'
-        and refs.referenced_schema_name = '{{ relation.schema }}'
-        and refs.referenced_entity_name = '{{ relation.identifier }}'
-        and refs.referencing_class = 1
-        and obj.type = 'V'
-    {% endcall %}
-    {% set references = load_result('find_references')['data'] %}
-    {% for reference in references -%}
-        -- dropping referenced view {{ reference[0] }}.{{ reference[1] }}
-        {{ fabric__drop_relation_script(relation.incorporate(
-            type="view",
-            path={"schema": reference[0], "identifier": reference[1]})) }}
-    {% endfor %}
-
     {% if relation.type == 'view' -%}
-        {% set object_id_type = 'V' %}
-    {% elif relation.type == 'table'%}
-        {% set object_id_type = 'U' %}
-    {%- else -%}
-        {{ exceptions.raise_not_implemented('Invalid relation being dropped: ' ~ relation) }}
-    {% endif %}
+      {% call statement('find_references', fetch_result=true) %}
+      {{ use_database_hint() }}
+      select
+          sch.name as schema_name,
+          obj.name as view_name
+      from sys.sql_expression_dependencies refs
+      inner join sys.objects obj
+      on refs.referencing_id = obj.object_id
+      inner join sys.schemas sch
+      on obj.schema_id = sch.schema_id
+      where refs.referenced_database_name = '{{ relation.database }}'
+      and refs.referenced_schema_name = '{{ relation.schema }}'
+      and refs.referenced_entity_name = '{{ relation.identifier }}'
+      and refs.referencing_class = 1
+      and obj.type = 'V'
+      {% endcall %}
+      {% set references = load_result('find_references')['data'] %}
+      {% for reference in references -%}
+      -- dropping referenced view {{ reference[0] }}.{{ reference[1] }}
+      {{ fabric__drop_relation_script(relation.incorporate(
+          type="view",
+          path={"schema": reference[0], "identifier": reference[1]})) }}
+      {% endfor %}
+      {% elif relation.type == 'table'%}
+      {%- else -%}
+          {{ exceptions.raise_not_implemented('Invalid relation being dropped: ' ~ relation) }}
+      {% endif %}
 
     {{ use_database_hint() }}
     EXEC('DROP {{ relation.type }} IF EXISTS {{ relation.include(database=False) }};');
@@ -81,9 +78,54 @@
   {% endif %}
   {% if to_relation.type == 'table' %}
       {% call statement('rename_relation') %}
+        {{ log("renaming relation", info=True) }}
         EXEC('create table {{ to_relation.include(database=False) }} as select * from {{ from_relation.include(database=False) }}');
       {%- endcall %}
+
+      -- Getting constraints from the old table
+      {% call statement('get_table_constraints', fetch_result=True) %}
+        SELECT Contraint_statement FROM
+        (
+          SELECT
+          CASE
+              WHEN tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+                  THEN 'ALTER TABLE <<REPLACE TABLE>> ADD CONSTRAINT ' + tc.CONSTRAINT_NAME + ' PRIMARY KEY NONCLUSTERED('+ccu.COLUMN_NAME+') NOT ENFORCED'
+              WHEN tc.CONSTRAINT_TYPE = 'UNIQUE'
+                  THEN 'ALTER TABLE <<REPLACE TABLE>> ADD CONSTRAINT ' + tc.CONSTRAINT_NAME + ' UNIQUE NONCLUSTERED('+ccu.COLUMN_NAME+') NOT ENFORCED'
+              END AS Contraint_statement
+          FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc INNER JOIN
+              INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
+                  ON tc.CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
+          WHERE tc.TABLE_NAME = '{{ from_relation.identifier }}' and tc.TABLE_SCHEMA = '{{ from_relation.schema }}'
+          UNION ALL
+          SELECT
+              'ALTER TABLE <<REPLACE TABLE>> ADD CONSTRAINT ' + ccu.CONSTRAINT_NAME + ' FOREIGN KEY('+ccu.COLUMN_NAME+') references '+kcu.TABLE_SCHEMA+'.'+kcu.TABLE_NAME+' ('+kcu.COLUMN_NAME+') not enforced'   AS Contraint_statement
+          FROM INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
+              INNER JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+                  ON ccu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+              INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+                  ON kcu.CONSTRAINT_NAME = rc.UNIQUE_CONSTRAINT_NAME
+          WHERE ccu.TABLE_NAME = '{{ from_relation.identifier }}' and ccu.TABLE_SCHEMA = '{{ from_relation.schema }}'
+        ) T WHERE Contraint_statement IS NOT NULL
+      {% endcall %}
+
+      {% set references = load_result('get_table_constraints')['data'] %}
       {{ fabric__drop_relation(from_relation) }}
+
+      {% set tempTableName %}
+        {{to_relation.include(database=False)}}
+      {% endset %}
+
+      {% for reference in references -%}
+        {% set alter_table_script %}
+          {{reference[0].replace("<<REPLACE TABLE>>", tempTableName)}}
+        {% endset %}
+
+        --EXEC('alter_table_script;')
+        {% call statement('Execute_Constraints') %}
+          EXEC('{{alter_table_script}};');
+        {% endcall %}
+      {% endfor %}
   {% endif %}
 {% endmacro %}
 
