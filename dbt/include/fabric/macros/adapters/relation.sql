@@ -78,54 +78,9 @@
   {% endif %}
   {% if to_relation.type == 'table' %}
       {% call statement('rename_relation') %}
-        {{ log("renaming relation", info=True) }}
         EXEC('create table {{ to_relation.include(database=False) }} as select * from {{ from_relation.include(database=False) }}');
       {%- endcall %}
-
-      -- Getting constraints from the old table
-      {% call statement('get_table_constraints', fetch_result=True) %}
-        SELECT Contraint_statement FROM
-        (
-          SELECT
-          CASE
-              WHEN tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
-                  THEN 'ALTER TABLE <<REPLACE TABLE>> ADD CONSTRAINT ' + tc.CONSTRAINT_NAME + ' PRIMARY KEY NONCLUSTERED('+ccu.COLUMN_NAME+') NOT ENFORCED'
-              WHEN tc.CONSTRAINT_TYPE = 'UNIQUE'
-                  THEN 'ALTER TABLE <<REPLACE TABLE>> ADD CONSTRAINT ' + tc.CONSTRAINT_NAME + ' UNIQUE NONCLUSTERED('+ccu.COLUMN_NAME+') NOT ENFORCED'
-              END AS Contraint_statement
-          FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc INNER JOIN
-              INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
-                  ON tc.CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
-          WHERE tc.TABLE_NAME = '{{ from_relation.identifier }}' and tc.TABLE_SCHEMA = '{{ from_relation.schema }}'
-          UNION ALL
-          SELECT
-              'ALTER TABLE <<REPLACE TABLE>> ADD CONSTRAINT ' + ccu.CONSTRAINT_NAME + ' FOREIGN KEY('+ccu.COLUMN_NAME+') references '+kcu.TABLE_SCHEMA+'.'+kcu.TABLE_NAME+' ('+kcu.COLUMN_NAME+') not enforced'   AS Contraint_statement
-          FROM INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
-              INNER JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
-                  ON ccu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
-              INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-                  ON kcu.CONSTRAINT_NAME = rc.UNIQUE_CONSTRAINT_NAME
-          WHERE ccu.TABLE_NAME = '{{ from_relation.identifier }}' and ccu.TABLE_SCHEMA = '{{ from_relation.schema }}'
-        ) T WHERE Contraint_statement IS NOT NULL
-      {% endcall %}
-
-      {% set references = load_result('get_table_constraints')['data'] %}
       {{ fabric__drop_relation(from_relation) }}
-
-      {% set tempTableName %}
-        {{to_relation.include(database=False)}}
-      {% endset %}
-
-      {% for reference in references -%}
-        {% set alter_table_script %}
-          {{reference[0].replace("<<REPLACE TABLE>>", tempTableName)}}
-        {% endset %}
-
-        --EXEC('alter_table_script;')
-        {% call statement('Execute_Constraints') %}
-          EXEC('{{alter_table_script}};');
-        {% endcall %}
-      {% endfor %}
   {% endif %}
 {% endmacro %}
 

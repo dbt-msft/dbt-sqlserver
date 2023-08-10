@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 
 import agate
@@ -191,47 +192,22 @@ class FabricAdapter(SQLAdapter):
     def render_model_constraint(cls, constraint: ModelLevelConstraint) -> Optional[str]:
         constraint_prefix = "add constraint "
         column_list = ", ".join(constraint.columns)
-        constraint_name_list = "_".join(constraint.columns)
 
         if constraint.type == ConstraintType.unique:
-            if constraint.name:
-                constraint_expression = (
-                    constraint_prefix
-                    + f"{constraint.name} unique nonclustered({column_list}) not enforced"
-                )
-            else:
-                constraint_expression = (
-                    constraint_prefix
-                    + f"uk_{constraint_name_list} unique nonclustered({column_list}) not enforced"
-                )
-            return constraint_expression
+            return (
+                constraint_prefix
+                + f"uk_{constraint.name}{datetime.today().strftime('%Y%m%d%H%M%S')} unique nonclustered({column_list}) not enforced"
+            )
         elif constraint.type == ConstraintType.primary_key:
-            if constraint.name:
-                constraint_expression = (
-                    constraint_prefix
-                    + f"{constraint.name}  primary key nonclustered({column_list}) not enforced"
-                )
-            else:
-                constraint_expression = (
-                    constraint_prefix
-                    + f"pk_{constraint_name_list} primary key "
-                    + f"nonclustered({column_list}) not enforced"
-                )
-            return constraint_expression
+            return (
+                constraint_prefix
+                + f"pk_{constraint.name}{datetime.today().strftime('%Y%m%d%H%M%S')} primary key nonclustered({column_list}) not enforced"
+            )
         elif constraint.type == ConstraintType.foreign_key and constraint.expression:
-            if constraint.name:
-                constraint_expression = (
-                    constraint_prefix
-                    + f"{constraint.name} foreign key({column_list}) references "
-                    + f"{constraint.expression} not enforced"
-                )
-            else:
-                constraint_expression = (
-                    constraint_prefix
-                    + f"fk_{constraint_name_list} foreign key({column_list}) references "
-                    + f"{constraint.expression} not enforced"
-                )
-            return constraint_expression
+            return (
+                constraint_prefix
+                + f"fk_{constraint.name}{datetime.today().strftime('%Y%m%d%H%M%S')} foreign key({column_list}) references {constraint.expression} not enforced"
+            )
         elif constraint.type == ConstraintType.custom and constraint.expression:
             return f"{constraint_prefix}{constraint.expression}"
         else:

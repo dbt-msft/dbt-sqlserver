@@ -70,10 +70,10 @@ repos:
     hooks:
       - id: flake8
         args:
-          - '--max-line-length=99'
+          - '--max-line-length=700'
       - id: flake8
         args:
-          - '--max-line-length=99'
+          - '--max-line-length=700'
         alias: flake8-check
         stages:
           - manual

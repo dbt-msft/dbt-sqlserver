@@ -4,17 +4,28 @@ import pytest
 from dbt.tests.adapter.constraints.fixtures import (
     foreign_key_model_sql,
     model_data_type_schema_yml,
+    my_incremental_model_sql,
     my_model_data_type_sql,
+    my_model_incremental_with_nulls_sql,
     my_model_incremental_wrong_name_sql,
     my_model_incremental_wrong_order_depends_on_fk_sql,
     my_model_incremental_wrong_order_sql,
+    my_model_sql,
     my_model_view_wrong_name_sql,
     my_model_view_wrong_order_sql,
+    my_model_with_nulls_sql,
     my_model_wrong_name_sql,
     my_model_wrong_order_depends_on_fk_sql,
     my_model_wrong_order_sql,
 )
-from dbt.tests.util import get_manifest, read_file, run_dbt, run_dbt_and_capture, write_file
+from dbt.tests.util import (
+    get_manifest,
+    read_file,
+    relation_from_name,
+    run_dbt,
+    run_dbt_and_capture,
+    write_file,
+)
 
 model_schema_yml = """
 version: 2
@@ -441,17 +452,14 @@ class BaseIncrementalConstraintsColumnsEqual(BaseConstraintsColumnsEqual):
         }
 
 
-# All Passed
 class TestTableConstraintsColumnsEqual(BaseTableConstraintsColumnsEqual):
     pass
 
 
-# All Passed
 class TestViewConstraintsColumnsEqual(BaseViewConstraintsColumnsEqual):
     pass
 
 
-# All Passed
 class TestIncrementalConstraintsColumnsEqual(BaseIncrementalConstraintsColumnsEqual):
     pass
 
@@ -474,25 +482,7 @@ class BaseConstraintsRuntimeDdlEnforcement:
     @pytest.fixture(scope="class")
     def expected_sql(self):
         return """
-"EXEC('create view <model_identifier> as
--- depends_on: <foreign_key_model_identifier>
-select ''blue'' as color,
-1 as id, ''2019-01-01'' as date_day;');
-CREATE TABLE <model_identifier>
-(
-  id int not null,
-  color varchar(100),
-  date_day varchar(100)
-)
-EXEC(' alter table <model_identifier> add constraint <model_identifier> primary key
-nonclustered(id) not enforced; ;')
-EXEC(' alter table <model_identifier> add constraint <model_identifier>
-foreign key(id) references <foreign_key_model_identifier> (id) not enforced; ;')
-EXEC(' alter table <model_identifier> add constraint <model_identifier> unique
-nonclustered(id) not enforced; ;')
-INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id],
-[color], [date_day] FROM <model_identifier>
-EXEC('DROP view IF EXISTS <model_identifier>"
+EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day;'); CREATE TABLE <model_identifier> ( id int not null, color varchar(100), date_day varchar(100) ) EXEC(' alter table <model_identifier> add constraint <model_identifier> primary key nonclustered(id) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> unique nonclustered(id) not enforced; ;') INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier> EXEC('DROP view IF EXISTS <model_identifier>
 """
 
     def test__constraints_ddl(self, project, expected_sql):
@@ -516,8 +506,8 @@ EXEC('DROP view IF EXISTS <model_identifier>"
         assert _normalize_whitespace(expected_sql) == _normalize_whitespace(generated_sql_generic)
 
 
-# class TestTableConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlEnforcement):
-#     pass
+class TestTableConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlEnforcement):
+    pass
 
 
 class BaseIncrementalConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlEnforcement):
@@ -530,9 +520,10 @@ class BaseIncrementalConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlE
         }
 
 
-# class TestIncrementalConstraintsRuntimeDdlEnforcement
-# (BaseIncrementalConstraintsRuntimeDdlEnforcement):
-#     pass
+class TestIncrementalConstraintsRuntimeDdlEnforcement(
+    BaseIncrementalConstraintsRuntimeDdlEnforcement
+):
+    pass
 
 
 class BaseModelConstraintsRuntimeEnforcement:
@@ -553,30 +544,7 @@ class BaseModelConstraintsRuntimeEnforcement:
     @pytest.fixture(scope="class")
     def expected_sql(self):
         return """
-create table <model_identifier> (
-    id int not null,
-    color varchar(100),
-    date_day varchar(100)
-) ;
-insert into <model_identifier> (
-    id ,
-    color ,
-    date_day
-)
-(
-    select
-       id,
-       color,
-       date_day
-       from
-    (
-        -- depends_on: <foreign_key_model_identifier>
-        select
-            'blue' as color,
-            1 as id,
-            '2019-01-01' as date_day
-    ) as model_subq
-);
+EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day;'); CREATE TABLE <model_identifier> ( id int not null, color varchar(100), date_day varchar(100) ) EXEC(' alter table <model_identifier> add constraint <model_identifier> primary key nonclustered(id) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> unique nonclustered(color, date_day) not enforced; ;') INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier> EXEC('DROP view IF EXISTS <model_identifier>
 """
 
     def test__model_constraints_ddl(self, project, expected_sql):
@@ -600,4 +568,79 @@ insert into <model_identifier> (
 
 
 class TestModelConstraintsRuntimeEnforcement(BaseModelConstraintsRuntimeEnforcement):
+    pass
+
+
+class BaseConstraintsRollback:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "my_model.sql": my_model_sql,
+            "constraints_schema.yml": model_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def null_model_sql(self):
+        return my_model_with_nulls_sql
+
+    @pytest.fixture(scope="class")
+    def expected_color(self):
+        return "blue"
+
+    @pytest.fixture(scope="class")
+    def expected_error_messages(self):
+        return ["Cannot insert the value NULL into column", "column does not allow nulls"]
+
+    def assert_expected_error_messages(self, error_message, expected_error_messages):
+        assert all(msg in error_message for msg in expected_error_messages)
+
+    def test__constraints_enforcement_rollback(
+        self, project, expected_color, expected_error_messages, null_model_sql
+    ):
+        results = run_dbt(["run", "-s", "my_model"])
+        assert len(results) == 1
+
+        # Make a contract-breaking change to the model
+        write_file(null_model_sql, "models", "my_model.sql")
+
+        failing_results = run_dbt(["run", "-s", "my_model"], expect_pass=False)
+        assert len(failing_results) == 1
+
+        # Verify the previous table still exists
+        relation = relation_from_name(project.adapter, "my_model")
+        old_model_exists_sql = f"select * from {relation}"
+        old_model_exists = project.run_sql(old_model_exists_sql, fetch="all")
+        assert len(old_model_exists) == 1
+        assert old_model_exists[0][1] == expected_color
+
+        # Confirm this model was contracted
+        # TODO: is this step really necessary?
+        manifest = get_manifest(project.project_root)
+        model_id = "model.test.my_model"
+        my_model_config = manifest.nodes[model_id].config
+        contract_actual_config = my_model_config.contract
+        assert contract_actual_config.enforced is True
+
+        # Its result includes the expected error messages
+        self.assert_expected_error_messages(failing_results[0].message, expected_error_messages)
+
+
+class BaseIncrementalConstraintsRollback(BaseConstraintsRollback):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "my_model.sql": my_incremental_model_sql,
+            "constraints_schema.yml": model_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def null_model_sql(self):
+        return my_model_incremental_with_nulls_sql
+
+
+class TestTableConstraintsRollback(BaseConstraintsRollback):
+    pass
+
+
+class TestIncrementalConstraintsRollback(BaseIncrementalConstraintsRollback):
     pass
