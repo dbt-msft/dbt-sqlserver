@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Optional
 
 import agate
@@ -196,17 +195,17 @@ class FabricAdapter(SQLAdapter):
         if constraint.type == ConstraintType.unique:
             return (
                 constraint_prefix
-                + f"uk_{constraint.name}{datetime.today().strftime('%Y%m%d%H%M%S')} unique nonclustered({column_list}) not enforced"
+                + f"{constraint.name} unique nonclustered({column_list}) not enforced"
             )
         elif constraint.type == ConstraintType.primary_key:
             return (
                 constraint_prefix
-                + f"pk_{constraint.name}{datetime.today().strftime('%Y%m%d%H%M%S')} primary key nonclustered({column_list}) not enforced"
+                + f"{constraint.name} primary key nonclustered({column_list}) not enforced"
             )
         elif constraint.type == ConstraintType.foreign_key and constraint.expression:
             return (
                 constraint_prefix
-                + f"fk_{constraint.name}{datetime.today().strftime('%Y%m%d%H%M%S')} foreign key({column_list}) references {constraint.expression} not enforced"
+                + f"{constraint.name} foreign key({column_list}) references {constraint.expression} not enforced"
             )
         elif constraint.type == ConstraintType.custom and constraint.expression:
             return f"{constraint_prefix}{constraint.expression}"

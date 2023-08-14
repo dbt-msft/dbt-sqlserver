@@ -7,7 +7,6 @@
    {% do run_query(fabric__drop_relation_script(relation)) %}
 
    {% set contract_config = config.get('contract') %}
-   {{ log(relation.include(database=False) ~ " contract configuration" ~ contract_config, info=True) }}
 
     {{ fabric__create_view_as(tmp_relation, sql) }}
     {% if contract_config.enforced %}

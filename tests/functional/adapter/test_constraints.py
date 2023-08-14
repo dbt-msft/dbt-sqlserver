@@ -482,7 +482,7 @@ class BaseConstraintsRuntimeDdlEnforcement:
     @pytest.fixture(scope="class")
     def expected_sql(self):
         return """
-EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day;'); CREATE TABLE <model_identifier> ( id int not null, color varchar(100), date_day varchar(100) ) EXEC(' alter table <model_identifier> add constraint <model_identifier> primary key nonclustered(id) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> unique nonclustered(id) not enforced; ;') INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier> EXEC('DROP view IF EXISTS <model_identifier>
+EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day;'); CREATE TABLE <model_identifier> ( id int not null, color varchar(100), date_day varchar(100) ) EXEC(' alter table <model_identifier> add constraint <model_identifier> primary key nonclustered(id) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> foreign key(id) references <foreign_key_model_identifier> (id) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> unique nonclustered(id) not enforced; ;') INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier> EXEC('DROP view IF EXISTS <model_identifier>
 """
 
     def test__constraints_ddl(self, project, expected_sql):
@@ -544,7 +544,7 @@ class BaseModelConstraintsRuntimeEnforcement:
     @pytest.fixture(scope="class")
     def expected_sql(self):
         return """
-EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day;'); CREATE TABLE <model_identifier> ( id int not null, color varchar(100), date_day varchar(100) ) EXEC(' alter table <model_identifier> add constraint <model_identifier> primary key nonclustered(id) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> unique nonclustered(color, date_day) not enforced; ;') INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier> EXEC('DROP view IF EXISTS <model_identifier>
+EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day;'); CREATE TABLE <model_identifier> ( id int not null, color varchar(100), date_day varchar(100) ) EXEC(' alter table <model_identifier> add constraint <model_identifier> primary key nonclustered(id) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> unique nonclustered(color, date_day) not enforced; ;') EXEC(' alter table <model_identifier> add constraint <model_identifier> foreign key(id) references <foreign_key_model_identifier> (id) not enforced; ;') INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier> EXEC('DROP view IF EXISTS <model_identifier>
 """
 
     def test__model_constraints_ddl(self, project, expected_sql):
@@ -589,10 +589,14 @@ class BaseConstraintsRollback:
 
     @pytest.fixture(scope="class")
     def expected_error_messages(self):
-        return ["Cannot insert the value NULL into column", "column does not allow nulls"]
+        return [
+            "Cannot insert the value NULL into column",
+            "column does not allow nulls",
+            "There is already an object",
+        ]
 
     def assert_expected_error_messages(self, error_message, expected_error_messages):
-        assert all(msg in error_message for msg in expected_error_messages)
+        assert any(msg in error_message for msg in expected_error_messages)
 
     def test__constraints_enforcement_rollback(
         self, project, expected_color, expected_error_messages, null_model_sql

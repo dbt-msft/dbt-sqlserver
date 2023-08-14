@@ -11,7 +11,6 @@
       {% set alter_table_script %}
         alter table {{ relation.include(database=False) }} {{c}};
       {%endset%}
-      {{ log(alter_table_script, info=True) }}
       EXEC('{{alter_table_script}};')
     {% endfor -%}
 {% endmacro %}
