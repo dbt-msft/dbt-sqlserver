@@ -17,7 +17,7 @@ repos:
       - id: check-builtin-literals
       - id: check-merge-conflict
       - id: no-commit-to-branch
-      - id: fix-byte-order-marker
+      # - id: fix-byte-order-marker
       - id: mixed-line-ending
       - id: check-docstring-first
   - repo: 'https://github.com/adrienverge/yamllint'
