@@ -8,11 +8,14 @@ from dbt.adapters.base import Column as BaseColumn
 from dbt.adapters.base.impl import ConstraintSupport
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.cache import _make_ref_key_dict
 
 # from dbt.adapters.cache import _make_ref_key_msg
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME
 from dbt.contracts.graph.nodes import ColumnLevelConstraint, ConstraintType, ModelLevelConstraint
+from dbt.events.functions import fire_event
+from dbt.events.types import SchemaCreation
 
 from dbt.adapters.fabric.fabric_column import FabricColumn
 from dbt.adapters.fabric.fabric_configs import FabricConfigs
@@ -61,7 +64,7 @@ class FabricAdapter(SQLAdapter):
 
     def create_schema(self, relation: BaseRelation) -> None:
         relation = relation.without_identifier()
-        # fire_event(SchemaCreation(relation=_make_ref_key_msg(relation)))
+        fire_event(SchemaCreation(relation=_make_ref_key_dict(relation)))
         macro_name = CREATE_SCHEMA_MACRO_NAME
         kwargs = {
             "relation": relation,
