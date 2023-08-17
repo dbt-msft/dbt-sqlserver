@@ -326,7 +326,7 @@ class BaseConstraintsColumnsEqual:
             ["cast('2019-01-01' as date)", "date", "date"],
             ["cast(1 as bit)", "bit", "bit"],
             ["cast('2013-11-03 00:00:00.000000' as datetime2(6))", "datetime2(6)", "datetime2(6)"],
-            ["cast(1 as numeric(5,2))", "numeric", "numeric"],
+            ["cast(1 as decimal(5,2))", "decimal", "decimal"],
         ]
 
     def test__constraints_wrong_column_order(self, project):

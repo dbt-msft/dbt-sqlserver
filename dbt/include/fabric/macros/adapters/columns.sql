@@ -1,8 +1,5 @@
 {% macro fabric__get_empty_subquery_sql(select_sql, select_sql_header=none) %}
-
-    {{ log("sub query - sql :"~ sql, info=True) }}
     {% if sql.strip().lower().startswith('with') %}
-        {{ log("in if clause: "~ sql.strip().lower().startswith('with'), info=True) }}
         {{ select_sql }}
     {% else -%}
         select * from (
