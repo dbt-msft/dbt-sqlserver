@@ -6,7 +6,7 @@
 * Added constraint support to dbt-fabric adapter.
     * Check constraints are not supported.
     * Column & model constraints are not supported in CREATE TABLE command by Microsoft Fabric Data Warehouse. Column and model constraints are implemented by ALTER TABLE ADD Constraints command.
-    * SP_RENAME is not available at the time of this release. Until SP_RENAME is supported, the name of the constraints is determined by the adapter. Upon SP_RENAME support, the adapter will adhere to constraints name, if provided by user in model/column constraints.
+    * user-defined names for constraints are not currently supported. naming is handled by the adapter, until `SP_RENAME` is supported in Fabric
     * Added tests related to constraints.
 * Bumped wheel, precommit, docker package versions.
 
