@@ -8,12 +8,12 @@
 
 {% macro calc_batch_size(num_columns) %}
     {#
-        SQL Server allows for a max of 2100 parameters in a single statement.
+        SQL Server allows for a max of 2098 parameters in a single statement.
         Check if the max_batch_size fits with the number of columns, otherwise
         reduce the batch size so it fits.
     #}
     {% set max_batch_size = get_batch_size() %}
-    {% set calculated_batch = (2100 / num_columns)|int %}
+    {% set calculated_batch = (2098 / num_columns)|int %}
     {% set batch_size = [max_batch_size, calculated_batch] | min %}
 
     {{ return(batch_size) }}
