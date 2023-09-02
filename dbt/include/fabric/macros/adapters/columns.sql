@@ -1,3 +1,15 @@
+{% macro fabric__get_empty_subquery_sql(select_sql, select_sql_header=none) %}
+    {% if sql.strip().lower().startswith('with') %}
+        {{ select_sql }}
+    {% else -%}
+        select * from (
+        {{ select_sql }}
+    ) dbt_sbq_tmp
+    where 1 = 0
+    {%- endif -%}
+
+{% endmacro %}
+
 {% macro fabric__get_columns_in_relation(relation) -%}
   {% call statement('get_columns_in_relation', fetch_result=True) %}
 
@@ -28,7 +40,6 @@
   {% set table = load_result('get_columns_in_relation').table %}
   {{ return(sql_convert_columns_in_relation(table)) }}
 {% endmacro %}
-
 
 {% macro fabric__get_columns_in_query(select_sql) %}
     {% call statement('get_columns_in_query', fetch_result=True, auto_begin=False) -%}

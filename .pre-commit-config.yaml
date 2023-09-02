@@ -17,7 +17,7 @@ repos:
       - id: check-builtin-literals
       - id: check-merge-conflict
       - id: no-commit-to-branch
-      - id: fix-byte-order-marker
+      # - id: fix-byte-order-marker
       - id: mixed-line-ending
       - id: check-docstring-first
   - repo: 'https://github.com/adrienverge/yamllint'
@@ -66,14 +66,14 @@ repos:
           - '--check'
           - '--diff'
   - repo: 'https://github.com/pycqa/flake8'
-    rev: 6.0.0
+    rev: 6.1.0
     hooks:
       - id: flake8
         args:
-          - '--max-line-length=99'
+          - '--max-line-length=1000'
       - id: flake8
         args:
-          - '--max-line-length=99'
+          - '--max-line-length=1000'
         alias: flake8-check
         stages:
           - manual

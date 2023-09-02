@@ -1,8 +1,19 @@
 # Changelog
 
+### v1.5.0-rc1
+
+* Upgraded dbt-fabric adapter to match dbt-core & dbt-tests-adapter version 1.5.2.
+* Added constraint support to dbt-fabric adapter.
+    * Check constraints are not supported.
+    * Column & model constraints are not supported in CREATE TABLE command by Microsoft Fabric Data Warehouse. Column and model constraints are implemented by ALTER TABLE ADD Constraints command.
+    * user-defined names for constraints are not currently supported. naming is handled by the adapter, until `SP_RENAME` is supported in Fabric
+    * Added tests related to constraints.
+* Bumped wheel, precommit, docker package versions.
+
+
 ### v1.4.0-rc3
 
-Updated connection property to track dbt telemetry
+Updated connection property to track dbt telemetry by Microsoft.
 
 ### v1.4.0-rc2
 
