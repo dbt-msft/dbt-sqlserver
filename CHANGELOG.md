@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.5.0
+
+Releasing 1.5 version for dbt-cloud integration.
+
 ### v1.5.0-rc1
 
 * Upgraded dbt-fabric adapter to match dbt-core & dbt-tests-adapter version 1.5.2.
