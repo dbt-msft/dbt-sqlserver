@@ -27,7 +27,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.DBT_AZURE_SP_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.DBT_AZURE_TENANT }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: pip install -r dev_requirements.txt

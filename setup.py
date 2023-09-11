@@ -8,7 +8,7 @@ from setuptools.command.install import install
 
 package_name = "dbt-fabric"
 authors_list = ["Pradeep Srikakolapu"]
-dbt_version = "1.5"
+dbt_version = "1.6"
 description = """A Microsoft Fabric Synapse Data Warehouse adapter plugin for dbt"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
@@ -66,7 +66,7 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-core~=1.5.2",
+        "dbt-core~=1.6.2",
         "pyodbc~=4.0.35,!=4.0.36,!=4.0.37",
         "azure-identity>=1.12.0",
     ],

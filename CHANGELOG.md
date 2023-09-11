@@ -1,5 +1,21 @@
 # Changelog
 
+### v1.6.0
+
+## Features
+
+* Supporting dbt-core 1.6.2
+* Adding limit - new args to adapter.execute() function
+* Added tests related to dbt-debug to test --connection parameter
+* Added adapter zone tests
+
+## Dependencies
+
+* Bump from pytest==7.4.0 to pytest==7.4.2
+* Bump from pre-commit==3.3.3 to 3.4.0
+* Bump from dbt-tests-adapter~=1.5.2 to 1.6.2
+* Bump from actions@v3 to v4
+* Bump from build-push-action@v4.0.0 to 4.2.1
 ### v1.5.0
 
 Releasing 1.5 version for dbt-cloud integration.
