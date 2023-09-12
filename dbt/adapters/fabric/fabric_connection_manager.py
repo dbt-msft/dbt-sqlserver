@@ -496,7 +496,7 @@ class FabricConnectionManager(SQLConnectionManager):
         return datatypes[data_type]
 
     def execute(
-        self, sql: str, auto_begin: bool = True, fetch: bool = False
+        self, sql: str, auto_begin: bool = True, fetch: bool = False, limit: Optional[int] = None
     ) -> Tuple[AdapterResponse, agate.Table]:
         _, cursor = self.add_query(sql, auto_begin)
         response = self.get_response(cursor)
@@ -505,7 +505,7 @@ class FabricConnectionManager(SQLConnectionManager):
             while cursor.description is None:
                 if not cursor.nextset():
                     break
-            table = self.get_result_from_cursor(cursor)
+            table = self.get_result_from_cursor(cursor, limit)
         else:
             table = empty_table()
         # Step through all result sets so we process all errors
