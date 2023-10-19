@@ -1,9 +1,11 @@
 ARG MSSQL_VERSION="2022"
 FROM mcr.microsoft.com/mssql/server:${MSSQL_VERSION}-latest
 
+USER root
+
 ENV COLLATION="SQL_Latin1_General_CP1_CI_AS"
 
-USER root
+RUN apt update && apt install -y unixodbc
 
 RUN mkdir -p /opt/init_scripts
 WORKDIR /opt/init_scripts
