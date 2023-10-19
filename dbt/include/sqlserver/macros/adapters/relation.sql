@@ -15,8 +15,19 @@
 {% macro sqlserver__drop_relation_script(relation) -%}
     {% call statement('find_references', fetch_result=true) %}
         USE [{{ relation.database }}];
-        SELECT referencing_schema_name, referencing_entity_name
-        FROM sys.dm_sql_referencing_entities ('{{ relation.include(database=false) }}', 'object')
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = '{{ relation.database }}'
+        and refs.referenced_schema_name = '{{ relation.schema }}'
+        and refs.referenced_entity_name = '{{ relation.identifier }}'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
     {% endcall %}
     {% set references = load_result('find_references')['data'] %}
     {% for reference in references -%}
@@ -45,7 +56,7 @@
     EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
     IF EXISTS(
     SELECT *
-    FROM sys.indexes with (nolock)
+    FROM sys.indexes {{ information_schema_hints() }}
     WHERE name='{{ from_relation.schema }}_{{ from_relation.identifier }}_cci' and object_id = OBJECT_ID('{{ from_relation.schema }}.{{ to_relation.identifier }}'))
     EXEC sp_rename N'{{ from_relation.schema }}.{{ to_relation.identifier }}.{{ from_relation.schema }}_{{ from_relation.identifier }}_cci', N'{{ from_relation.schema }}_{{ to_relation.identifier }}_cci', N'INDEX'
   {%- endcall %}

@@ -1,5 +1,17 @@
 # Changelog
 
+### v1.4.3
+
+Another minor release to follow up on the 1.4 releases.
+
+Replacing the usage of the `dm_sql_referencing_entities` stored procedure with a query to `sys.sql_expression_dependencies` for better compatibility with child adapters.
+
+### v1.4.2
+
+Minor release to follow up on 1.4.1 and 1.4.0.
+
+Adding `nolock` to information_schema and sys tables/views can be overriden with the dispatched `information_schema_hints` macro. This is required for adapters inheriting from this one.
+
 ### v1.4.1
 
 This is a minor release following up on 1.4.0 with fixes for long outstanding issues.
