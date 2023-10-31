@@ -50,8 +50,8 @@ functional: ## Runs functional tests.
 test: ## Runs unit tests and code checks against staged changes.
 	@\
 	pytest -n auto -ra -v tests/unit; \
-	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
-	pre-commit run flake8-check --hook-stage manual | grep -v "INFO"; \
+	pre-commit run ruff-format --all-files --hook-stage manual | grep -v "INFO"; \
+	pre-commit run ruff --all-files --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
 
 .PHONY: server
