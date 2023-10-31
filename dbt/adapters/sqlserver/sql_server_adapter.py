@@ -10,7 +10,9 @@ from dbt.events.types import SchemaCreation
 
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
-from dbt.adapters.sqlserver.sql_server_connection_manager import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sql_server_connection_manager import (
+    SQLServerConnectionManager,
+)
 
 
 class SQLServerAdapter(SQLAdapter):
@@ -27,7 +29,9 @@ class SQLServerAdapter(SQLAdapter):
         }
 
         if self.config.credentials.schema_authorization:
-            kwargs["schema_authorization"] = self.config.credentials.schema_authorization
+            kwargs[
+                "schema_authorization"
+            ] = self.config.credentials.schema_authorization
             macro_name = "sqlserver__create_schema_with_authorization"
 
         self.execute_macro(macro_name, kwargs=kwargs)
@@ -64,7 +68,9 @@ class SQLServerAdapter(SQLAdapter):
         return "datetime"
 
     # Methods used in adapter tests
-    def timestamp_add_sql(self, add_to: str, number: int = 1, interval: str = "hour") -> str:
+    def timestamp_add_sql(
+        self, add_to: str, number: int = 1, interval: str = "hour"
+    ) -> str:
         # note: 'interval' is not supported for T-SQL
         # for backwards compatibility, we're compelled to set some sort of
         # default. A lot of searching has lead me to believe that the

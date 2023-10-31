@@ -11,7 +11,9 @@ from dbt.tests.adapter.utils.data_types.test_type_timestamp import (
 )
 
 
-@pytest.mark.skip(reason="SQL Server shows 'numeric' if you don't explicitly cast it to bigint")
+@pytest.mark.skip(
+    reason="SQL Server shows 'numeric' if you don't explicitly cast it to bigint"
+)
 class TestTypeBigIntSQLServer(BaseTypeBigInt):
     pass
 

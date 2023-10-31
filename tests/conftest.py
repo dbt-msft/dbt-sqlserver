@@ -161,5 +161,8 @@ def skip_by_profile_type(request: FixtureRequest):
             pytest.skip(f"Skipped on '{profile_type}' profile")
 
     if request.node.get_closest_marker("only_with_profile"):
-        if profile_type not in request.node.get_closest_marker("only_with_profile").args:
+        if (
+            profile_type
+            not in request.node.get_closest_marker("only_with_profile").args
+        ):
             pytest.skip(f"Skipped on '{profile_type}' profile")

@@ -1,6 +1,8 @@
 import pytest
 from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.ephemeral.test_ephemeral import TestEphemeralMulti as BaseTestEphemeralMulti
+from dbt.tests.adapter.ephemeral.test_ephemeral import (
+    TestEphemeralMulti as BaseTestEphemeralMulti,
+)
 from dbt.tests.adapter.ephemeral.test_ephemeral import (
     TestEphemeralNested as BaseTestEphemeralNested,
 )

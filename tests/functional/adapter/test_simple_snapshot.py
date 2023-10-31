@@ -1,4 +1,7 @@
-from dbt.tests.adapter.simple_snapshot.test_snapshot import BaseSimpleSnapshot, BaseSnapshotCheck
+from dbt.tests.adapter.simple_snapshot.test_snapshot import (
+    BaseSimpleSnapshot,
+    BaseSnapshotCheck,
+)
 
 
 class TestSnapshotSQLServer(BaseSimpleSnapshot):
