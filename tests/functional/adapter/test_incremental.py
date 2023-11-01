@@ -20,7 +20,7 @@ from dbt.tests.adapter.incremental.test_incremental_unique_id import (
     BaseIncrementalUniqueKey,
 )
 
-from tests.adapter.dbt.tests.adapter.incremental.test_incremental_merge_exclude_columns import (
+from dbt.tests.adapter.incremental.test_incremental_merge_exclude_columns import (
     BaseMergeExcludeColumns,
 )
 
