@@ -1,0 +1,43 @@
+[project]
+name = "dbt-sqlserver"
+version = "1.5.0"
+description = "A Microsoft SQL Server adapter plugin for dbt"
+authors = [
+    {name = "Mikael Ene"},
+    {name = "Anders Swanson"},
+    {name = "Sam Debruyn"},
+    {name = "Cor Zuurmond"},
+    {name = "Ty Schlichenmeyer", email="ty.schlich@gmail.com"}
+]
+dependencies = [
+    "setuptools>=68.2.2",
+    "azure-identity>=1.12.0",
+    "dbt-core~=1.5.1rc1",
+    "pyodbc~=4.0.35,!=4.0.36,!=4.0.37",
+]
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/dbt-msft/dbt-sqlserver"
+"Setup & configuration" = "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile"
+"Documentation & usage" = "https://docs.getdbt.com/reference/resource-configs/mssql-configs"
+Changelog = "https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/dbt-msft/dbt-sqlserver/issues"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"

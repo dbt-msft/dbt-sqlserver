@@ -1,4 +1,4 @@
-from tests.adapter.dbt.tests.adapter.persist_docs.test_persist_docs import (
+from dbt.tests.adapter.persist_docs.test_persist_docs import (
     BasePersistDocs,
     BasePersistDocsColumnMissing,
     BasePersistDocsCommentOnQuotedColumn,
@@ -13,5 +13,7 @@ class TestPersistDocsColumnMissingSQLServer(BasePersistDocsColumnMissing):
     pass
 
 
-class TestPersistDocsCommentOnQuotedColumnSQLServer(BasePersistDocsCommentOnQuotedColumn):
+class TestPersistDocsCommentOnQuotedColumnSQLServer(
+    BasePersistDocsCommentOnQuotedColumn
+):
     pass

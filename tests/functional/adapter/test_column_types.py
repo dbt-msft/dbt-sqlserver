@@ -1,5 +1,9 @@
 import pytest
-from dbt.tests.adapter.column_types.test_column_types import BaseColumnTypes, model_sql, schema_yml
+from dbt.tests.adapter.column_types.test_column_types import (
+    BaseColumnTypes,
+    model_sql,
+    schema_yml,
+)
 
 
 class TestColumnTypesSQLServer(BaseColumnTypes):

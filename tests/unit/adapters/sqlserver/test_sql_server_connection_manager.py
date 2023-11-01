@@ -73,7 +73,8 @@ def test_get_pyodbc_attrs_before_contains_access_token_key_for_cli_authenticatio
 
 
 @pytest.mark.parametrize(
-    "key, value, expected", [("somekey", False, "somekey=No"), ("somekey", True, "somekey=Yes")]
+    "key, value, expected",
+    [("somekey", False, "somekey=No"), ("somekey", True, "somekey=Yes")],
 )
 def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> None:
     assert bool_to_connection_string_arg(key, value) == expected

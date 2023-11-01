@@ -10,7 +10,9 @@ from dbt.tests.adapter.constraints.test_constraints import (
 )
 
 
-class TestModelConstraintsRuntimeEnforcementSQLServer(BaseModelConstraintsRuntimeEnforcement):
+class TestModelConstraintsRuntimeEnforcementSQLServer(
+    BaseModelConstraintsRuntimeEnforcement
+):
     pass
 
 
@@ -22,11 +24,15 @@ class TestViewConstraintsColumnsEqualSQLServer(BaseViewConstraintsColumnsEqual):
     pass
 
 
-class TestIncrementalConstraintsColumnsEqualSQLServer(BaseIncrementalConstraintsColumnsEqual):
+class TestIncrementalConstraintsColumnsEqualSQLServer(
+    BaseIncrementalConstraintsColumnsEqual
+):
     pass
 
 
-class TestTableConstraintsRuntimeDdlEnforcementSQLServer(BaseConstraintsRuntimeDdlEnforcement):
+class TestTableConstraintsRuntimeDdlEnforcementSQLServer(
+    BaseConstraintsRuntimeDdlEnforcement
+):
     pass
 
 

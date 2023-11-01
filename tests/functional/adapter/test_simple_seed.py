@@ -1,13 +1,17 @@
 import pytest
 from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql
-from dbt.tests.adapter.simple_seed.test_seed import TestBasicSeedTests as BaseBasicSeedTests
+from dbt.tests.adapter.simple_seed.test_seed import (
+    TestBasicSeedTests as BaseBasicSeedTests,
+)
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedConfigFullRefreshOff as BaseSeedConfigFullRefreshOff,
 )
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedConfigFullRefreshOn as BaseSeedConfigFullRefreshOn,
 )
-from dbt.tests.adapter.simple_seed.test_seed import TestSeedCustomSchema as BaseSeedCustomSchema
+from dbt.tests.adapter.simple_seed.test_seed import (
+    TestSeedCustomSchema as BaseSeedCustomSchema,
+)
 from dbt.tests.adapter.simple_seed.test_seed import TestSeedParsing as BaseSeedParsing
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedSpecificFormats as BaseSeedSpecificFormats,
@@ -24,9 +28,9 @@ from dbt.tests.util import get_connection
 
 from dbt.adapters.sqlserver import SQLServerAdapter
 
-fixed_setup_sql = seeds__expected_sql.replace("TIMESTAMP WITHOUT TIME ZONE", "DATETIME").replace(
-    "TEXT", "VARCHAR(255)"
-)
+fixed_setup_sql = seeds__expected_sql.replace(
+    "TIMESTAMP WITHOUT TIME ZONE", "DATETIME"
+).replace("TEXT", "VARCHAR(255)")
 
 seeds__tricky_csv = """
 seed_id,seed_id_str,a_bool,looks_like_a_bool,a_date,looks_like_a_date,relative,weekday
@@ -168,7 +172,9 @@ class TestSimpleSeedEnabledViaConfigSQLServer(BaseSimpleSeedEnabledViaConfig):
         adapter = project.adapter
         assert isinstance(project.adapter, SQLServerAdapter)
         with get_connection(project.adapter):
-            rel = adapter.Relation.create(database=project.database, schema=project.test_schema)
+            rel = adapter.Relation.create(
+                database=project.database, schema=project.test_schema
+            )
             adapter.drop_schema(rel)
 
 

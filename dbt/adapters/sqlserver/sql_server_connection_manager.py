@@ -161,7 +161,9 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
         The access token.
     """
     token = ClientSecretCredential(
-        str(credentials.tenant_id), str(credentials.client_id), str(credentials.client_secret)
+        str(credentials.tenant_id),
+        str(credentials.client_id),
+        str(credentials.client_secret),
     ).get_token(AZURE_CREDENTIAL_SCOPE)
     return token
 
@@ -200,7 +202,9 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
 
     authentication = str(credentials.authentication).lower()
     if authentication in AZURE_AUTH_FUNCTIONS:
-        time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        time_remaining = (
+            (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        )
 
         if _TOKEN is None or (time_remaining < MAX_REMAINING_TIME):
             azure_auth_function = AZURE_AUTH_FUNCTIONS[authentication]
@@ -341,7 +345,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
         con_str.append(
-            bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert)
+            bool_to_connection_string_arg(
+                "TrustServerCertificate", credentials.trust_cert
+            )
         )
 
         plugin_version = __version__.version

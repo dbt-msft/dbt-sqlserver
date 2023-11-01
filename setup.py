@@ -18,7 +18,9 @@ with open(os.path.join(this_directory, "README.md")) as f:
 
 # get this from a separate file
 def _dbt_sqlserver_version():
-    _version_path = os.path.join(this_directory, "dbt", "adapters", "sqlserver", "__version__.py")
+    _version_path = os.path.join(
+        this_directory, "dbt", "adapters", "sqlserver", "__version__.py"
+    )
     _version_pattern = r"""version\s*=\s*["'](.+)["']"""
     with open(_version_path) as f:
         match = re.search(_version_pattern, f.read().strip())
@@ -66,7 +68,7 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-core~=1.5.1rc1",
+        "dbt-core~=1.5.8",
         "pyodbc~=4.0.35,!=4.0.36,!=4.0.37",
         "azure-identity>=1.12.0",
     ],
@@ -85,4 +87,10 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
+    project_urls={
+        "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile",  # noqa: E501
+        "Documentation & usage": "https://docs.getdbt.com/reference/resource-configs/mssql-configs",  # noqa: E501
+        "Changelog": "https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md",  # noqa: E501
+        "Issue Tracker": "https://github.com/dbt-msft/dbt-sqlserver/issues",  # noqa: E501
+    },
 )
