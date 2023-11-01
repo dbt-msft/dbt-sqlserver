@@ -3,13 +3,16 @@
     "image": "mcr.microsoft.com/devcontainers/python:3.11",
     "features": {
         "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-        "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver:1": {},
+        "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver:1": {
+            "version": "18"
+        },
         "ghcr.io/devcontainers/features/azure-cli:1": {}
     },
     "postCreateCommand": "cp test.env.sample test.env && make dev",
     "customizations": {
         "vscode": {
             "extensions": [
+                "ms-python.python",
                 "ms-python.vscode-pylance",
                 "ms-vscode.makefile-tools",
                 "innoverio.vscode-dbt-power-user"
