@@ -1,5 +1,18 @@
 # Changelog
 
+### v1.7.0
+
+## Features
+
+* Supporting dbt-core 1.7.2
+
+## Dependencies
+
+* Bump from pytest==7.4.2 to pytest==7.4.3
+* Bump from pre-commit==3.4.0 to 3.5.0
+* Bump from dbt-tests-adapter~=1.6.2 to 1.7.2
+* Bump from wheel==0.41.1 to 0.41.1
+
 ### v1.6.0
 
 ## Features
