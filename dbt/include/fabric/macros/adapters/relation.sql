@@ -38,10 +38,10 @@
           type="view",
           path={"schema": reference[0], "identifier": reference[1]})) }}
       {% endfor %}
-      {% elif relation.type == 'table'%}
-      {%- else -%}
-          {{ exceptions.raise_not_implemented('Invalid relation being dropped: ' ~ relation) }}
-      {% endif %}
+    {% elif relation.type == 'table'%}
+    {%- else -%}
+        {{ exceptions.raise_not_implemented('Invalid relation being dropped: ' ~ relation) }}
+    {% endif %}
 
     {{ use_database_hint() }}
     EXEC('DROP {{ relation.type }} IF EXISTS {{ relation.include(database=False) }};');
