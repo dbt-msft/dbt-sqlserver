@@ -7,8 +7,14 @@ from setuptools import find_namespace_packages, setup
 from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
-authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
-dbt_version = "1.4"
+authors_list = [
+    "Mikael Ene",
+    "Anders Swanson",
+    "Sam Debruyn",
+    "Cor Zuurmond",
+    "Ty Schlichenmeyer",
+]
+dbt_version = "1.5.9"
 description = """A Microsoft SQL Server adapter plugin for dbt"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
@@ -18,7 +24,9 @@ with open(os.path.join(this_directory, "README.md")) as f:
 
 # get this from a separate file
 def _dbt_sqlserver_version():
-    _version_path = os.path.join(this_directory, "dbt", "adapters", "sqlserver", "__version__.py")
+    _version_path = os.path.join(
+        this_directory, "dbt", "adapters", "sqlserver", "__version__.py"
+    )
     _version_pattern = r"""version\s*=\s*["'](.+)["']"""
     with open(_version_path) as f:
         match = re.search(_version_pattern, f.read().strip())
@@ -63,13 +71,6 @@ setup(
     license="MIT",
     author=", ".join(authors_list),
     url="https://github.com/dbt-msft/dbt-sqlserver",
-    packages=find_namespace_packages(include=["dbt", "dbt.*"]),
-    include_package_data=True,
-    install_requires=[
-        "dbt-core~=1.4.5",
-        "pyodbc~=4.0.35,!=4.0.36,!=4.0.37",
-        "azure-identity>=1.12.0",
-    ],
     cmdclass={
         "verify": VerifyVersionCommand,
     },

@@ -1,0 +1,57 @@
+[project]
+name = "dbt-sqlserver"
+dynamic = ["version"]
+description = "A Microsoft SQL Server adapter plugin for dbt"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Mikael Ene" },
+    { name = "Anders Swanson" },
+    { name = "Sam Debruyn" },
+    { name = "Cor Zuurmond" },
+    { name = "Ty Schlichenmeyer" },
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = ["azure-identity", "dbt-core<1.6", "pyodbc"]
+
+[project.optional-dependencies]
+test = ["pytest", "ruff", "pre-commit", "dbt-tests-adapter<1.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "dbt/adapters/sqlserver/__version__.py"
+
+[tool.hatch.build]
+include = ["dbt", "dbt.include.sqlserver", "dbt.adapters.sqlserver"]
+
+[tool.hatch.envs.test]
+dependencies = ["pre-commit", "pytest", "ruff"]
+
+
+[project.urls]
+Homepage = "https://github.com/dbt-msft/dbt-sqlserver"
+"Setup & configuration" = "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile"
+"Documentation & usage" = "https://docs.getdbt.com/reference/resource-configs/mssql-configs"
+Changelog = "https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/dbt-msft/dbt-sqlserver/issues"
+
+
+[tool.pytest.ini_options]
+env_files = ["test.env"]
+testpaths = ["tests/unit", "tests/functional"]
+markers = ["skip_profile", "only_with_profile"]
+addopts = "-x"

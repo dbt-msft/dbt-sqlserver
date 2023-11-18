@@ -1,12 +1,16 @@
 # Development of the adapter
 
-Python 3.10 is used for developing the adapter. To get started, bootstrap your environment as follows:
+## Dependencies
 
-Create a virtual environment, [pyenv](https://github.com/pyenv/pyenv) is used in the example:
+A recent version of [Docker](https://docs.docker.com/get-docker/).
+
+Python 3.11
+
+Create a virtual environment to properly isolate your Python dependencies. Here is an example of how to do so using the [pyenv](https://github.com/pyenv/pyenv) CLI:
 
 ```shell
-pyenv install 3.10.7
-pyenv virtualenv 3.10.7 dbt-sqlserver
+pyenv install 3.11.6
+pyenv virtualenv 3.11.6 dbt-sqlserver
 pyenv activate dbt-sqlserver
 ```
 
@@ -22,22 +26,21 @@ After running `make dev`, pre-commit will automatically validate your commits an
 
 ## Testing
 
-The functional tests require a running SQL Server instance. You can easily spin up a local instance with the following command:
-
-```shell
-make server
-```
-
-This will use Docker Compose to spin up a local instance of SQL Server. Docker Compose is now bundled with Docker, so make sure to [install the latest version of Docker](https://docs.docker.com/get-docker/).
-
-Next, tell our tests how they should connect to the local instance by creating a file called `test.env` in the root of the project.
-You can use the provided `test.env.sample` as a base and if you started the server with `make server`, then this matches the instance running on your local machine.
+The functional tests require a running SQL Server instance. We'll spin one up using Docker Compose. First, copy the example `.env.test.sample` to create a new file `.env.test`, which contains the environment variables that will be read by Docker Compose:
 
 ```shell
 cp test.env.sample test.env
 ```
 
-You can tweak the contents of this file to test against a different database.
+If desired, you can tweak the contents of `test.env` to test against a different database.
+
+Now, you can easily spin up a local SQL Server instance:
+
+```shell
+make server
+```
+
+This will use Docker Compose to fetch the image and run the container. 
 
 Note that we need 3 users to be able to run tests related to the grants.
 The 3 users are defined by the following environment variables containing their usernames.
