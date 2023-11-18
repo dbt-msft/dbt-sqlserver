@@ -10,7 +10,7 @@ from dbt.tests.adapter.basic import (
     test_empty,
     test_ephemeral,
     test_generic_tests,
-    test_incremental ,
+    test_incremental,
     test_singular_tests,
     test_singular_tests_ephemeral,
     test_snapshot_check_cols,
@@ -18,6 +18,7 @@ from dbt.tests.adapter.basic import (
     test_table_materialization,
     test_validate_connection,
 )
+
 
 class TestSimpleMaterializationsSQLServer(test_base.BaseSimpleMaterializations):
     pass
@@ -28,12 +29,15 @@ class TestSingularTestsSQLServer(test_singular_tests.BaseSingularTests):
 
 
 @pytest.mark.skip(reason="ephemeral not supported")
-class TestSingularTestsEphemeralSQLServer(test_singular_tests_ephemeral.BaseSingularTestsEphemeral):
+class TestSingularTestsEphemeralSQLServer(
+    test_singular_tests_ephemeral.BaseSingularTestsEphemeral
+):
     pass
 
 
 class TestEmptySQLServer(test_empty.BaseEmpty):
     pass
+
 
 class TestEphemeralSQLServer(test_ephemeral.BaseEphemeral):
     pass
@@ -43,7 +47,9 @@ class TestIncrementalSQLServer(test_incremental.BaseIncremental):
     pass
 
 
-class TestIncrementalNotSchemaChangeSQLServer(test_incremental.BaseIncrementalNotSchemaChange):
+class TestIncrementalNotSchemaChangeSQLServer(
+    test_incremental.BaseIncrementalNotSchemaChange
+):
     @pytest.fixture(scope="class")
     def models(self):
         return {
