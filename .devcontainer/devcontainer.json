@@ -1,22 +1,47 @@
 {
-    "name": "dbt-sqlserver",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11",
-    "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-        "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver:1": {
-            "version": "18"
-        },
-        "ghcr.io/devcontainers/features/azure-cli:1": {}
+  "name": "dbt-sqlserver",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver:1": {
+      "version": "18"
     },
-    "postCreateCommand": "cp test.env.sample test.env && make dev",
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "ms-python.python",
-                "ms-python.vscode-pylance",
-                "ms-vscode.makefile-tools",
-                "innoverio.vscode-dbt-power-user"
-            ]
-        }
+    "ghcr.io/devcontainers/features/azure-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": ".venv/bin/python",
+        "python.terminal.activateEnvInCurrentTerminal": true,
+        "[python]": {
+          "editor.codeActionsOnSave": {
+            "source.fixAll": true,
+            "source.organizeImports": true
+          },
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "python.testing.cwd": "tests",
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestEnabled": true,
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": true,
+        "editor.stickyScroll.enabled": true,
+        "dbt.enableNewLineagePanel": true,
+        "files.insertFinalNewline": true,
+        "terminal.integrated.environmentChangesIndicator": "on"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "innoverio.vscode-dbt-power-user",
+        "ms-vscode.makefile-tools",
+        "charliermarsh.ruff",
+        "eamodio.gitlens",
+        "GitHub.vscode-github-actions",
+        "tamasfe.even-better-toml",
+        "esbenp.prettier-vscode",
+        "redhat.vscode-yaml"
+      ]
     }
+  }
 }

@@ -1,4 +1,6 @@
 import pytest
+
+
 from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestBasicSeedTests as BaseBasicSeedTests,

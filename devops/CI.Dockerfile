@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION="3.10"
+ARG PYTHON_VERSION="3.11"
 FROM python:${PYTHON_VERSION}-bullseye as base
 
 # Setup dependencies for pyodbc
@@ -7,6 +7,7 @@ RUN apt-get update && \
       apt-transport-https \
       curl  \
       gnupg2 \
+      unixodbc \
       unixodbc-dev \
       lsb-release && \
     apt-get autoremove -yqq --purge && \

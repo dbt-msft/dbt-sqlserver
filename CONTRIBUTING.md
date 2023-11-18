@@ -4,13 +4,13 @@
 
 A recent version of [Docker](https://docs.docker.com/get-docker/).
 
-Python 3.10
+Python 3.11
 
 Create a virtual environment to properly isolate your Python dependencies. Here is an example of how to do so using the [pyenv](https://github.com/pyenv/pyenv) CLI:
 
 ```shell
-pyenv install 3.10.7
-pyenv virtualenv 3.10.7 dbt-sqlserver
+pyenv install 3.11.6
+pyenv virtualenv 3.11.6 dbt-sqlserver
 pyenv activate dbt-sqlserver
 ```
 
