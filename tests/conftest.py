@@ -43,7 +43,6 @@ def _all_profiles_base():
     return {
         "type": "fabric",
         "driver": os.getenv("FABRIC_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
-        "port": int(os.getenv("FABRIC_TEST_PORT", "1433")),
         "retries": 2,
     }
 

@@ -502,8 +502,8 @@ EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identi
         generated_sql_generic = _find_and_replace(
             generated_sql_generic, "foreign_key_model", "<foreign_key_model_identifier>"
         )
-
-        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(generated_sql_generic)
+        generated_sql_wodb = generated_sql_generic.replace("USE [" + project.database + "];", "")
+        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(generated_sql_wodb)
 
 
 class TestTableConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlEnforcement):
@@ -563,8 +563,8 @@ EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identi
         generated_sql_generic = _find_and_replace(
             generated_sql_generic, "foreign_key_model", "<foreign_key_model_identifier>"
         )
-
-        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(generated_sql_generic)
+        generated_sql_wodb = generated_sql_generic.replace("USE [" + project.database + "];", "")
+        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(generated_sql_wodb)
 
 
 class TestModelConstraintsRuntimeEnforcement(BaseModelConstraintsRuntimeEnforcement):

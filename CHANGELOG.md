@@ -1,5 +1,21 @@
 # Changelog
 
+### v1.6.1
+
+## Features
+
+* Fabric DW now supports sp_rename. Starting v1.6.1 sp_rename is metadata operation
+* Enabled table clone feature
+
+## Enhancements
+
+* Addressed [Issue 53](https://github.com/microsoft/dbt-fabric/issues/53)
+* Added explicit support for [Issue 76 - ActiveDirectoryServicePrincipal authentication](https://github.com/microsoft/dbt-fabric/issues/74)
+* Removed port number support in connection string as it is no longer required in Microsoft Fabric DW
+* Removed MSI authentication as it does not make sense for Microsoft Fabric.
+* Table lock hints are not supported by Fabric DW
+* Supported authentication modes are ActiveDirectory* and AZ CLI
+
 ### v1.6.0
 
 ## Features

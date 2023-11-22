@@ -15,12 +15,12 @@
   {% endset %}
 
   {% set tempTableName %}
-    {{ relation.schema }}.{{ relation.identifier }}_{{ range(1300, 19000) | random }}
+    [{{relation.database}}].[{{ relation.schema }}].[{{ relation.identifier }}_{{ range(1300, 19000) | random }}]
   {% endset %}
 
   {% set tempTable %}
       CREATE TABLE {{tempTableName}}
-      AS SELECT * {{columns}} FROM {{ relation.schema }}.{{ relation.identifier }}
+      AS SELECT * {{columns}} FROM [{{relation.database}}].[{{ relation.schema }}].[{{ relation.identifier }}] {{ information_schema_hints() }}
   {% endset %}
 
   {% call statement('create_temp_table') -%}
@@ -28,7 +28,7 @@
   {%- endcall %}
 
   {% set dropTable %}
-      DROP TABLE {{ relation.schema }}.{{ relation.identifier }}
+      DROP TABLE [{{relation.database}}].[{{ relation.schema }}].[{{ relation.identifier }}]
   {% endset %}
 
   {% call statement('drop_table') -%}
@@ -36,8 +36,8 @@
   {%- endcall %}
 
   {% set createTable %}
-      CREATE TABLE {{ relation.schema }}.{{ relation.identifier }}
-      AS SELECT * FROM {{tempTableName}}
+      CREATE TABLE {{ relation }}
+      AS SELECT * FROM {{tempTableName}} {{ information_schema_hints() }}
   {% endset %}
 
   {% call statement('create_Table') -%}

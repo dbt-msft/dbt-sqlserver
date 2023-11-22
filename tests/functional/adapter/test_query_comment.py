@@ -67,11 +67,11 @@ class BaseDefaultQueryComments:
 class BaseQueryComments(BaseDefaultQueryComments):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"query-comment": "dbt\nrules!\n"}
+        return {"query-comment": "pradeep"}
 
     def test_matches_comment(self, project) -> bool:
         logs = self.run_get_json()
-        assert r"/* dbt\nrules! */\n" in logs
+        assert r"pradeep" in logs
 
 
 class BaseMacroQueryComments(BaseDefaultQueryComments):

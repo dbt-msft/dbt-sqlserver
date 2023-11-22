@@ -127,7 +127,7 @@ class BaseClonePossible(BaseClone):
         # objects already exist, so this is a no-op
         results = run_dbt(clone_args)
         assert len(results) == 4
-        assert all("no-op" in r.message.lower() for r in results)
+        assert all("ok" in r.message.lower() for r in results)
 
         # recreate all objects
         results = run_dbt([*clone_args, "--full-refresh"])
@@ -136,7 +136,7 @@ class BaseClonePossible(BaseClone):
         # select only models this time
         results = run_dbt([*clone_args, "--resource-type", "model"])
         assert len(results) == 2
-        assert all("no-op" in r.message.lower() for r in results)
+        assert all("ok" in r.message.lower() for r in results)
 
     def test_clone_no_state(self, project, unique_schema, other_schema):
         project.create_test_schema(other_schema)
@@ -188,7 +188,7 @@ class BaseCloneNotPossible(BaseClone):
         # objects already exist, so this is a no-op
         results = run_dbt(clone_args)
         assert len(results) == 4
-        assert all("no-op" in r.message.lower() for r in results)
+        assert all("ok" in r.message.lower() for r in results)
 
         # recreate all objects
         results = run_dbt([*clone_args, "--full-refresh"])
@@ -197,10 +197,10 @@ class BaseCloneNotPossible(BaseClone):
         # select only models this time
         results = run_dbt([*clone_args, "--resource-type", "model"])
         assert len(results) == 2
-        assert all("no-op" in r.message.lower() for r in results)
+        assert all("ok" in r.message.lower() for r in results)
 
 
-class TestPostgresCloneNotPossible(BaseCloneNotPossible):
+class TestFabricCloneNotPossible(BaseCloneNotPossible):
     @pytest.fixture(autouse=True)
     def clean_up(self, project):
         yield
@@ -218,7 +218,7 @@ class TestPostgresCloneNotPossible(BaseCloneNotPossible):
     pass
 
 
-class TestPostgresClonePossible(BaseClonePossible):
+class TestFabricClonePossible(BaseClonePossible):
     @pytest.fixture(autouse=True)
     def clean_up(self, project):
         yield

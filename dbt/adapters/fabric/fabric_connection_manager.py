@@ -9,13 +9,7 @@ import agate
 import dbt.exceptions
 import pyodbc
 from azure.core.credentials import AccessToken
-from azure.identity import (
-    AzureCliCredential,
-    ClientSecretCredential,
-    DefaultAzureCredential,
-    EnvironmentCredential,
-    ManagedIdentityCredential,
-)
+from azure.identity import AzureCliCredential, DefaultAzureCredential, EnvironmentCredential
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.clients.agate_helper import empty_table
 from dbt.contracts.connection import AdapterResponse, Connection, ConnectionState
@@ -113,24 +107,6 @@ def get_cli_access_token(credentials: FabricCredentials) -> AccessToken:
     return token
 
 
-def get_msi_access_token(credentials: FabricCredentials) -> AccessToken:
-    """
-    Get an Azure access token from the system's managed identity
-
-    Parameters
-    -----------
-    credentials: FabricCredentials
-        Credentials.
-
-    Returns
-    -------
-    out : AccessToken
-        The access token.
-    """
-    token = ManagedIdentityCredential().get_token(AZURE_CREDENTIAL_SCOPE)
-    return token
-
-
 def get_auto_access_token(credentials: FabricCredentials) -> AccessToken:
     """
     Get an Azure access token automatically through azure-identity
@@ -167,30 +143,8 @@ def get_environment_access_token(credentials: FabricCredentials) -> AccessToken:
     return token
 
 
-def get_sp_access_token(credentials: FabricCredentials) -> AccessToken:
-    """
-    Get an Azure access token using the SP credentials.
-
-    Parameters
-    ----------
-    credentials : FabricCredentials
-        Credentials.
-
-    Returns
-    -------
-    out : AccessToken
-        The access token.
-    """
-    token = ClientSecretCredential(
-        str(credentials.tenant_id), str(credentials.client_id), str(credentials.client_secret)
-    ).get_token(AZURE_CREDENTIAL_SCOPE)
-    return token
-
-
 AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
-    "serviceprincipal": get_sp_access_token,
     "cli": get_cli_access_token,
-    "msi": get_msi_access_token,
     "auto": get_auto_access_token,
     "environment": get_environment_access_token,
 }
@@ -335,7 +289,7 @@ class FabricConnectionManager(SQLConnectionManager):
             # SQL Server named instance. In this case then port number has to be omitted.
             con_str.append(f"SERVER={credentials.host}")
         else:
-            con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            con_str.append(f"SERVER={credentials.host}")
 
         con_str.append(f"Database={credentials.database}")
 
@@ -347,14 +301,16 @@ class FabricConnectionManager(SQLConnectionManager):
             if credentials.authentication == "ActiveDirectoryPassword":
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
+            if credentials.authentication == "ActiveDirectoryServicePrincipal":
+                con_str.append(f"UID={{{credentials.client_id}}}")
+                con_str.append(f"PWD={{{credentials.client_secret}}}")
             elif credentials.authentication == "ActiveDirectoryInteractive":
                 con_str.append(f"UID={{{credentials.UID}}}")
 
         elif credentials.windows_login:
             con_str.append("trusted_connection=Yes")
         elif credentials.authentication == "sql":
-            con_str.append(f"UID={{{credentials.UID}}}")
-            con_str.append(f"PWD={{{credentials.PWD}}}")
+            raise pyodbc.DatabaseError("SQL Authentication is not supported by Microsoft Fabric")
 
         # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
         assert credentials.encrypt is not None

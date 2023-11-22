@@ -11,8 +11,8 @@
     {{ fabric__create_view_as(tmp_relation, sql) }}
     {% if contract_config.enforced %}
 
-        CREATE TABLE {{ relation.include(database=False) }}
-        {{ fabric__table_columns_and_constraints(relation.include(database=False)) }}
+        CREATE TABLE [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}]
+        {{ fabric__table_columns_and_constraints(relation) }}
         {{ get_assert_columns_equivalent(sql)  }}
 
         {% set listColumns %}
@@ -21,11 +21,11 @@
             {% endfor %}
         {%endset%}
 
-        INSERT INTO {{ relation.include(database=False) }}
-        ({{listColumns}}) SELECT {{listColumns}} FROM {{ tmp_relation.include(database=False) }};
+        INSERT INTO [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}]
+        ({{listColumns}}) SELECT {{listColumns}} FROM [{{tmp_relation.database}}].[{{tmp_relation.schema}}].[{{tmp_relation.identifier}}];
 
     {%- else %}
-      EXEC('CREATE TABLE {{ relation.include(database=False) }} AS (SELECT * FROM {{ tmp_relation.include(database=False) }});');
+      EXEC('CREATE TABLE [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}] AS (SELECT * FROM [{{tmp_relation.database}}].[{{tmp_relation.schema}}].[{{tmp_relation.identifier}}]);');
     {% endif %}
 
     {{ fabric__drop_relation_script(tmp_relation) }}
