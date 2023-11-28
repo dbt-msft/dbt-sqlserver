@@ -48,6 +48,9 @@ class FabricCredentials(Credentials):
         if self.windows_login is True:
             self.authentication = "Windows Login"
 
+        if self.authentication.lower().strip() == "serviceprincipal":
+            self.authentication = "ActiveDirectoryServicePrincipal"
+
         return (
             "server",
             "database",
