@@ -14,6 +14,10 @@ from dbt.adapters.sql import SQLConnectionManager
 from dbt.clients.agate_helper import empty_table
 from dbt.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.events import AdapterLogger
+from dbt.events.contextvars import get_node_info
+from dbt.events.functions import fire_event
+from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
+from dbt.utils import cast_to_str
 
 from dbt.adapters.fabric import __version__
 from dbt.adapters.fabric.fabric_credentials import FabricCredentials
@@ -391,13 +395,26 @@ class FabricConnectionManager(SQLConnectionManager):
         if auto_begin and connection.transaction_open is False:
             self.begin()
 
-        logger.debug('Using {} connection "{}".'.format(self.TYPE, connection.name))
+        fire_event(
+            ConnectionUsed(
+                conn_type=self.TYPE,
+                conn_name=cast_to_str(connection.name),
+                node_info=get_node_info(),
+            )
+        )
 
         with self.exception_handler(sql):
             if abridge_sql_log:
-                logger.debug("On {}: {}....".format(connection.name, sql[0:512]))
+                log_sql = "{}...".format(sql[:512])
             else:
-                logger.debug("On {}: {}".format(connection.name, sql))
+                log_sql = sql
+
+            fire_event(
+                SQLQuery(
+                    conn_name=cast_to_str(connection.name), sql=log_sql, node_info=get_node_info()
+                )
+            )
+
             pre = time.time()
 
             cursor = connection.handle.cursor()
@@ -416,9 +433,11 @@ class FabricConnectionManager(SQLConnectionManager):
             # https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
             connection.handle.add_output_converter(-155, byte_array_to_datetime)
 
-            logger.debug(
-                "SQL status: {} in {:0.2f} seconds".format(
-                    self.get_response(cursor), (time.time() - pre)
+            fire_event(
+                SQLQueryStatus(
+                    status=str(self.get_response(cursor)),
+                    elapsed=round((time.time() - pre)),
+                    node_info=get_node_info(),
                 )
             )
 
@@ -454,6 +473,7 @@ class FabricConnectionManager(SQLConnectionManager):
     def execute(
         self, sql: str, auto_begin: bool = True, fetch: bool = False, limit: Optional[int] = None
     ) -> Tuple[AdapterResponse, agate.Table]:
+        sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         response = self.get_response(cursor)
         if fetch:

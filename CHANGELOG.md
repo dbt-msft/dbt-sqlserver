@@ -1,5 +1,23 @@
 # Changelog
 
+### v1.7.1
+
+## Features
+
+* Added capability support structure in fabric adapter
+* Added metadata freshness checks
+* Updated catalog fetch performance improvements to handle relations with many pre-existing objects
+* Added dbt-show support to 1.7.1
+
+## Enhancements
+
+* improve connection manager logging
+* Added metadata freshness checks tests
+* Added capability support tests
+* Added catalog fetch performance improvements
+* Added dbt show's --limit flag tests
+* Added storing test failures tests
+
 ### v1.6.1
 
 ## Features

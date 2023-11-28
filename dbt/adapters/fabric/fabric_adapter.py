@@ -9,6 +9,7 @@ from dbt.adapters.base.impl import ConstraintSupport
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.cache import _make_ref_key_dict
+from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 
 # from dbt.adapters.cache import _make_ref_key_msg
 from dbt.adapters.sql import SQLAdapter
@@ -27,6 +28,12 @@ class FabricAdapter(SQLAdapter):
     Column = FabricColumn
     AdapterSpecificConfigs = FabricConfigs
 
+    _capabilities: CapabilityDict = CapabilityDict(
+        {
+            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+        }
+    )
     CONSTRAINT_SUPPORT = {
         ConstraintType.check: ConstraintSupport.NOT_SUPPORTED,
         ConstraintType.not_null: ConstraintSupport.ENFORCED,
