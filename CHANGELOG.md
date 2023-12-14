@@ -8,7 +8,6 @@
 
 ## Enhancements
 * Bump dbt-tests-adapter requirement from ~=1.7.2 to ~=1.7.3
-* Bump pre-commit from 3.5.0 to 3.6.0
 * Bump actions/setup-python from 4 to 5
 
 ### v1.7.1
