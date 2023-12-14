@@ -1,5 +1,16 @@
 # Changelog
 
+### v1.7.2
+
+## Bug Fixes
+* Addressed issue [#53](https://github.com/microsoft/dbt-fabric/issues/101) - "The server supports a maximum of 2100 parameters" by reducing the batch size by 1 if number of insert value parameters exceed 2100.
+* Added bytearry data type code support along bytes for varbinary sql datatype.
+
+## Enhancements
+* Bump dbt-tests-adapter requirement from ~=1.7.2 to ~=1.7.3
+* Bump pre-commit from 3.5.0 to 3.6.0
+* Bump actions/setup-python from 4 to 5
+
 ### v1.7.1
 
 ## Features

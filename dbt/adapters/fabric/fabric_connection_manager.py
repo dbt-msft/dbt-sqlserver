@@ -41,6 +41,7 @@ datatypes = {
     # "int": "tinyint",
     "int": "int",
     "bytes": "varbinary",
+    "bytearray": "varbinary",
     "bool": "bit",
     "datetime.date": "date",
     "datetime.datetime": "datetime2(6)",

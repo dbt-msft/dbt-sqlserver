@@ -13,7 +13,7 @@
         reduce the batch size so it fits.
     #}
     {% set max_batch_size = get_batch_size() %}
-    {% set calculated_batch = (2100 / num_columns)|int %}
+    {% set calculated_batch = (2100 / num_columns)-1|int %}
     {% set batch_size = [max_batch_size, calculated_batch] | min %}
 
     {{ return(batch_size) }}
