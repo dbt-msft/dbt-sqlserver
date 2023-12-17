@@ -8,7 +8,7 @@ from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
 authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
-dbt_version = "1.4"
+dbt_version = "1.7"
 description = """A Microsoft SQL Server adapter plugin for dbt"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
@@ -66,8 +66,8 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-core~=1.4.5",
-        "pyodbc~=4.0.35,!=4.0.36,!=4.0.37",
+        "dbt-core~=1.7.2",
+        "pyodbc>=4.0.35,<5.1.0",
         "azure-identity>=1.12.0",
     ],
     cmdclass={
