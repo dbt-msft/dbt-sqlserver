@@ -8,25 +8,28 @@ from dbt.tests.adapter.aliases.test_aliases import (
 )
 
 
-class TestAliasesSQLServer(BaseAliases):
+@pytest.mark.skip(reason="CTAS is not supported without a table.")
+class TestAliasesFabric(BaseAliases):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-class TestAliasErrorsSQLServer(BaseAliasErrors):
+class TestAliasErrorsFabric(BaseAliasErrors):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-class TestSameAliasDifferentSchemasSQLServer(BaseSameAliasDifferentSchemas):
+@pytest.mark.skip(reason="Test audit tables are using CTAS on View without a table definition.")
+class TestSameAliasDifferentSchemasFabric(BaseSameAliasDifferentSchemas):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-class TestSameAliasDifferentDatabasesSQLServer(BaseSameAliasDifferentDatabases):
+@pytest.mark.skip(reason="Test audit tables are using CTAS on View without a table definition.")
+class TestSameAliasDifferentDatabasesFabric(BaseSameAliasDifferentDatabases):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}

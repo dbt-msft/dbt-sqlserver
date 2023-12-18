@@ -8,25 +8,26 @@ from dbt.tests.adapter.query_comment.test_query_comment import (
 )
 
 
-class TestQueryCommentsSQLServer(BaseQueryComments):
+# Tests #
+class TestQueryComments(BaseQueryComments):
     pass
 
 
-class TestMacroQueryCommentsSQLServer(BaseMacroQueryComments):
+class TestMacroQueryComments(BaseMacroQueryComments):
     pass
 
 
-class TestMacroArgsQueryCommentsSQLServer(BaseMacroArgsQueryComments):
+class TestMacroArgsQueryComments(BaseMacroArgsQueryComments):
     pass
 
 
-class TestMacroInvalidQueryCommentsSQLServer(BaseMacroInvalidQueryComments):
+class TestMacroInvalidQueryComments(BaseMacroInvalidQueryComments):
     pass
 
 
-class TestNullQueryCommentsSQLServer(BaseNullQueryComments):
+class TestNullQueryComments(BaseNullQueryComments):
     pass
 
 
-class TestEmptyQueryCommentsSQLServer(BaseEmptyQueryComments):
+class TestEmptyQueryComments(BaseEmptyQueryComments):
     pass

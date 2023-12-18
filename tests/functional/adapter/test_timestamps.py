@@ -2,7 +2,7 @@ import pytest
 from dbt.tests.adapter.utils.test_timestamps import BaseCurrentTimestamps
 
 
-class TestCurrentTimestampSQLServer(BaseCurrentTimestamps):
+class TestCurrentTimestampFabric(BaseCurrentTimestamps):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -15,4 +15,4 @@ class TestCurrentTimestampSQLServer(BaseCurrentTimestamps):
 
     @pytest.fixture(scope="class")
     def expected_sql(self):
-        return '''select SYSDATETIME() as "current_timestamp"'''
+        return '''select CAST(SYSDATETIME() AS DATETIME2(6)) as "current_timestamp"'''

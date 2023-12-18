@@ -5,12 +5,12 @@ from unittest import mock
 import pytest
 from azure.identity import AzureCliCredential
 
-from dbt.adapters.sqlserver.sql_server_connection_manager import (
+from dbt.adapters.fabric.fabric_connection_manager import (
     bool_to_connection_string_arg,
     byte_array_to_datetime,
     get_pyodbc_attrs_before,
 )
-from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
+from dbt.adapters.fabric.fabric_credentials import FabricCredentials
 
 # See
 # https://github.com/Azure/azure-sdk-for-python/blob/azure-identity_1.5.0/sdk/identity/azure-identity/tests/test_cli_credential.py
@@ -18,12 +18,12 @@ CHECK_OUTPUT = AzureCliCredential.__module__ + ".subprocess.check_output"
 
 
 @pytest.fixture
-def credentials() -> SQLServerCredentials:
-    credentials = SQLServerCredentials(
+def credentials() -> FabricCredentials:
+    credentials = FabricCredentials(
         driver="ODBC Driver 17 for SQL Server",
-        host="fake.sql.sqlserver.net",
+        host="fake.sql.fabric.net",
         database="dbt",
-        schema="sqlserver",
+        schema="fabric",
     )
     return credentials
 
@@ -47,7 +47,7 @@ def mock_cli_access_token() -> str:
 
 
 def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
-    credentials: SQLServerCredentials,
+    credentials: FabricCredentials,
 ) -> None:
     """
     When the authentication is set to sql we expect an empty attrs before.
@@ -58,7 +58,7 @@ def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
 
 @pytest.mark.parametrize("authentication", ["CLI", "cli", "cLi"])
 def test_get_pyodbc_attrs_before_contains_access_token_key_for_cli_authentication(
-    credentials: SQLServerCredentials,
+    credentials: FabricCredentials,
     authentication: str,
     mock_cli_access_token: str,
 ) -> None:

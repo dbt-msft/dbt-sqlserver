@@ -11,26 +11,32 @@ from dbt.tests.adapter.utils.data_types.test_type_timestamp import (
 )
 
 
+<<<<<<< HEAD:tests/functional/adapter/test_utils_data_types.py
 @pytest.mark.skip(
     reason="SQL Server shows 'numeric' if you don't explicitly cast it to bigint"
 )
 class TestTypeBigIntSQLServer(BaseTypeBigInt):
+=======
+@pytest.mark.skip(reason="SQL Server shows 'numeric' if you don't explicitly cast it to bigint")
+class TestTypeBigIntFabric(BaseTypeBigInt):
+>>>>>>> fabric-1.7:tests/functional/adapter/test_data_types.py
     pass
 
 
-class TestTypeFloatSQLServer(BaseTypeFloat):
+class TestTypeFloatFabric(BaseTypeFloat):
     pass
 
 
-class TestTypeIntSQLServer(BaseTypeInt):
+class TestTypeIntFabric(BaseTypeInt):
     pass
 
 
-class TestTypeNumericSQLServer(BaseTypeNumeric):
+class TestTypeNumericFabric(BaseTypeNumeric):
     pass
 
 
-class TestTypeStringSQLServer(BaseTypeString):
+# Tests failing different than expected result
+class TestTypeStringFabric(BaseTypeString):
     def assert_columns_equal(self, project, expected_cols, actual_cols):
         #  ignore the size of the varchar since we do
         #  an optimization to not use varchar(max) all the time
@@ -39,7 +45,7 @@ class TestTypeStringSQLServer(BaseTypeString):
         ), f"Type difference detected: {expected_cols} vs. {actual_cols}"
 
 
-class TestTypeTimestampSQLServer(BaseTypeTimestamp):
+class TestTypeTimestampFabric(BaseTypeTimestamp):
     @pytest.fixture(scope="class")
     def seeds(self):
         seeds__expected_yml = """
@@ -48,7 +54,7 @@ seeds:
   - name: expected
     config:
       column_types:
-        timestamp_col: "datetimeoffset"
+        timestamp_col: "datetime2(6)"
         """
 
         return {
@@ -57,5 +63,5 @@ seeds:
         }
 
 
-class TestTypeBooleanSQLServer(BaseTypeBoolean):
+class TestTypeBooleanFabric(BaseTypeBoolean):
     pass

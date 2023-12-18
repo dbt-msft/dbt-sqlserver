@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "dbt-sqlserver"
 dynamic = ["version"]
@@ -10,6 +14,7 @@ authors = [
     { name = "Sam Debruyn" },
     { name = "Cor Zuurmond" },
     { name = "Ty Schlichenmeyer" },
+    { name = "Pradeep Srikakolapu" },
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -23,24 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
 ]
-dependencies = ["azure-identity", "dbt-core<1.6", "pyodbc"]
-
-[project.optional-dependencies]
-test = ["pytest", "ruff", "pre-commit", "dbt-tests-adapter<1.6"]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.version]
-path = "dbt/adapters/sqlserver/__version__.py"
-
-[tool.hatch.build]
-include = ["dbt", "dbt.include.sqlserver", "dbt.adapters.sqlserver"]
-
-[tool.hatch.envs.test]
-dependencies = ["pre-commit", "pytest", "ruff"]
-
+dependencies = ["dbt-fabric==1.7.2"]
 
 [project.urls]
 Homepage = "https://github.com/dbt-msft/dbt-sqlserver"
@@ -49,9 +37,21 @@ Homepage = "https://github.com/dbt-msft/dbt-sqlserver"
 Changelog = "https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md"
 "Issue Tracker" = "https://github.com/dbt-msft/dbt-sqlserver/issues"
 
+[tool.hatch.version]
+path = "dbt/adapters/sqlserver/__version__.py"
+
+[tool.hatch.build]
+include = ["dbt", "dbt.include.sqlserver", "dbt.adapters.sqlserver"]
+
+[tool.hatch.envs.ci]
+dependencies = ["pre-commit", "pytest", "ruff", "dbt-tests-adapter==1.7.2"]
 
 [tool.pytest.ini_options]
 env_files = ["test.env"]
 testpaths = ["tests/unit", "tests/functional"]
 markers = ["skip_profile", "only_with_profile"]
 addopts = "-x"
+
+[tool.ruff]
+select = ["ALL"]
+fix = true

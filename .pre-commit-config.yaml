@@ -1,12 +1,12 @@
 default_language_version:
-  python: python3.11
+  python: python3.12
 repos:
-  - repo: 'https://github.com/pre-commit/pre-commit-hooks'
+  - repo: "https://github.com/pre-commit/pre-commit-hooks"
     rev: v4.4.0
     hooks:
       - id: check-yaml
         args:
-          - '--unsafe'
+          - "--unsafe"
       - id: check-json
       - id: end-of-file-fixer
       - id: trailing-whitespace
@@ -17,44 +17,24 @@ repos:
       - id: check-builtin-literals
       - id: check-merge-conflict
       - id: no-commit-to-branch
-      - id: fix-byte-order-marker
       - id: mixed-line-ending
       - id: check-docstring-first
 
-  - repo: 'https://github.com/adrienverge/yamllint'
+  - repo: "https://github.com/adrienverge/yamllint"
     rev: v1.32.0
     hooks:
       - id: yamllint
         args:
-          - '-d {extends: default, rules: {line-length: disable, document-start: disable}}'
-          - '-s'
+          - "-d {extends: default, rules: {line-length: disable, document-start: disable}}"
+          - "-s"
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.3
+    rev: v0.1.7
     hooks:
       - id: ruff
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.3
-    hooks:
       - id: ruff-format
 
-  - repo: 'https://github.com/pre-commit/mirrors-mypy'
-    rev: v1.3.0
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.340
     hooks:
-      - id: mypy
-        args:
-          - '--show-error-codes'
-          - '--ignore-missing-imports'
-          - '--explicit-package-bases'
-        files: '^dbt/adapters'
-
-      - id: mypy
-        alias: mypy-check
-        stages:
-          - manual
-        args:
-          - '--show-error-codes'
-          - '--pretty'
-          - '--ignore-missing-imports'
-        files: '^dbt/adapters'
+      - id: pyright

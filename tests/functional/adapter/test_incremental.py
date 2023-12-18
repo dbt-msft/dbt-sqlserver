@@ -95,11 +95,13 @@ from source_data
 """
 
 
-class TestBaseIncrementalUniqueKeySQLServer(BaseIncrementalUniqueKey):
+@pytest.mark.skip(reason="CTAS is not supported without a table.")
+class TestBaseIncrementalUniqueKeyFabric(BaseIncrementalUniqueKey):
     pass
 
 
-class TestIncrementalOnSchemaChangeSQLServer(BaseIncrementalOnSchemaChange):
+@pytest.mark.skip(reason="CTAS is not supported without a table.")
+class TestIncrementalOnSchemaChangeFabric(BaseIncrementalOnSchemaChange):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -118,11 +120,13 @@ class TestIncrementalOnSchemaChangeSQLServer(BaseIncrementalOnSchemaChange):
         }
 
 
-class TestIncrementalPredicatesDeleteInsertSQLServer(BaseIncrementalPredicates):
+@pytest.mark.skip(reason="CTAS is not supported without a table.")
+class TestIncrementalPredicatesDeleteInsertFabric(BaseIncrementalPredicates):
     pass
 
 
-class TestPredicatesDeleteInsertSQLServer(BaseIncrementalPredicates):
+@pytest.mark.skip(reason="CTAS is not supported without a table.")
+class TestPredicatesDeleteInsertFabric(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
