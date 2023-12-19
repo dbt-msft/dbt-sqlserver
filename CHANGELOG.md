@@ -1,5 +1,24 @@
 # Changelog
 
+### v1.7.2
+
+Updated to use dbt-fabric as the upstream adapter  (https://github.com/dbt-msft/dbt-sqlserver/issues/441#issuecomment-1815837171)[https://github.com/dbt-msft/dbt-sqlserver/issues/441#issuecomment-1815837171] and (https://github.com/microsoft/dbt-fabric/issues/105)[https://github.com/microsoft/dbt-fabric/issues/105]
+
+As the fabric adapter implements the majority of auth and required t-sql, this adapter delegates primarily to SQL auth and SQL Server specific
+adaptations (using `SELECT INTO` vs `CREATE TABLE AS`).
+
+Additional major changes pulled from fabric adapter:
+
+* `TIMESTAMP` changing from `DATETIMEOFFSET` to `DATETIME2(6)`
+* `STRING` changing from `VARCHAR(MAX)` to `VARCHAR(8000)`
+
+
+#### Future work to be validated
+
+* Fabric specific items that need further over-rides (clone for example needed overriding)
+* Azure Auth elements to be deferred to Fabric, but should be validated
+* T-SQL Package to be updated and validated with these changes.
+
 ### v1.4.3
 
 Another minor release to follow up on the 1.4 releases.
