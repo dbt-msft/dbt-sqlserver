@@ -1,12 +1,11 @@
-
+# https://github.com/microsoft/dbt-fabric/blob/main/dbt/adapters/fabric/fabric_adapter.py
+from dbt.adapters.fabric import FabricAdapter
 
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sql_server_connection_manager import SQLServerConnectionManager
-# from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 
-# https://github.com/microsoft/dbt-fabric/blob/main/dbt/adapters/fabric/fabric_adapter.py
-from dbt.adapters.fabric import FabricAdapter
+# from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 
 
 class SQLServerAdapter(FabricAdapter):
