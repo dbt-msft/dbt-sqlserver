@@ -27,9 +27,9 @@ from dbt.tests.util import get_connection, run_dbt
 
 from dbt.adapters.sqlserver import SQLServerAdapter
 
-fixed_setup_sql = seeds__expected_sql.replace("TIMESTAMP WITHOUT TIME ZONE", "DATETIME").replace(
-    "TEXT", "VARCHAR(255)"
-)
+fixed_setup_sql = seeds__expected_sql.replace(
+    "TIMESTAMP WITHOUT TIME ZONE", "DATETIME2(6)"
+).replace("TEXT", "VARCHAR(255)")
 
 seeds__tricky_csv = """
 seed_id,seed_id_str,a_bool,looks_like_a_bool,a_date,looks_like_a_date,relative,weekday
@@ -104,7 +104,7 @@ seeds:
   - name: a_date
     tests:
     - column_type:
-        type: datetime
+        type: datetime2
   - name: looks_like_a_date
     tests:
     - column_type:
@@ -217,5 +217,6 @@ class TestSeedBatchSizeCustomSQLServer(SeedConfigBase):
         run_dbt(["seed"])
         with open(os.path.join(logs_dir, "dbt.log"), "r") as fp:
             logs = "".join(fp.readlines())
-
-        assert "Inserting batches of 350 records" in logs
+        # this is changed from 350.
+        # Fabric goes -1 of min batch of (2100/number of columns -1) or 400
+        assert "Inserting batches of 349.0 records" in logs
