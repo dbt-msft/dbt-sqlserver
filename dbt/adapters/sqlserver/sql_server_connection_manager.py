@@ -2,25 +2,21 @@ from typing import Callable, Mapping
 
 import pyodbc
 from azure.core.credentials import AccessToken
-from azure.identity import (
-    ClientSecretCredential,
-    ManagedIdentityCredential,
+from azure.identity import ClientSecretCredential, ManagedIdentityCredential
+from dbt.adapters.fabric import FabricConnectionManager
+from dbt.adapters.fabric.fabric_connection_manager import (
+    AZURE_AUTH_FUNCTIONS as AZURE_AUTH_FUNCTIONS_FABRIC,
+)
+from dbt.adapters.fabric.fabric_connection_manager import (
+    AZURE_CREDENTIAL_SCOPE,
+    bool_to_connection_string_arg,
+    get_pyodbc_attrs_before,
 )
 from dbt.contracts.connection import Connection, ConnectionState
 from dbt.events import AdapterLogger
 
 from dbt.adapters.sqlserver import __version__
 from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
-
-from dbt.adapters.fabric import FabricConnectionManager
-from dbt.adapters.fabric.fabric_connection_manager import AZURE_AUTH_FUNCTIONS as AZURE_AUTH_FUNCTIONS_FABRIC
-
-from dbt.adapters.fabric.fabric_connection_manager import (
-    AZURE_CREDENTIAL_SCOPE,
-    bool_to_connection_string_arg,
-    get_pyodbc_attrs_before,
-)
-
 
 AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials], AccessToken]
 
@@ -82,9 +78,9 @@ class SQLServerConnectionManager(FabricConnectionManager):
             return connection
 
         credentials = cls.get_credentials(connection.credentials)
-        if credentials.authentication != 'sql':
+        if credentials.authentication != "sql":
             return super().open(connection)
-    
+
         # sql login authentication
 
         con_str = [f"DRIVER={{{credentials.driver}}}"]
@@ -158,4 +154,3 @@ class SQLServerConnectionManager(FabricConnectionManager):
             retry_limit=credentials.retries,
             retryable_exceptions=retryable_exceptions,
         )
-
