@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from dbt.tests.util import run_dbt
 
 
@@ -33,5 +34,7 @@ select SCHEMA_OWNER from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME = '{schem
 
         self._verify_schema_owner(unique_schema, os.getenv("DBT_TEST_USER_1"), project)
         self._verify_schema_owner(
-            unique_schema + "_with_custom_auth", os.getenv("DBT_TEST_USER_1"), project
+            unique_schema + "_with_custom_auth",
+            os.getenv("DBT_TEST_USER_1"),
+            project,
         )

@@ -3,10 +3,7 @@ from codecs import BOM_UTF8
 from pathlib import Path
 
 import pytest
-<<<<<<< HEAD
-from dbt.tests.adapter.simple_seed.test_seed import SeedConfigBase
-from dbt.tests.util import run_dbt
-=======
+
 from dbt.tests.adapter.simple_seed.fixtures import (
     models__downstream_from_seed_actual,
     models__from_basic_seed,
@@ -20,6 +17,7 @@ from dbt.tests.adapter.simple_seed.seeds import (
     seeds__tricky_csv,
     seeds__wont_parse_csv,
 )
+from dbt.tests.adapter.simple_seed.test_seed import SeedConfigBase
 from dbt.tests.util import (
     check_relations_equal,
     check_table_does_exist,
@@ -547,7 +545,7 @@ VALUES
 """
 
 
-class SeedConfigBase(object):
+class SeedConfigBase:
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -582,30 +580,40 @@ class SeedTestBase(SeedConfigBase):
         run_result = run_dbt()
         assert len(run_result) == 1
         check_relations_equal(
-            project.adapter, ["models__downstream_from_seed_actual", "seed_expected"]
+            project.adapter,
+            ["models__downstream_from_seed_actual", "seed_expected"],
         )
 
     def _check_relation_end_state(self, run_result, project, exists: bool):
         assert len(run_result) == 1
         check_relations_equal(project.adapter, ["seed_actual", "seed_expected"])
         if exists:
-            check_table_does_exist(project.adapter, "models__downstream_from_seed_actual")
+            check_table_does_exist(
+                project.adapter, "models__downstream_from_seed_actual"
+            )
         else:
-            check_table_does_not_exist(project.adapter, "models__downstream_from_seed_actual")
+            check_table_does_not_exist(
+                project.adapter, "models__downstream_from_seed_actual"
+            )
 
 
 class TestBasicSeedTests(SeedTestBase):
     def test_simple_seed(self, project):
         """Build models and observe that run truncates a seed and re-inserts rows"""
         self._build_relations_for_test(project)
-        self._check_relation_end_state(run_result=run_dbt(["seed"]), project=project, exists=True)
+        self._check_relation_end_state(
+            run_result=run_dbt(["seed"]), project=project, exists=True
+        )
 
     def test_simple_seed_full_refresh_flag(self, project):
         """Drop the seed_actual table and re-create. Verifies correct behavior by the absence of the
-        model which depends on seed_actual."""
+        model which depends on seed_actual.
+        """
         self._build_relations_for_test(project)
         self._check_relation_end_state(
-            run_result=run_dbt(["seed", "--full-refresh"]), project=project, exists=True
+            run_result=run_dbt(["seed", "--full-refresh"]),
+            project=project,
+            exists=True,
         )
 
 
@@ -617,9 +625,11 @@ class TestSeedConfigFullRefreshOn(SeedTestBase):
         }
 
     def test_simple_seed_full_refresh_config(self, project):
-        """config option should drop current model and cascade drop to downstream models"""
+        """Config option should drop current model and cascade drop to downstream models"""
         self._build_relations_for_test(project)
-        self._check_relation_end_state(run_result=run_dbt(["seed"]), project=project, exists=True)
+        self._check_relation_end_state(
+            run_result=run_dbt(["seed"]), project=project, exists=True
+        )
 
 
 class TestSeedConfigFullRefreshOff(SeedTestBase):
@@ -632,9 +642,13 @@ class TestSeedConfigFullRefreshOff(SeedTestBase):
     def test_simple_seed_full_refresh_config(self, project):
         """Config options should override a full-refresh flag because config is higher priority"""
         self._build_relations_for_test(project)
-        self._check_relation_end_state(run_result=run_dbt(["seed"]), project=project, exists=True)
         self._check_relation_end_state(
-            run_result=run_dbt(["seed", "--full-refresh"]), project=project, exists=True
+            run_result=run_dbt(["seed"]), project=project, exists=True
+        )
+        self._check_relation_end_state(
+            run_result=run_dbt(["seed", "--full-refresh"]),
+            project=project,
+            exists=True,
         )
 
 
@@ -657,29 +671,37 @@ class TestSeedCustomSchema(SeedTestBase):
         seed_results = run_dbt(["seed"])
         assert len(seed_results) == 1
         custom_schema = f"{project.test_schema}_custom_schema"
-        check_relations_equal(project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"])
+        check_relations_equal(
+            project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"]
+        )
 
         # this should truncate the seed_actual table, then re-insert
         results = run_dbt(["seed"])
         assert len(results) == 1
         custom_schema = f"{project.test_schema}_custom_schema"
-        check_relations_equal(project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"])
+        check_relations_equal(
+            project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"]
+        )
 
     def test_simple_seed_with_drop_and_schema(self, project):
         seed_results = run_dbt(["seed"])
         assert len(seed_results) == 1
         custom_schema = f"{project.test_schema}_custom_schema"
-        check_relations_equal(project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"])
+        check_relations_equal(
+            project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"]
+        )
 
         # this should drop the seed table, then re-create
         results = run_dbt(["seed", "--full-refresh"])
         assert len(results) == 1
         custom_schema = f"{project.test_schema}_custom_schema"
-        check_relations_equal(project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"])
+        check_relations_equal(
+            project.adapter, [f"{custom_schema}.seed_actual", "seed_expected"]
+        )
 
 
 @pytest.mark.skip(reason="Cascade is not supported in Drop Schema")
-class TestSimpleSeedEnabledViaConfig(object):
+class TestSimpleSeedEnabledViaConfig:
     @pytest.fixture(scope="session")
     def seeds(self):
         return {
@@ -692,7 +714,10 @@ class TestSimpleSeedEnabledViaConfig(object):
     def project_config_update(self):
         return {
             "seeds": {
-                "test": {"seed_enabled": {"enabled": True}, "seed_disabled": {"enabled": False}},
+                "test": {
+                    "seed_enabled": {"enabled": True},
+                    "seed_disabled": {"enabled": False},
+                },
                 "quote_columns": False,
             },
         }
@@ -766,11 +791,11 @@ class TestSimpleSeedWithBOM(SeedConfigBase):
         # encoding param must be specified in open, so long as Python reads files with a
         # default file encoding for character sets beyond extended ASCII.
         with open(
-            project.project_root / Path("seeds") / Path("seed_bom.csv"), encoding="utf-8"
+            project.project_root / Path("seeds") / Path("seed_bom.csv"),
+            encoding="utf-8",
         ) as fp:
             assert fp.read(1) == BOM_UTF8.decode("utf-8")
         check_relations_equal(project.adapter, ["seed_expected", "seed_bom"])
->>>>>>> fabric-1.7
 
 
 class TestSeedSpecificFormats(SeedConfigBase):
@@ -783,7 +808,7 @@ class TestSeedSpecificFormats(SeedConfigBase):
         with open(big_seed_path, "w") as f:
             writer = csv.writer(f)
             writer.writerow(["seed_id"])
-            for i in range(0, 20000):
+            for i in range(20000):
                 writer.writerow([i])
         return big_seed_path
 

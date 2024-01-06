@@ -1,15 +1,16 @@
 import pytest
-from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeral
+
+from dbt.tests.adapter.ephemeral.test_ephemeral import (
+    BaseEphemeral,
+    ephemeral_errors__base__base_copy_sql,
+    ephemeral_errors__base__base_sql,
+    ephemeral_errors__dependent_sql,
+)
 from dbt.tests.adapter.ephemeral.test_ephemeral import (
     TestEphemeralMulti as BaseTestEphemeralMulti,
 )
 from dbt.tests.adapter.ephemeral.test_ephemeral import (
     TestEphemeralNested as BaseTestEphemeralNested,
-)
-from dbt.tests.adapter.ephemeral.test_ephemeral import (
-    ephemeral_errors__base__base_copy_sql,
-    ephemeral_errors__base__base_sql,
-    ephemeral_errors__dependent_sql,
 )
 from dbt.tests.util import run_dbt
 

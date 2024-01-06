@@ -10,7 +10,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--profile",
         action="store",
-        default=os.getenv("PROFILE_NAME", "user_azure"),
+        default=os.getenv("PROFILE_NAME", "dev"),
         type=str,
     )
 
@@ -19,16 +19,18 @@ def pytest_addoption(parser):
 def dbt_profile_target(request: FixtureRequest, dbt_profile_target_update):
     profile = request.config.getoption("--profile")
 
-    if profile == "ci_azure_cli":
-        target = _profile_ci_azure_cli()
-    elif profile == "ci_azure_auto":
-        target = _profile_ci_azure_auto()
-    elif profile == "ci_azure_environment":
-        target = _profile_ci_azure_environment()
-    elif profile == "user_azure":
-        target = _profile_user_azure()
-    else:
-        raise ValueError(f"Unknown profile: {profile}")
+    target = {
+        "type": "sqlserver",
+        "driver": "ODBC Driver 18 for SQL Server",
+        "port": 1433,
+        "retries": 2,
+        "host": "localhost",
+        "user": "sa",
+        "pass": "L0calTesting!",
+        "database": "dbt",
+        "encrypt": True,
+        "trust_cert": True,
+    }
 
     target.update(dbt_profile_target_update)
     return target
@@ -37,70 +39,6 @@ def dbt_profile_target(request: FixtureRequest, dbt_profile_target_update):
 @pytest.fixture(scope="class")
 def dbt_profile_target_update():
     return {}
-
-
-def _all_profiles_base():
-    return {
-        "type": "fabric",
-        "driver": os.getenv("FABRIC_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
-        "retries": 2,
-    }
-
-
-def _profile_ci_azure_base():
-    return {
-        **_all_profiles_base(),
-        **{
-            "host": os.getenv("DBT_AZURESQL_SERVER"),
-            "database": os.getenv("DBT_AZURESQL_DB"),
-            "encrypt": True,
-            "trust_cert": True,
-        },
-    }
-
-
-def _profile_ci_azure_cli():
-    return {
-        **_profile_ci_azure_base(),
-        **{
-            "authentication": "CLI",
-        },
-    }
-
-
-def _profile_ci_azure_auto():
-    return {
-        **_profile_ci_azure_base(),
-        **{
-            "authentication": "auto",
-        },
-    }
-
-
-def _profile_ci_azure_environment():
-    return {
-        **_profile_ci_azure_base(),
-        **{
-            "authentication": "environment",
-        },
-    }
-
-
-def _profile_user_azure():
-    profile = {
-        **_all_profiles_base(),
-        **{
-            "host": os.getenv("FABRIC_TEST_HOST"),
-            "authentication": os.getenv("FABRIC_TEST_AUTH", "auto"),
-            "encrypt": True,
-            "trust_cert": True,
-            "database": os.getenv("FABRIC_TEST_DBNAME"),
-            "client_id": os.getenv("FABRIC_TEST_CLIENT_ID"),
-            "client_secret": os.getenv("FABRIC_TEST_CLIENT_SECRET"),
-            "tenant_id": os.getenv("FABRIC_TEST_TENANT_ID"),
-        },
-    }
-    return profile
 
 
 @pytest.fixture(autouse=True)

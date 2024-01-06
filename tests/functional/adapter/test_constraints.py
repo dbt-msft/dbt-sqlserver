@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from dbt.tests.adapter.constraints.test_constraints import (
     BaseConstraintsRollback,
     BaseConstraintsRuntimeDdlEnforcement,
@@ -12,7 +11,7 @@ from dbt.tests.adapter.constraints.test_constraints import (
 
 
 class TestModelConstraintsRuntimeEnforcementSQLServer(
-    BaseModelConstraintsRuntimeEnforcement
+    BaseModelConstraintsRuntimeEnforcement,
 ):
     pass
 
@@ -26,13 +25,13 @@ class TestViewConstraintsColumnsEqualSQLServer(BaseViewConstraintsColumnsEqual):
 
 
 class TestIncrementalConstraintsColumnsEqualSQLServer(
-    BaseIncrementalConstraintsColumnsEqual
+    BaseIncrementalConstraintsColumnsEqual,
 ):
     pass
 
 
 class TestTableConstraintsRuntimeDdlEnforcementSQLServer(
-    BaseConstraintsRuntimeDdlEnforcement
+    BaseConstraintsRuntimeDdlEnforcement,
 ):
     pass
 
@@ -42,10 +41,15 @@ class TestTableConstraintsRollbackSQLServer(BaseConstraintsRollback):
 
 
 class TestIncrementalConstraintsRuntimeDdlEnforcementSQLServer(
-=======
+    BaseIncrementalConstraintsRuntimeDdlEnforcement
+):
+    pass
+
+
 import re
 
 import pytest
+
 from dbt.tests.adapter.constraints.fixtures import (
     foreign_key_model_sql,
     model_data_type_schema_yml,
@@ -342,27 +346,25 @@ def _find_and_replace(sql, find, replace):
 
 
 class BaseConstraintsColumnsEqual:
-    """
-    dbt should catch these mismatches during its "preflight" checks.
-    """
+    """dbt should catch these mismatches during its "preflight" checks."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def string_type(self):
         return "varchar"
 
-    @pytest.fixture
+    @pytest.fixture()
     def int_type(self):
         return "int"
 
-    @pytest.fixture
+    @pytest.fixture()
     def schema_string_type(self, string_type):
         return string_type
 
-    @pytest.fixture
+    @pytest.fixture()
     def schema_int_type(self, int_type):
         return int_type
 
-    @pytest.fixture
+    @pytest.fixture()
     def data_types(self, schema_int_type, int_type, string_type):
         # sql_column_value, schema_data_type, error_data_type
         return [
@@ -370,7 +372,11 @@ class BaseConstraintsColumnsEqual:
             ["'1'", string_type, string_type],
             ["cast('2019-01-01' as date)", "date", "date"],
             ["cast(1 as bit)", "bit", "bit"],
-            ["cast('2013-11-03 00:00:00.000000' as datetime2(6))", "datetime2(6)", "datetime2(6)"],
+            [
+                "cast('2013-11-03 00:00:00.000000' as datetime2(6))",
+                "datetime2(6)",
+                "datetime2(6)",
+            ],
             ["cast(1 as decimal(5,2))", "decimal", "decimal"],
         ]
 
@@ -386,7 +392,8 @@ class BaseConstraintsColumnsEqual:
 
     def test__constraints_wrong_column_names(self, project, string_type, int_type):
         _, log_output = run_dbt_and_capture(
-            ["run", "-s", "my_model_wrong_name"], expect_pass=False
+            ["run", "-s", "my_model_wrong_name"],
+            expect_pass=False,
         )
         manifest = get_manifest(project.project_root)
         model_id = "model.test.my_model_wrong_name"
@@ -396,10 +403,18 @@ class BaseConstraintsColumnsEqual:
         assert contract_actual_config.enforced is True
 
         expected = ["id", "error", "missing in definition", "missing in contract"]
-        assert all([(exp in log_output or exp.upper() in log_output) for exp in expected])
+        assert all(
+            [(exp in log_output or exp.upper() in log_output) for exp in expected]
+        )
 
     def test__constraints_wrong_column_data_types(
-        self, project, string_type, int_type, schema_string_type, schema_int_type, data_types
+        self,
+        project,
+        string_type,
+        int_type,
+        schema_string_type,
+        schema_int_type,
+        data_types,
     ):
         for sql_column_value, schema_data_type, error_data_type in data_types:
             # Write parametrized data_type to sql file
@@ -417,7 +432,9 @@ class BaseConstraintsColumnsEqual:
                 else schema_string_type
             )
             wrong_schema_error_data_type = (
-                int_type if schema_data_type.upper() != schema_int_type.upper() else string_type
+                int_type
+                if schema_data_type.upper() != schema_int_type.upper()
+                else string_type
             )
             write_file(
                 model_data_type_schema_yml.format(data_type=wrong_schema_data_type),
@@ -426,7 +443,8 @@ class BaseConstraintsColumnsEqual:
             )
 
             results, log_output = run_dbt_and_capture(
-                ["run", "-s", "my_model_data_type"], expect_pass=False
+                ["run", "-s", "my_model_data_type"],
+                expect_pass=False,
             )
             manifest = get_manifest(project.project_root)
             model_id = "model.test.my_model_data_type"
@@ -440,7 +458,9 @@ class BaseConstraintsColumnsEqual:
                 wrong_schema_error_data_type,
                 "data type mismatch",
             ]
-            assert all([(exp in log_output or exp.upper() in log_output) for exp in expected])
+            assert all(
+                [(exp in log_output or exp.upper() in log_output) for exp in expected]
+            )
 
     def test__constraints_correct_column_data_types(self, project, data_types):
         for sql_column_value, schema_data_type, _ in data_types:
@@ -510,8 +530,7 @@ class TestIncrementalConstraintsColumnsEqual(BaseIncrementalConstraintsColumnsEq
 
 
 class BaseConstraintsRuntimeDdlEnforcement:
-    """
-    These constraints pass muster for dbt's preflight checks. Make sure they're
+    """These constraints pass muster for dbt's preflight checks. Make sure they're
     passed into the DDL statement. If they don't match up with the underlying data,
     the data platform should raise an error at runtime.
     """
@@ -531,7 +550,9 @@ EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identi
 """
 
     def test__constraints_ddl(self, project, expected_sql):
-        unformatted_constraint_schema_yml = read_file("models", "constraints_schema.yml")
+        unformatted_constraint_schema_yml = read_file(
+            "models", "constraints_schema.yml"
+        )
         write_file(
             unformatted_constraint_schema_yml.format(schema=project.test_schema),
             "models",
@@ -543,19 +564,29 @@ EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identi
 
         # TODO: consider refactoring this to introspect logs instead
         generated_sql = read_file("target", "run", "test", "models", "my_model.sql")
-        generated_sql_generic = _find_and_replace(generated_sql, "my_model", "<model_identifier>")
         generated_sql_generic = _find_and_replace(
-            generated_sql_generic, "foreign_key_model", "<foreign_key_model_identifier>"
+            generated_sql, "my_model", "<model_identifier>"
         )
-        generated_sql_wodb = generated_sql_generic.replace("USE [" + project.database + "];", "")
-        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(generated_sql_wodb)
+        generated_sql_generic = _find_and_replace(
+            generated_sql_generic,
+            "foreign_key_model",
+            "<foreign_key_model_identifier>",
+        )
+        generated_sql_wodb = generated_sql_generic.replace(
+            "USE [" + project.database + "];", ""
+        )
+        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(
+            generated_sql_wodb
+        )
 
 
 class TestTableConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlEnforcement):
     pass
 
 
-class BaseIncrementalConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlEnforcement):
+class BaseIncrementalConstraintsRuntimeDdlEnforcement(
+    BaseConstraintsRuntimeDdlEnforcement
+):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -566,18 +597,17 @@ class BaseIncrementalConstraintsRuntimeDdlEnforcement(BaseConstraintsRuntimeDdlE
 
 
 class TestIncrementalConstraintsRuntimeDdlEnforcement(
->>>>>>> fabric-1.7
-    BaseIncrementalConstraintsRuntimeDdlEnforcement
+    BaseIncrementalConstraintsRuntimeDdlEnforcement,
 ):
     pass
 
 
-<<<<<<< HEAD
 class TestIncrementalConstraintsRollbackSQLServer(BaseIncrementalConstraintsRollback):
-=======
+    pass
+
+
 class BaseModelConstraintsRuntimeEnforcement:
-    """
-    These model-level constraints pass muster for dbt's preflight checks. Make sure they're
+    """These model-level constraints pass muster for dbt's preflight checks. Make sure they're
     passed into the DDL statement. If they don't match up with the underlying data,
     the data platform should raise an error at runtime.
     """
@@ -597,7 +627,9 @@ EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identi
 """
 
     def test__model_constraints_ddl(self, project, expected_sql):
-        unformatted_constraint_schema_yml = read_file("models", "constraints_schema.yml")
+        unformatted_constraint_schema_yml = read_file(
+            "models", "constraints_schema.yml"
+        )
         write_file(
             unformatted_constraint_schema_yml.format(schema=project.test_schema),
             "models",
@@ -608,12 +640,20 @@ EXEC('create view <model_identifier> as -- depends_on: <foreign_key_model_identi
         assert len(results) >= 1
         generated_sql = read_file("target", "run", "test", "models", "my_model.sql")
 
-        generated_sql_generic = _find_and_replace(generated_sql, "my_model", "<model_identifier>")
         generated_sql_generic = _find_and_replace(
-            generated_sql_generic, "foreign_key_model", "<foreign_key_model_identifier>"
+            generated_sql, "my_model", "<model_identifier>"
         )
-        generated_sql_wodb = generated_sql_generic.replace("USE [" + project.database + "];", "")
-        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(generated_sql_wodb)
+        generated_sql_generic = _find_and_replace(
+            generated_sql_generic,
+            "foreign_key_model",
+            "<foreign_key_model_identifier>",
+        )
+        generated_sql_wodb = generated_sql_generic.replace(
+            "USE [" + project.database + "];", ""
+        )
+        assert _normalize_whitespace(expected_sql) == _normalize_whitespace(
+            generated_sql_wodb
+        )
 
 
 class TestModelConstraintsRuntimeEnforcement(BaseModelConstraintsRuntimeEnforcement):
@@ -648,7 +688,11 @@ class BaseConstraintsRollback:
         assert any(msg in error_message for msg in expected_error_messages)
 
     def test__constraints_enforcement_rollback(
-        self, project, expected_color, expected_error_messages, null_model_sql
+        self,
+        project,
+        expected_color,
+        expected_error_messages,
+        null_model_sql,
     ):
         results = run_dbt(["run", "-s", "my_model"])
         assert len(results) == 1
@@ -675,7 +719,9 @@ class BaseConstraintsRollback:
         assert contract_actual_config.enforced is True
 
         # Its result includes the expected error messages
-        self.assert_expected_error_messages(failing_results[0].message, expected_error_messages)
+        self.assert_expected_error_messages(
+            failing_results[0].message, expected_error_messages
+        )
 
 
 class BaseIncrementalConstraintsRollback(BaseConstraintsRollback):
@@ -696,5 +742,4 @@ class TestTableConstraintsRollback(BaseConstraintsRollback):
 
 
 class TestIncrementalConstraintsRollback(BaseIncrementalConstraintsRollback):
->>>>>>> fabric-1.7
     pass

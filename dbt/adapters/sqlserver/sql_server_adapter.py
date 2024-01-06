@@ -1,16 +1,18 @@
 from typing import List, Optional
 
 import agate
+
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.cache import _make_ref_key_msg
+from dbt.adapters.cache import _make_ref_key_dict
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME
-from dbt.events.functions import fire_event
-from dbt.events.types import SchemaCreation
-
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
-from dbt.adapters.sqlserver.sql_server_connection_manager import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sql_server_connection_manager import (
+    SQLServerConnectionManager,
+)
+from dbt.events.functions import fire_event
+from dbt.events.types import SchemaCreation
 
 
 class SQLServerAdapter(SQLAdapter):
@@ -20,16 +22,17 @@ class SQLServerAdapter(SQLAdapter):
 
     def create_schema(self, relation: BaseRelation) -> None:
         relation = relation.without_identifier()
-        fire_event(SchemaCreation(relation=_make_ref_key_msg(relation)))
+        fire_event(SchemaCreation(relation=_make_ref_key_dict(relation)))
         macro_name = CREATE_SCHEMA_MACRO_NAME
         kwargs = {
             "relation": relation,
         }
 
         if self.config.credentials.schema_authorization:
-            kwargs["schema_authorization"] = self.config.credentials.schema_authorization
+            kwargs[
+                "schema_authorization"
+            ] = self.config.credentials.schema_authorization
             macro_name = "sqlserver__create_schema_with_authorization"
-
         self.execute_macro(macro_name, kwargs=kwargs)
         self.commit_if_has_connection()
 
@@ -44,7 +47,7 @@ class SQLServerAdapter(SQLAdapter):
         lens = [len(d.encode("utf-8")) for d in column.values_without_nulls()]
         max_len = max(lens) if lens else 64
         length = max_len if max_len > 16 else 16
-        return "varchar({})".format(length)
+        return f"varchar({length})"
 
     @classmethod
     def convert_datetime_type(cls, agate_table, col_idx):
@@ -64,7 +67,12 @@ class SQLServerAdapter(SQLAdapter):
         return "datetime"
 
     # Methods used in adapter tests
-    def timestamp_add_sql(self, add_to: str, number: int = 1, interval: str = "hour") -> str:
+    def timestamp_add_sql(
+        self,
+        add_to: str,
+        number: int = 1,
+        interval: str = "hour",
+    ) -> str:
         # note: 'interval' is not supported for T-SQL
         # for backwards compatibility, we're compelled to set some sort of
         # default. A lot of searching has lead me to believe that the
@@ -78,9 +86,7 @@ class SQLServerAdapter(SQLAdapter):
         value: str,
         location="append",
     ) -> str:
-        """
-        `+` is T-SQL's string concatenation operator
-        """
+        """`+` is T-SQL's string concatenation operator"""
         if location == "append":
             return f"{add_to} + '{value}'"
         elif location == "prepend":
@@ -95,8 +101,7 @@ class SQLServerAdapter(SQLAdapter):
         column_names: Optional[List[str]] = None,
         except_operator: str = "EXCEPT",
     ) -> str:
-        """
-        note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjsuted
+        """note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjsuted
         Generate SQL for a query that returns a single row with a two
         columns: the number of rows that are different between the two
         relations and the number of mismatched rows.
@@ -105,9 +110,9 @@ class SQLServerAdapter(SQLAdapter):
         names: List[str]
         if column_names is None:
             columns = self.get_columns_in_relation(relation_a)
-            names = sorted((self.quote(c.name) for c in columns))
+            names = sorted(self.quote(c.name) for c in columns)
         else:
-            names = sorted((self.quote(n) for n in column_names))
+            names = sorted(self.quote(n) for n in column_names)
         columns_csv = ", ".join(names)
 
         sql = COLUMNS_EQUAL_SQL.format(
@@ -137,7 +142,7 @@ class SQLServerAdapter(SQLAdapter):
             elif fetch == "all":
                 return cursor.fetchall()
             else:
-                return
+                return None
         except BaseException:
             if conn.handle and not getattr(conn.handle, "closed", True):
                 conn.handle.rollback()

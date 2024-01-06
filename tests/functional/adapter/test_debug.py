@@ -1,19 +1,20 @@
-<<<<<<< HEAD
-from dbt.tests.adapter.dbt_debug.test_dbt_debug import BaseDebugProfileVariable
+import os
+import re
+
+import pytest
+import yaml
+
+from dbt.cli.exceptions import DbtUsageException
+from dbt.tests.adapter.dbt_debug.test_dbt_debug import (
+    BaseDebug,
+    BaseDebugProfileVariable,
+)
 from dbt.tests.adapter.dbt_debug.test_dbt_debug import (
     TestDebugInvalidProjectPostgres as BaseDebugInvalidProject,
 )
 from dbt.tests.adapter.dbt_debug.test_dbt_debug import (
     TestDebugPostgres as BaseBaseDebug,
 )
-=======
-import os
-import re
-
-import pytest
-import yaml
-from dbt.cli.exceptions import DbtUsageException
-from dbt.tests.adapter.dbt_debug.test_dbt_debug import BaseDebug, BaseDebugProfileVariable
 from dbt.tests.util import run_dbt, run_dbt_and_capture
 
 
@@ -32,13 +33,15 @@ class TestDebugFabric(BaseDebug):
         assert "Skipping steps before connection verification" in out
 
         _, out = run_dbt_and_capture(
-            ["debug", "--connection", "--target", "NONE"], expect_pass=False
+            ["debug", "--connection", "--target", "NONE"],
+            expect_pass=False,
         )
         assert "1 check failed" in out
         assert "The profile 'test' does not have a target named 'NONE'." in out
 
         _, out = run_dbt_and_capture(
-            ["debug", "--connection", "--profiles-dir", "NONE"], expect_pass=False
+            ["debug", "--connection", "--profiles-dir", "NONE"],
+            expect_pass=False,
         )
         assert "Using profiles dir at NONE"
         assert "1 check failed" in out
@@ -51,28 +54,23 @@ class TestDebugFabric(BaseDebug):
     def test_empty_target(self, project):
         run_dbt(["debug", "--target", "none_target"], expect_pass=False)
         self.assertGotValue(re.compile(r"\s+output 'none_target'"), "misconfigured")
->>>>>>> fabric-1.7
 
 
 class TestDebugProfileVariableFabric(BaseDebugProfileVariable):
     pass
 
 
-<<<<<<< HEAD
 class TestDebugInvalidProjectSQLServer(BaseDebugInvalidProject):
     pass
-=======
+
+
 class TestDebugInvalidProjectFabric(BaseDebug):
     def test_empty_project(self, project):
         with open("dbt_project.yml", "w") as f:  # noqa: F841
             pass
->>>>>>> fabric-1.7
 
 
-<<<<<<< HEAD
 class TestDebugSQLServer(BaseBaseDebug):
-    pass
-=======
     def test_badproject(self, project):
         update_project = {"invalid-key": "not a valid key so this is bad project"}
 
@@ -96,4 +94,3 @@ class TestDebugSQLServer(BaseBaseDebug):
         run_dbt(["debug", "--project-dir", "custom"], expect_pass=False)
         splitout = self.capsys.readouterr().out.split("\n")
         self.check_project(splitout)
->>>>>>> fabric-1.7

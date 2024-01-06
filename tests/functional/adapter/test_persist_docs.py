@@ -14,6 +14,6 @@ class TestPersistDocsColumnMissingSQLServer(BasePersistDocsColumnMissing):
 
 
 class TestPersistDocsCommentOnQuotedColumnSQLServer(
-    BasePersistDocsCommentOnQuotedColumn
+    BasePersistDocsCommentOnQuotedColumn,
 ):
     pass

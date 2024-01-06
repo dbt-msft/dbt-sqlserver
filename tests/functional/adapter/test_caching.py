@@ -1,5 +1,5 @@
 import pytest
-<<<<<<< HEAD
+
 from dbt.tests.adapter.caching.test_caching import (
     BaseCachingLowercaseModel,
     BaseCachingSelectedSchemaOnly,
@@ -7,10 +7,6 @@ from dbt.tests.adapter.caching.test_caching import (
     BaseCachingUppercaseModel,
     model_sql,
 )
-
-
-class TestNoPopulateCacheSQLServer(BaseCachingTest):
-=======
 from dbt.tests.util import run_dbt
 
 model_sql = """
@@ -31,6 +27,10 @@ another_schema_model_sql = """
 }}
 select 1 as id
 """
+
+
+class TestNoPopulateCacheSQLServer(BaseCachingTest):
+    pass
 
 
 class BaseCachingTest:
@@ -66,7 +66,9 @@ class BaseCachingTest:
 
         # perform a case-insensitive + quote-insensitive comparison
         for key in ["database", "schema", "identifier"]:
-            assert getattr(relation, key).lower() == getattr(second_relation, key).lower()
+            assert (
+                getattr(relation, key).lower() == getattr(second_relation, key).lower()
+            )
 
     def test_cache(self, project):
         self.run_and_inspect_cache(project, run_args=["run"])
@@ -103,7 +105,6 @@ class BaseCachingSelectedSchemaOnly(BaseCachingTest):
 
 
 class TestNoPopulateCache(BaseCachingTest):
->>>>>>> fabric-1.7
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -117,7 +118,6 @@ class TestNoPopulateCache(BaseCachingTest):
         self.run_and_inspect_cache(project, run_args)
 
 
-<<<<<<< HEAD
 class TestCachingLowerCaseModelSQLServer(BaseCachingLowercaseModel):
     pass
 
@@ -127,16 +127,4 @@ class TestCachingUppercaseModelSQLServer(BaseCachingUppercaseModel):
 
 
 class TestCachingSelectedSchemaOnlySQLServer(BaseCachingSelectedSchemaOnly):
-=======
-class TestCachingLowerCaseModel(BaseCachingLowercaseModel):
-    pass
-
-
-@pytest.mark.skip(reason="Fabric DW does not support Case Insensivity.")
-class TestCachingUppercaseModel(BaseCachingUppercaseModel):
-    pass
-
-
-class TestCachingSelectedSchemaOnly(BaseCachingSelectedSchemaOnly):
->>>>>>> fabric-1.7
     pass

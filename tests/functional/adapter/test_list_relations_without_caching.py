@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from dbt.tests.util import run_dbt, run_dbt_and_capture
 
 NUM_VIEWS = 10
@@ -80,7 +81,7 @@ class TestListRelationsWithoutCachingSingle:
     @pytest.fixture(scope="class")
     def models(self):
         my_models = {"my_model_base.sql": TABLE_BASE_SQL}
-        for view in range(0, NUM_VIEWS):
+        for view in range(NUM_VIEWS):
             my_models.update({f"my_model_{view}.sql": VIEW_X_SQL})
 
         return my_models
@@ -92,8 +93,7 @@ class TestListRelationsWithoutCachingSingle:
         }
 
     def test__fabric__list_relations_without_caching(self, project):
-        """
-        validates that fabric__list_relations_without_caching
+        """Validates that fabric__list_relations_without_caching
         macro returns a single record
         """
         run_dbt(["run", "-s", "my_model_base"])
@@ -113,7 +113,7 @@ class TestListRelationsWithoutCachingSingle:
                     "validate_list_relations_without_caching",
                     "--args",
                     str(kwargs),
-                ]
+                ],
             )
 
             # parsed_logs = parse_json_logs(log_output)
@@ -128,7 +128,7 @@ class TestListRelationsWithoutCachingFull:
     @pytest.fixture(scope="class")
     def models(self):
         my_models = {"my_model_base.sql": TABLE_BASE_SQL}
-        for view in range(0, NUM_VIEWS):
+        for view in range(NUM_VIEWS):
             my_models.update({f"my_model_{view}.sql": VIEW_X_SQL})
 
         return my_models
@@ -157,7 +157,7 @@ class TestListRelationsWithoutCachingFull:
                     "validate_list_relations_without_caching",
                     "--args",
                     str(kwargs),
-                ]
+                ],
             )
 
             # parsed_logs = parse_json_logs(log_output)

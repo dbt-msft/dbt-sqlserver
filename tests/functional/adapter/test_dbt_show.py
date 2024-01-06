@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.dbt_show.fixtures import (
     models__ephemeral_model,
     models__sample_model,

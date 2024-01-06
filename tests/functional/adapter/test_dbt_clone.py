@@ -4,6 +4,7 @@ from collections import Counter
 from copy import deepcopy
 
 import pytest
+
 from dbt.exceptions import DbtRuntimeError
 from dbt.tests.adapter.dbt_clone.fixtures import (
     custom_can_clone_tables_false_macros_sql,
@@ -62,13 +63,16 @@ class BaseClone:
             "seeds": {
                 "test": {
                     "quote_columns": False,
-                }
-            }
+                },
+            },
         }
 
     @pytest.fixture(scope="class")
     def profiles_config_update(self, dbt_profile_target, unique_schema, other_schema):
-        outputs = {"default": dbt_profile_target, "otherschema": deepcopy(dbt_profile_target)}
+        outputs = {
+            "default": dbt_profile_target,
+            "otherschema": deepcopy(dbt_profile_target),
+        }
         outputs["default"]["schema"] = unique_schema
         outputs["otherschema"]["schema"] = other_schema
         return {"test": {"outputs": outputs, "target": "default"}}
@@ -78,7 +82,8 @@ class BaseClone:
         if not os.path.exists(state_path):
             os.makedirs(state_path)
         shutil.copyfile(
-            f"{project_root}/target/manifest.json", f"{project_root}/state/manifest.json"
+            f"{project_root}/target/manifest.json",
+            f"{project_root}/state/manifest.json",
         )
 
     def run_and_save_state(self, project_root, with_snapshot=False):
@@ -118,7 +123,8 @@ class BaseClonePossible(BaseClone):
         assert len(results) == 4
 
         schema_relations = project.adapter.list_relations(
-            database=project.database, schema=other_schema
+            database=project.database,
+            schema=other_schema,
         )
         types = [r.type for r in schema_relations]
         count_types = Counter(types)
@@ -181,7 +187,8 @@ class BaseCloneNotPossible(BaseClone):
         assert len(results) == 4
 
         schema_relations = project.adapter.list_relations(
-            database=project.database, schema=other_schema
+            database=project.database,
+            schema=other_schema,
         )
         assert all(r.type == "view" for r in schema_relations)
 
@@ -206,16 +213,16 @@ class TestFabricCloneNotPossible(BaseCloneNotPossible):
         yield
         with project.adapter.connection_named("__test"):
             relation = project.adapter.Relation.create(
-                database=project.database, schema=f"{project.test_schema}_seeds"
+                database=project.database,
+                schema=f"{project.test_schema}_seeds",
             )
             project.adapter.drop_schema(relation)
 
             relation = project.adapter.Relation.create(
-                database=project.database, schema=project.test_schema
+                database=project.database,
+                schema=project.test_schema,
             )
             project.adapter.drop_schema(relation)
-
-    pass
 
 
 class TestFabricClonePossible(BaseClonePossible):
@@ -224,13 +231,13 @@ class TestFabricClonePossible(BaseClonePossible):
         yield
         with project.adapter.connection_named("__test"):
             relation = project.adapter.Relation.create(
-                database=project.database, schema=f"{project.test_schema}_seeds"
+                database=project.database,
+                schema=f"{project.test_schema}_seeds",
             )
             project.adapter.drop_schema(relation)
 
             relation = project.adapter.Relation.create(
-                database=project.database, schema=project.test_schema
+                database=project.database,
+                schema=project.test_schema,
             )
             project.adapter.drop_schema(relation)
-
-    pass

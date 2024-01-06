@@ -6,7 +6,6 @@ from itertools import chain, repeat
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 import agate
-import dbt.exceptions
 import pyodbc
 from azure.core.credentials import AccessToken
 from azure.identity import (
@@ -16,13 +15,14 @@ from azure.identity import (
     EnvironmentCredential,
     ManagedIdentityCredential,
 )
+
+import dbt.exceptions
 from dbt.adapters.sql import SQLConnectionManager
+from dbt.adapters.sqlserver import __version__
+from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 from dbt.clients.agate_helper import empty_table
 from dbt.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.events import AdapterLogger
-
-from dbt.adapters.sqlserver import __version__
-from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
 _TOKEN: Optional[AccessToken] = None
@@ -32,8 +32,7 @@ logger = AdapterLogger("SQLServer")
 
 
 def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
-    """
-    Convert bytes to a Microsoft windows byte string.
+    """Convert bytes to a Microsoft windows byte string.
 
     Parameters
     ----------
@@ -50,8 +49,7 @@ def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
 
 
 def convert_access_token_to_mswindows_byte_string(token: AccessToken) -> bytes:
-    """
-    Convert an access token to a Microsoft windows byte string.
+    """Convert an access token to a Microsoft windows byte string.
 
     Parameters
     ----------
@@ -68,8 +66,7 @@ def convert_access_token_to_mswindows_byte_string(token: AccessToken) -> bytes:
 
 
 def get_cli_access_token(credentials: SQLServerCredentials) -> AccessToken:
-    """
-    Get an Azure access token using the CLI credentials
+    """Get an Azure access token using the CLI credentials.
 
     First login with:
 
@@ -88,16 +85,14 @@ def get_cli_access_token(credentials: SQLServerCredentials) -> AccessToken:
         Access token.
     """
     _ = credentials
-    token = AzureCliCredential().get_token(AZURE_CREDENTIAL_SCOPE)
-    return token
+    return AzureCliCredential().get_token(AZURE_CREDENTIAL_SCOPE)
 
 
 def get_msi_access_token(credentials: SQLServerCredentials) -> AccessToken:
-    """
-    Get an Azure access token from the system's managed identity
+    """Get an Azure access token from the system's managed identity.
 
     Parameters
-    -----------
+    ----------
     credentials: SQLServerCredentials
         Credentials.
 
@@ -106,16 +101,14 @@ def get_msi_access_token(credentials: SQLServerCredentials) -> AccessToken:
     out : AccessToken
         The access token.
     """
-    token = ManagedIdentityCredential().get_token(AZURE_CREDENTIAL_SCOPE)
-    return token
+    return ManagedIdentityCredential().get_token(AZURE_CREDENTIAL_SCOPE)
 
 
 def get_auto_access_token(credentials: SQLServerCredentials) -> AccessToken:
-    """
-    Get an Azure access token automatically through azure-identity
+    """Get an Azure access token automatically through azure-identity.
 
     Parameters
-    -----------
+    ----------
     credentials: SQLServerCredentials
         Credentials.
 
@@ -124,16 +117,14 @@ def get_auto_access_token(credentials: SQLServerCredentials) -> AccessToken:
     out : AccessToken
         The access token.
     """
-    token = DefaultAzureCredential().get_token(AZURE_CREDENTIAL_SCOPE)
-    return token
+    return DefaultAzureCredential().get_token(AZURE_CREDENTIAL_SCOPE)
 
 
 def get_environment_access_token(credentials: SQLServerCredentials) -> AccessToken:
-    """
-    Get an Azure access token by reading environment variables
+    """Get an Azure access token by reading environment variables.
 
     Parameters
-    -----------
+    ----------
     credentials: SQLServerCredentials
         Credentials.
 
@@ -142,13 +133,11 @@ def get_environment_access_token(credentials: SQLServerCredentials) -> AccessTok
     out : AccessToken
         The access token.
     """
-    token = EnvironmentCredential().get_token(AZURE_CREDENTIAL_SCOPE)
-    return token
+    return EnvironmentCredential().get_token(AZURE_CREDENTIAL_SCOPE)
 
 
 def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
-    """
-    Get an Azure access token using the SP credentials.
+    """Get an Azure access token using the SP credentials.
 
     Parameters
     ----------
@@ -160,10 +149,11 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
     out : AccessToken
         The access token.
     """
-    token = ClientSecretCredential(
-        str(credentials.tenant_id), str(credentials.client_id), str(credentials.client_secret)
+    return ClientSecretCredential(
+        str(credentials.tenant_id),
+        str(credentials.client_id),
+        str(credentials.client_secret),
     ).get_token(AZURE_CREDENTIAL_SCOPE)
-    return token
 
 
 AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
@@ -176,8 +166,7 @@ AZURE_AUTH_FUNCTIONS: Mapping[str, AZURE_AUTH_FUNCTION_TYPE] = {
 
 
 def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
-    """
-    Get the pyodbc attrs before.
+    """Get the pyodbc attrs before.
 
     Parameters
     ----------
@@ -200,7 +189,9 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
 
     authentication = str(credentials.authentication).lower()
     if authentication in AZURE_AUTH_FUNCTIONS:
-        time_remaining = (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        time_remaining = (
+            (_TOKEN.expires_on - time.time()) if _TOKEN else MAX_REMAINING_TIME
+        )
 
         if _TOKEN is None or (time_remaining < MAX_REMAINING_TIME):
             azure_auth_function = AZURE_AUTH_FUNCTIONS[authentication]
@@ -216,8 +207,7 @@ def get_pyodbc_attrs_before(credentials: SQLServerCredentials) -> Dict:
 
 
 def bool_to_connection_string_arg(key: str, value: bool) -> str:
-    """
-    Convert a boolean to a connection string argument.
+    """Convert a boolean to a connection string argument.
 
     Parameters
     ----------
@@ -235,8 +225,7 @@ def bool_to_connection_string_arg(key: str, value: bool) -> str:
 
 
 def byte_array_to_datetime(value: bytes) -> dt.datetime:
-    """
-    Converts a DATETIMEOFFSET byte array to a timezone-aware datetime object
+    """Converts a DATETIMEOFFSET byte array to a timezone-aware datetime object.
 
     Parameters
     ----------
@@ -251,7 +240,7 @@ def byte_array_to_datetime(value: bytes) -> dt.datetime:
     ------
     SQL_SS_TIMESTAMPOFFSET datatype and SQL_SS_TIMESTAMPOFFSET_STRUCT layout:
     https://learn.microsoft.com/sql/relational-databases/native-client-odbc-date-time/data-type-support-for-odbc-date-and-time-improvements
-    """
+    """  # noqa: D401
     # unpack 20 bytes of data into a tuple of 9 values
     tup = struct.unpack("<6hI2h", value)
 
@@ -277,7 +266,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             yield
 
         except pyodbc.DatabaseError as e:
-            logger.debug("Database error: {}".format(str(e)))
+            logger.debug(f"Database error: {e!s}")
 
             try:
                 # attempt to release the connection
@@ -314,7 +303,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             # SQL Server named instance. In this case then port number has to be omitted.
             con_str.append(f"SERVER={credentials.host}")
         else:
-            con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            con_str.append(f"SERVER={credentials.host}")
 
         con_str.append(f"Database={credentials.database}")
 
@@ -326,6 +315,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
             if credentials.authentication == "ActiveDirectoryPassword":
                 con_str.append(f"UID={{{credentials.UID}}}")
                 con_str.append(f"PWD={{{credentials.PWD}}}")
+            if credentials.authentication == "ActiveDirectoryServicePrincipal":
+                con_str.append(f"UID={{{credentials.client_id}}}")
+                con_str.append(f"PWD={{{credentials.client_secret}}}")
             elif credentials.authentication == "ActiveDirectoryInteractive":
                 con_str.append(f"UID={{{credentials.UID}}}")
 
@@ -341,12 +333,15 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
         con_str.append(
-            bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert)
+            bool_to_connection_string_arg(
+                "TrustServerCertificate",
+                credentials.trust_cert,
+            ),
         )
 
         plugin_version = __version__.version
         application_name = f"dbt-{credentials.type}/{plugin_version}"
-        con_str.append(f"Application Name={application_name}")
+        con_str.append(f"APP={application_name}")
 
         con_str_concat = ";".join(con_str)
 
@@ -370,8 +365,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
             retryable_exceptions.append(pyodbc.InterfaceError)
 
         def connect():
-            logger.debug(f"Using connection string: {con_str_display}")
-
             attrs_before = get_pyodbc_attrs_before(credentials)
             handle = pyodbc.connect(
                 con_str_concat,
@@ -380,7 +373,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 timeout=credentials.login_timeout,
             )
             handle.timeout = credentials.query_timeout
-            logger.debug(f"Connected to db: {credentials.database}")
             return handle
 
         return cls.retry_connection(
@@ -395,11 +387,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
         logger.debug("Cancel query")
 
     def add_begin_query(self):
-        # return self.add_query('BEGIN TRANSACTION', auto_begin=False)
         pass
 
     def add_commit_query(self):
-        # return self.add_query('COMMIT TRANSACTION', auto_begin=False)
         pass
 
     def add_query(
@@ -410,17 +400,16 @@ class SQLServerConnectionManager(SQLConnectionManager):
         abridge_sql_log: bool = False,
     ) -> Tuple[Connection, Any]:
         connection = self.get_thread_connection()
-
         if auto_begin and connection.transaction_open is False:
             self.begin()
 
-        logger.debug('Using {} connection "{}".'.format(self.TYPE, connection.name))
+        logger.debug(f'Using {self.TYPE} connection "{connection.name}".')
 
         with self.exception_handler(sql):
             if abridge_sql_log:
-                logger.debug("On {}: {}....".format(connection.name, sql[0:512]))
+                logger.debug(f"On {connection.name}: {sql[0:512]}....")
             else:
-                logger.debug("On {}: {}".format(connection.name, sql))
+                logger.debug(f"On {connection.name}: {sql}")
             pre = time.time()
 
             cursor = connection.handle.cursor()
@@ -437,8 +426,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             logger.debug(
                 "SQL status: {} in {:0.2f} seconds".format(
-                    self.get_response(cursor), (time.time() - pre)
-                )
+                    self.get_response(cursor),
+                    (time.time() - pre),
+                ),
             )
 
             return connection, cursor
@@ -466,7 +456,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
         )
 
     def execute(
-        self, sql: str, auto_begin: bool = True, fetch: bool = False
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        fetch: bool = False,
+        limit: int = None,
     ) -> Tuple[AdapterResponse, agate.Table]:
         _, cursor = self.add_query(sql, auto_begin)
         response = self.get_response(cursor)
@@ -475,7 +469,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             while cursor.description is None:
                 if not cursor.nextset():
                     break
-            table = self.get_result_from_cursor(cursor)
+            table = self.get_result_from_cursor(cursor, limit)
         else:
             table = empty_table()
         # Step through all result sets so we process all errors

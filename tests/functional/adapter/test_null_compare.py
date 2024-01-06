@@ -1,4 +1,7 @@
-from dbt.tests.adapter.utils.test_null_compare import BaseMixedNullCompare, BaseNullCompare
+from dbt.tests.adapter.utils.test_null_compare import (
+    BaseMixedNullCompare,
+    BaseNullCompare,
+)
 
 
 class TestMixedNullCompareFabric(BaseMixedNullCompare):

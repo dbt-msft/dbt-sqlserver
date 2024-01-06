@@ -1,12 +1,14 @@
-<<<<<<< HEAD
 from dbt.tests.adapter.store_test_failures_tests.test_store_test_failures import (
     TestStoreTestFailures as BaseStoreTestFailures,
 )
 
 
 class TestStoreTestFailuresSQLServer(BaseStoreTestFailures):
-=======
+    pass
+
+
 import pytest
+
 from dbt.tests.adapter.store_test_failures_tests import basic
 from dbt.tests.adapter.store_test_failures_tests.fixtures import (
     models__file_model_but_with_a_no_good_very_long_name,
@@ -120,7 +122,8 @@ class StoreTestFailuresBase:
 
         # compare test results stored in database
         check_relations_equal(
-            project.adapter, [f"{self.test_audit_schema}.failing_test", "expected_failing_test"]
+            project.adapter,
+            [f"{self.test_audit_schema}.failing_test", "expected_failing_test"],
         )
         check_relations_equal(
             project.adapter,
@@ -152,12 +155,14 @@ class TestStoreTestFailures(StoreTestFailuresBase):
         yield
         with project.adapter.connection_named("__test"):
             relation = project.adapter.Relation.create(
-                database=project.database, schema=self.test_audit_schema
+                database=project.database,
+                schema=self.test_audit_schema,
             )
             project.adapter.drop_schema(relation)
 
             relation = project.adapter.Relation.create(
-                database=project.database, schema=project.test_schema
+                database=project.database,
+                schema=project.test_schema,
             )
             project.adapter.drop_schema(relation)
 
@@ -192,7 +197,9 @@ class TestStoreTestFailuresAsProjectLevelOff(basic.StoreTestFailuresAsProjectLev
     pass
 
 
-class TestStoreTestFailuresAsProjectLevelView(basic.StoreTestFailuresAsProjectLevelView):
+class TestStoreTestFailuresAsProjectLevelView(
+    basic.StoreTestFailuresAsProjectLevelView
+):
     pass
 
 
@@ -200,10 +207,11 @@ class TestStoreTestFailuresAsGeneric(basic.StoreTestFailuresAsGeneric):
     pass
 
 
-class TestStoreTestFailuresAsProjectLevelEphemeral(basic.StoreTestFailuresAsProjectLevelEphemeral):
+class TestStoreTestFailuresAsProjectLevelEphemeral(
+    basic.StoreTestFailuresAsProjectLevelEphemeral
+):
     pass
 
 
 class TestStoreTestFailuresAsExceptions(basic.StoreTestFailuresAsExceptions):
->>>>>>> fabric-1.7
     pass

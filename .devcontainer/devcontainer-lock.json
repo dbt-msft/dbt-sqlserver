@@ -1,0 +1,24 @@
+{
+  "features": {
+    "ghcr.io/devcontainers-contrib/features/hatch:2": {
+      "version": "2.0.17",
+      "resolved": "ghcr.io/devcontainers-contrib/features/hatch@sha256:01caa800a7e20eaf23e73ea6cccecfbc44ab44ab3d421056d113a5c42a101085",
+      "integrity": "sha256:01caa800a7e20eaf23e73ea6cccecfbc44ab44ab3d421056d113a5c42a101085"
+    },
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "version": "1.2.2",
+      "resolved": "ghcr.io/devcontainers/features/azure-cli@sha256:d6d5e7e8aedfa5876a44410727a2c2632ce40a48c714bdfc280ae989397da5b9",
+      "integrity": "sha256:d6d5e7e8aedfa5876a44410727a2c2632ce40a48c714bdfc280ae989397da5b9"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "2.7.1",
+      "resolved": "ghcr.io/devcontainers/features/docker-in-docker@sha256:f6a73ee06601d703db7d95d03e415cab229e78df92bb5002e8559bcfc047fec6",
+      "integrity": "sha256:f6a73ee06601d703db7d95d03e415cab229e78df92bb5002e8559bcfc047fec6"
+    },
+    "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver:1": {
+      "version": "1.0.1",
+      "resolved": "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver@sha256:c79e8a0b372188f1785f3ed7bb2c1f91624bdf89b9ab69aa9fc3c9216f2bde56",
+      "integrity": "sha256:c79e8a0b372188f1785f3ed7bb2c1f91624bdf89b9ab69aa9fc3c9216f2bde56"
+    }
+  }
+}

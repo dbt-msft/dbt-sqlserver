@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.aliases.fixtures import MACROS__EXPECT_VALUE_SQL
 from dbt.tests.adapter.aliases.test_aliases import (
     BaseAliasErrors,
@@ -15,20 +16,25 @@ class TestAliasesFabric(BaseAliases):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
+@pytest.mark.skip(reason="Fabric test")
 class TestAliasErrorsFabric(BaseAliasErrors):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-@pytest.mark.skip(reason="Test audit tables are using CTAS on View without a table definition.")
+@pytest.mark.skip(
+    reason="Test audit tables are using CTAS on View without a table definition."
+)
 class TestSameAliasDifferentSchemasFabric(BaseSameAliasDifferentSchemas):
     @pytest.fixture(scope="class")
     def macros(self):
         return {"expect_value.sql": MACROS__EXPECT_VALUE_SQL}
 
 
-@pytest.mark.skip(reason="Test audit tables are using CTAS on View without a table definition.")
+@pytest.mark.skip(
+    reason="Test audit tables are using CTAS on View without a table definition."
+)
 class TestSameAliasDifferentDatabasesFabric(BaseSameAliasDifferentDatabases):
     @pytest.fixture(scope="class")
     def macros(self):

@@ -54,6 +54,8 @@ This adapter is Microsoft-maintained.
 You are welcome to contribute by creating issues, opening or reviewing pull requests.
 If you're unsure how to get started, check out our [contributing guide](CONTRIBUTING.md).
 
+Read [Good Integration Practices](https://docs.pytest.org/en/7.1.x/explanation/goodpractices.html) in the *pytest* documentation for an overview of this repository's approach to packaging- and test-related architechture.
+
 ## License
 
 [![PyPI - License](https://img.shields.io/pypi/l/dbt-fabric)](https://github.com/microsoft/dbt-fabric/blob/main/LICENSE)

@@ -17,4 +17,4 @@ class SQLServerColumn(Column):
         return f"varchar({size if size > 0 else 'MAX'})"
 
     def literal(self, value: Any) -> str:
-        return "cast('{}' as {})".format(value, self.data_type)
+        return f"cast('{value}' as {self.data_type})"

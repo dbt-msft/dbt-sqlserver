@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.utils.fixture_cast_bool_to_text import (
     models__test_cast_bool_to_text_yml,
 )
@@ -45,7 +46,7 @@ class BaseFixedMacro:
     or ({{ actual }} is null and {{ expected }} is not null)
     or ({{ expected }} is null and {{ actual }} is not null)
     {% endtest %}
-    """
+    """,
         }
 
 
@@ -81,7 +82,8 @@ class TestCastBoolToTextSQLServer(BaseFixedMacro, BaseCastBoolToText):
         return {
             "test_cast_bool_to_text.yml": models__test_cast_bool_to_text_yml,
             "test_cast_bool_to_text.sql": self.interpolate_macro_namespace(
-                models__test_cast_bool_to_text_sql, "cast_bool_to_text"
+                models__test_cast_bool_to_text_sql,
+                "cast_bool_to_text",
             ),
         }
 
@@ -94,7 +96,7 @@ class TestConcatSQLServer(BaseFixedMacro, BaseConcat):
 a,b,ab
 a,,a
 ,b,b
-"""
+""",
         }
 
 
@@ -220,7 +222,8 @@ and calculate.version = data_output.version
         return {
             "test_listagg.yml": models__test_listagg_yml,
             "test_listagg.sql": self.interpolate_macro_namespace(
-                models__test_listagg_sql, "listagg"
+                models__test_listagg_sql,
+                "listagg",
             ),
         }
 

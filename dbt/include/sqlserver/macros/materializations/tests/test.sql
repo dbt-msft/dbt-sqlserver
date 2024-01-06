@@ -23,17 +23,16 @@
       from {{ target_relation }}
   {% endset %}
 
-  {{ adapter.commit() }}
+  {{ adapter.commit }}
 
 
-  {% set limit = config.get('limit') %}
   {% set fail_calc = config.get('fail_calc') %}
   {% set warn_if = config.get('warn_if') %}
   {% set error_if = config.get('error_if') %}
 
   {% call statement('main', fetch_result=True) -%}
 
-    {{ get_test_sql(main_sql, fail_calc, warn_if, error_if, limit)}}
+    {{ get_test_sql(main_sql, fail_calc, warn_if, error_if)}}
 
   {%- endcall %}
 

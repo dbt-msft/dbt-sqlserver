@@ -1,6 +1,5 @@
-{% macro sqlserver__get_test_sql(main_sql, fail_calc, warn_if, error_if, limit) -%}
+{% macro sqlserver__get_test_sql(main_sql, fail_calc, warn_if, error_if) -%}
     select
-      {{ "top (" ~ limit ~ ')' if limit != none }}
       {{ fail_calc }} as failures,
       case when {{ fail_calc }} {{ warn_if }}
         then 'true' else 'false' end as should_warn,

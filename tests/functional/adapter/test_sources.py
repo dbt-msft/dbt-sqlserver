@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.basic.files import (
     config_materialized_table,
     config_materialized_view,
@@ -42,7 +43,7 @@ select object_id,schema_id from {{ source("space in name", "tables") }}
 
 # System tables are not supported for data type reasons.
 @pytest.mark.skip(
-    reason="The query references an object that is not supported in distributed processing mode."
+    reason="The query references an object that is not supported in distributed processing mode.",
 )
 class TestSourcesFabric:
     @pytest.fixture(scope="class")

@@ -1,5 +1,5 @@
 name: dbt_sqlserver
-version: 1.0
+version: "1.7.4"
 
 config-version: 2
 

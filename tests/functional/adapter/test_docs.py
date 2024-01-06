@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from dbt.tests.adapter.basic.expected_catalog import (
     base_expected_catalog,
     expected_references_catalog,

@@ -1,22 +1,30 @@
 {
   "name": "dbt-sqlserver",
-  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "image": "mcr.microsoft.com/devcontainers/python",
   "features": {
+    "ghcr.io/devcontainers-contrib/features/hatch:2": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
     "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver:1": {
       "version": "18"
-    },
-    "ghcr.io/devcontainers/features/azure-cli:1": {}
+    }
+  },
+  "containerEnv": {
+    "MSSQL_SA_PASSWORD": "L0calTesting!",
+    "MSSQL_SA_COLLATION": "SQL_Latin1_General_CP1_CI_AS"
   },
   "customizations": {
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": ".venv/bin/python",
+        // "files.associations": {
+        //   "*.sql": "jinja-sql",
+        //   "*.yml": "jinja-yaml"
+        // },
         "python.terminal.activateEnvInCurrentTerminal": true,
         "[python]": {
           "editor.codeActionsOnSave": {
-            "source.fixAll": true,
-            "source.organizeImports": true
+            "source.fixAll.ruff": true,
+            "source.organizeImports.ruff": true
           },
           "editor.defaultFormatter": "charliermarsh.ruff"
         },
@@ -39,8 +47,7 @@
         "eamodio.gitlens",
         "GitHub.vscode-github-actions",
         "tamasfe.even-better-toml",
-        "esbenp.prettier-vscode",
-        "redhat.vscode-yaml"
+        "ms-mssql.mssql"
       ]
     }
   }

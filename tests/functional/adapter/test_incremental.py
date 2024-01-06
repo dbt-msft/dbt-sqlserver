@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.incremental.fixtures import (
     _MODELS__A,
     _MODELS__INCREMENTAL_APPEND_NEW_COLUMNS,
@@ -10,6 +11,9 @@ from dbt.tests.adapter.incremental.fixtures import (
     _MODELS__INCREMENTAL_SYNC_ALL_COLUMNS,
     _MODELS__INCREMENTAL_SYNC_REMOVE_ONLY,
 )
+from dbt.tests.adapter.incremental.test_incremental_merge_exclude_columns import (
+    BaseMergeExcludeColumns,
+)
 from dbt.tests.adapter.incremental.test_incremental_on_schema_change import (
     BaseIncrementalOnSchemaChange,
 )
@@ -18,10 +22,6 @@ from dbt.tests.adapter.incremental.test_incremental_predicates import (
 )
 from dbt.tests.adapter.incremental.test_incremental_unique_id import (
     BaseIncrementalUniqueKey,
-)
-
-from dbt.tests.adapter.incremental.test_incremental_merge_exclude_columns import (
-    BaseMergeExcludeColumns,
 )
 
 _MODELS__INCREMENTAL_IGNORE = """
@@ -133,7 +133,7 @@ class TestPredicatesDeleteInsertFabric(BaseIncrementalPredicates):
             "models": {
                 "+predicates": ["id != 2"],
                 "+incremental_strategy": "delete+insert",
-            }
+            },
         }
 
 

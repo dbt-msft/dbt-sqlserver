@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.contracts.results import CatalogArtifact
 from dbt.tests.util import run_dbt
 
@@ -33,7 +34,7 @@ class TestCatalogRelationTypes:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {
+        return {
             "my_table.sql": MY_TABLE,
             "my_view.sql": MY_VIEW,
         }
@@ -42,7 +43,7 @@ class TestCatalogRelationTypes:
     def docs(self, project):
         run_dbt(["seed"])
         run_dbt(["run"])
-        yield run_dbt(["docs", "generate"])
+        return run_dbt(["docs", "generate"])
 
     @pytest.mark.parametrize(
         "node_name,relation_type",
@@ -53,7 +54,10 @@ class TestCatalogRelationTypes:
         ],
     )
     def test_relation_types_populate_correctly(
-        self, docs: CatalogArtifact, node_name: str, relation_type: str
+        self,
+        docs: CatalogArtifact,
+        node_name: str,
+        relation_type: str,
     ):
         assert node_name in docs.nodes
         node = docs.nodes[node_name]
