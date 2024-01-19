@@ -2,6 +2,9 @@
 
 ### v1.3.2
 
+#### Features
+- Allow setting table `OPTIONS` using `config`
+
 #### Fixes
 
 * Install a correct version of `dbt-core` that is compatible with the library 
