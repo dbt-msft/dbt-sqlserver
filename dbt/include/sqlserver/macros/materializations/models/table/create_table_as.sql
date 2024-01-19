@@ -1,6 +1,7 @@
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
    {%- set option_clause  = config.get('option_clause') -%}
+   {%- set sql_header = config.get('sql_header') -%}
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
@@ -14,6 +15,10 @@
    EXEC('create view {{ tmp_relation.include(database=False) }} as
     {{ temp_view_sql }}
     ');
+    
+   {% if sql_header %}
+      {{ sql_header }} 
+   {% endif %}
 
    SELECT * INTO {{ relation }} FROM
     {{ tmp_relation }}
