@@ -1,7 +1,7 @@
 pytest==7.4.2
 twine==4.0.2
 wheel==0.42
-pre-commit==3.5.0
+pre-commit==2.21.0
 pytest-dotenv==0.5.2
 dbt-tests-adapter==1.7.2
 dbt-fabric==1.7.2
