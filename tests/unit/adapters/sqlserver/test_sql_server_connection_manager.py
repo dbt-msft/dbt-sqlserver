@@ -68,7 +68,8 @@ def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
 
 
 @pytest.mark.parametrize(
-    "key, value, expected", [("somekey", False, "somekey=No"), ("somekey", True, "somekey=Yes")]
+    "key, value, expected",
+    [("somekey", False, "somekey=No"), ("somekey", True, "somekey=Yes")],
 )
 def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> None:
     assert bool_to_connection_string_arg(key, value) == expected

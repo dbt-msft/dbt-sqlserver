@@ -56,7 +56,9 @@ def get_sp_access_token(credentials: SQLServerCredentials) -> AccessToken:
         The access token.
     """
     token = ClientSecretCredential(
-        str(credentials.tenant_id), str(credentials.client_id), str(credentials.client_secret)
+        str(credentials.tenant_id),
+        str(credentials.client_id),
+        str(credentials.client_secret),
     ).get_token(AZURE_CREDENTIAL_SCOPE)
     return token
 

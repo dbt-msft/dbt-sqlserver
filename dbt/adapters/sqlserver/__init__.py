@@ -3,7 +3,9 @@ from dbt.adapters.base import AdapterPlugin
 from dbt.adapters.sqlserver.sql_server_adapter import SQLServerAdapter
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
-from dbt.adapters.sqlserver.sql_server_connection_manager import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sql_server_connection_manager import (
+    SQLServerConnectionManager,
+)
 from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials
 from dbt.include import sqlserver
 

@@ -1,16 +1,21 @@
 import os
 
 import pytest
-from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql
+from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql, seed__actual_csv
+from dbt.tests.adapter.simple_seed.fixtures import models__downstream_from_seed_actual
 from dbt.tests.adapter.simple_seed.test_seed import SeedConfigBase
-from dbt.tests.adapter.simple_seed.test_seed import TestBasicSeedTests as BaseBasicSeedTests
+from dbt.tests.adapter.simple_seed.test_seed import (
+    TestBasicSeedTests as BaseBasicSeedTests,
+)
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedConfigFullRefreshOff as BaseSeedConfigFullRefreshOff,
 )
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedConfigFullRefreshOn as BaseSeedConfigFullRefreshOn,
 )
-from dbt.tests.adapter.simple_seed.test_seed import TestSeedCustomSchema as BaseSeedCustomSchema
+from dbt.tests.adapter.simple_seed.test_seed import (
+    TestSeedCustomSchema as BaseSeedCustomSchema,
+)
 from dbt.tests.adapter.simple_seed.test_seed import TestSeedParsing as BaseSeedParsing
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedSpecificFormats as BaseSeedSpecificFormats,
@@ -23,7 +28,13 @@ from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     seeds__disabled_in_config_csv,
     seeds__enabled_in_config_csv,
 )
-from dbt.tests.util import get_connection, run_dbt
+from dbt.tests.util import (
+    get_connection,
+    run_dbt,
+    check_relations_equal,
+    check_table_does_exist,
+    check_table_does_not_exist,
+)
 
 from dbt.adapters.sqlserver import SQLServerAdapter
 
@@ -145,6 +156,20 @@ class TestBasicSeedTestsSQLServer(BaseBasicSeedTests):
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
+    def test_simple_seed(self, project):
+        """Build models and observe that run truncates a seed and re-inserts rows"""
+        self._build_relations_for_test(project)
+        self._check_relation_end_state(run_result=run_dbt(["seed"]), project=project, exists=True)
+
+    def test_simple_seed_full_refresh_flag(self, project):
+        """Drop the seed_actual table and re-create.
+        Verifies correct behavior by the absence of the
+        model which depends on seed_actual."""
+        self._build_relations_for_test(project)
+        self._check_relation_end_state(
+            run_result=run_dbt(["seed", "--full-refresh"]), project=project, exists=True
+        )
+
 
 class TestSeedConfigFullRefreshOnSQLServer(BaseSeedConfigFullRefreshOn):
     @pytest.fixture(scope="class", autouse=True)
@@ -220,3 +245,50 @@ class TestSeedBatchSizeCustomSQLServer(SeedConfigBase):
         # this is changed from 350.
         # Fabric goes -1 of min batch of (2100/number of columns -1) or 400
         assert "Inserting batches of 349.0 records" in logs
+
+
+class SeedConfigBase:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "seeds": {
+                "quote_columns": False,
+            },
+        }
+
+
+class SeedTestBase(SeedConfigBase):
+    @pytest.fixture(scope="class", autouse=True)
+    def setUp(self, project):
+        """Create table for ensuring seeds and models used in tests build correctly"""
+        project.run_sql(seeds__expected_sql)
+
+    @pytest.fixture(scope="class")
+    def seeds(self, test_data_dir):
+        return {"seed_actual.csv": seed__actual_csv}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "models__downstream_from_seed_actual.sql": models__downstream_from_seed_actual,
+        }
+
+    def _build_relations_for_test(self, project):
+        """The testing environment needs seeds and models to interact with"""
+        seed_result = run_dbt(["seed"])
+        assert len(seed_result) == 1
+        check_relations_equal(project.adapter, ["seed_expected", "seed_actual"])
+
+        run_result = run_dbt()
+        assert len(run_result) == 1
+        check_relations_equal(
+            project.adapter, ["models__downstream_from_seed_actual", "seed_expected"]
+        )
+
+    def _check_relation_end_state(self, run_result, project, exists: bool):
+        assert len(run_result) == 1
+        check_relations_equal(project.adapter, ["seed_actual", "seed_expected"])
+        if exists:
+            check_table_does_exist(project.adapter, "models__downstream_from_seed_actual")
+        else:
+            check_table_does_not_exist(project.adapter, "models__downstream_from_seed_actual")
