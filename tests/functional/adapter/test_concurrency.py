@@ -1,7 +1,4 @@
-from dbt.tests.adapter.concurrency.test_concurrency import (
-    BaseConcurrency,
-    seeds__update_csv,
-)
+from dbt.tests.adapter.concurrency.test_concurrency import BaseConcurrency, seeds__update_csv
 from dbt.tests.util import (
     check_relations_equal,
     check_table_does_not_exist,
