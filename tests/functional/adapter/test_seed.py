@@ -1,21 +1,17 @@
 import os
 
 import pytest
-from dbt.tests.adapter.simple_seed.seeds import seeds__expected_sql, seed__actual_csv
 from dbt.tests.adapter.simple_seed.fixtures import models__downstream_from_seed_actual
+from dbt.tests.adapter.simple_seed.seeds import seed__actual_csv, seeds__expected_sql
 from dbt.tests.adapter.simple_seed.test_seed import SeedConfigBase
-from dbt.tests.adapter.simple_seed.test_seed import (
-    TestBasicSeedTests as BaseBasicSeedTests,
-)
+from dbt.tests.adapter.simple_seed.test_seed import TestBasicSeedTests as BaseBasicSeedTests
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedConfigFullRefreshOff as BaseSeedConfigFullRefreshOff,
 )
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedConfigFullRefreshOn as BaseSeedConfigFullRefreshOn,
 )
-from dbt.tests.adapter.simple_seed.test_seed import (
-    TestSeedCustomSchema as BaseSeedCustomSchema,
-)
+from dbt.tests.adapter.simple_seed.test_seed import TestSeedCustomSchema as BaseSeedCustomSchema
 from dbt.tests.adapter.simple_seed.test_seed import TestSeedParsing as BaseSeedParsing
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSeedSpecificFormats as BaseSeedSpecificFormats,
@@ -29,11 +25,11 @@ from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     seeds__enabled_in_config_csv,
 )
 from dbt.tests.util import (
-    get_connection,
-    run_dbt,
     check_relations_equal,
     check_table_does_exist,
     check_table_does_not_exist,
+    get_connection,
+    run_dbt,
 )
 
 from dbt.adapters.sqlserver import SQLServerAdapter

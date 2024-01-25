@@ -13,12 +13,8 @@ from dbt.tests.adapter.incremental.fixtures import (
 from dbt.tests.adapter.incremental.test_incremental_on_schema_change import (
     BaseIncrementalOnSchemaChange,
 )
-from dbt.tests.adapter.incremental.test_incremental_predicates import (
-    BaseIncrementalPredicates,
-)
-from dbt.tests.adapter.incremental.test_incremental_unique_id import (
-    BaseIncrementalUniqueKey,
-)
+from dbt.tests.adapter.incremental.test_incremental_predicates import BaseIncrementalPredicates
+from dbt.tests.adapter.incremental.test_incremental_unique_id import BaseIncrementalUniqueKey
 
 _MODELS__INCREMENTAL_IGNORE = """
 {{
