@@ -172,6 +172,15 @@ class TestSeedConfigFullRefreshOnSQLServer(BaseSeedConfigFullRefreshOn):
     def setUp(self, project):
         project.run_sql(fixed_setup_sql)
 
+    def test_simple_seed_full_refresh_config(self, project):
+        """Drop the seed_actual table and re-create.
+        Verifies correct behavior by the absence of the
+        model which depends on seed_actual."""
+        self._build_relations_for_test(project)
+        self._check_relation_end_state(
+            run_result=run_dbt(["seed", "--full-refresh"]), project=project, exists=True
+        )
+
 
 class TestSeedConfigFullRefreshOffSQLServer(BaseSeedConfigFullRefreshOff):
     @pytest.fixture(scope="class", autouse=True)
