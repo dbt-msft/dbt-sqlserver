@@ -24,13 +24,7 @@ from dbt.tests.adapter.simple_seed.test_seed_type_override import (
     seeds__disabled_in_config_csv,
     seeds__enabled_in_config_csv,
 )
-from dbt.tests.util import (
-    check_relations_equal,
-    check_table_does_exist,
-    check_table_does_not_exist,
-    get_connection,
-    run_dbt,
-)
+from dbt.tests.util import check_relations_equal, check_table_does_exist, get_connection, run_dbt
 
 from dbt.adapters.sqlserver import SQLServerAdapter
 
