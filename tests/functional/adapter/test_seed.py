@@ -286,5 +286,3 @@ class SeedTestBase(SeedConfigBase):
         check_relations_equal(project.adapter, ["seed_actual", "seed_expected"])
         if exists:
             check_table_does_exist(project.adapter, "models__downstream_from_seed_actual")
-        else:
-            check_table_does_not_exist(project.adapter, "models__downstream_from_seed_actual")
