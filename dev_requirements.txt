@@ -7,4 +7,5 @@ dbt-tests-adapter==1.7.2
 dbt-fabric==1.7.2
 flaky==3.7.0
 pytest-xdist==3.5.0
+setuptools==69.0.3
 -e .
