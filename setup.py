@@ -70,6 +70,7 @@ setup(
         "dbt-fabric~=1.7.2",
         "pyodbc>=4.0.35,<5.1.0",
         "azure-identity>=1.12.0",
+        "setup-tools~=63.0.3",
     ],
     cmdclass={
         "verify": VerifyVersionCommand,
@@ -85,6 +86,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     project_urls={
         "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile",  # noqa: E501
