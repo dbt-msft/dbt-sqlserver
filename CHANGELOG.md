@@ -1,10 +1,8 @@
 # Changelog
 
-### v1.7.2rc1
+### v1.7.2
 
-This was an amazing team effort - huge thanks to @cody-scott and @prescode for the bulk of the work to get us up to speed.
-
-This will be in pre-release for a week or so to give folks a chance to test the package in live projects.
+Huge thanks to GitHub users **@cody-scott** and **@prescode** for help with this long-awaited update to enable `dbt-core` 1.7.2 compatibility!
 
 Updated to use dbt-fabric as the upstream adapter (https://github.com/dbt-msft/dbt-sqlserver/issues/441#issuecomment-1815837171)[https://github.com/dbt-msft/dbt-sqlserver/issues/441#issuecomment-1815837171] and (https://github.com/microsoft/dbt-fabric/issues/105)[https://github.com/microsoft/dbt-fabric/issues/105]
 
