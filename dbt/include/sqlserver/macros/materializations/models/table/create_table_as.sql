@@ -12,6 +12,7 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
    {% do run_query(fabric__drop_relation_script(relation)) %}
 
    {% set contract_config = config.get('contract') %}
+   {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
 
     {{ fabric__create_view_as(tmp_relation, sql) }}
     {% if contract_config.enforced %}
@@ -34,5 +35,10 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
     {% endif %}
 
     {{ fabric__drop_relation_script(tmp_relation) }}
+
+    {%- if not temporary and as_columnstore -%}
+        -- add columnstore index
+        {{ sqlserver__create_clustered_columnstore_index(relation) }}
+    {%- endif -%}
 
 {% endmacro %}
