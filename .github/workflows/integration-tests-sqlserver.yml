@@ -15,7 +15,6 @@ jobs:
   integration-tests-sql-server:
     name: Regular
     strategy:
-      fail-fast: false
       matrix:
         python_version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         msodbc_version: ["17", "18"]
@@ -35,7 +34,7 @@ jobs:
           DBT_TEST_USER_3: DBT_TEST_USER_3
           COLLATION: ${{ matrix.collation }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: pip install -r dev_requirements.txt
