@@ -1,5 +1,9 @@
 # https://github.com/microsoft/dbt-fabric/blob/main/dbt/adapters/fabric/fabric_adapter.py
+from typing import Optional
+
+import dbt.exceptions
 from dbt.adapters.fabric import FabricAdapter
+from dbt.contracts.graph.nodes import ConstraintType, ModelLevelConstraint
 
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
@@ -49,6 +53,33 @@ class SQLServerAdapter(FabricAdapter):
     #     ]
     #     return columns
     # endregion
+
+    @classmethod
+    def render_model_constraint(cls, constraint: ModelLevelConstraint) -> Optional[str]:
+        constraint_prefix = "add constraint "
+        column_list = ", ".join(constraint.columns)
+
+        if constraint.name is None:
+            raise dbt.exceptions.DbtDatabaseError(
+                "Constraint name cannot be empty. Provide constraint name  - column "
+                + column_list
+                + " and run the project again."
+            )
+
+        if constraint.type == ConstraintType.unique:
+            return constraint_prefix + f"{constraint.name} unique nonclustered({column_list})"
+        elif constraint.type == ConstraintType.primary_key:
+            return constraint_prefix + f"{constraint.name} primary key nonclustered({column_list})"
+        elif constraint.type == ConstraintType.foreign_key and constraint.expression:
+            return (
+                constraint_prefix
+                + f"{constraint.name} foreign key({column_list}) references "
+                + constraint.expression
+            )
+        elif constraint.type == ConstraintType.custom and constraint.expression:
+            return f"{constraint_prefix}{constraint.expression}"
+        else:
+            return None
 
     @classmethod
     def date_function(cls):
