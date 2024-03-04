@@ -243,7 +243,7 @@ class TestSeedBatchSizeCustomSQLServer(SeedConfigBase):
             logs = "".join(fp.readlines())
         # this is changed from 350.
         # Fabric goes -1 of min batch of (2100/number of columns -1) or 400
-        assert "Inserting batches of 349.0 records" in logs
+        assert "Inserting batches of 349 records" in logs
 
 
 class SeedConfigBase:

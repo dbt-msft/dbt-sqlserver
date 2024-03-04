@@ -2,9 +2,9 @@
 name: Release new version
 
 on:  # yamllint disable-line rule:truthy
-  push:
-    tags:
-      - 'v*'
+  release:
+    types:
+      - published
 
 jobs:
   release-version:
