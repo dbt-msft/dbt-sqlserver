@@ -9,8 +9,8 @@
         WHERE name = '{{cci_name}}'
         AND object_id=object_id('{{relation_name}}')
     )
-  DROP index {{full_relation}}.{{cci_name}}
-  CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
+  DROP index {{full_relation}}."{{cci_name}}"
+  CREATE CLUSTERED COLUMNSTORE INDEX "{{cci_name}}"
     ON {{full_relation}}
 {% endmacro %}
 
