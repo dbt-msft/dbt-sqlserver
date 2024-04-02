@@ -9,7 +9,6 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
    {% do run_query(fabric__drop_relation_script(tmp_relation)) %}
-   {% do run_query(fabric__drop_relation_script(relation)) %}
 
    {% set contract_config = config.get('contract') %}
    {%- set as_columnstore = config.get('as_columnstore', default=true) -%}

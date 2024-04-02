@@ -10,7 +10,7 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
 
   {% set columns %}
     {% for column in columns %}
-      , CAST(NULL AS {{column.data_type}}) AS {{column_name}}
+      , CAST(NULL AS {{column.data_type}}) AS {{ column.quoted }}
     {% endfor %}
   {% endset %}
 
@@ -19,7 +19,7 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
   {% endset %}
 
   {% set tempTable %}
-        SELECT * INTO {{tempTableName}} {{columns}} FROM [{{relation.database}}].[{{ relation.schema }}].[{{ relation.identifier }}] {{ information_schema_hints() }}
+        SELECT * {{columns}} INTO {{tempTableName}} FROM [{{relation.database}}].[{{ relation.schema }}].[{{ relation.identifier }}] {{ information_schema_hints() }}
   {% endset %}
 
   {% call statement('create_temp_table') -%}
