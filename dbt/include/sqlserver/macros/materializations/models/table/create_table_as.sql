@@ -1,35 +1,37 @@
+{#
+Fabric uses the 'CREATE TABLE XYZ AS SELECT * FROM ABC' syntax to create tables.
+SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' syntax instead.
+#}
+
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
-   {#- TODO: add contracts here when in dbt 1.5 -#}
-   {%- set sql_header = config.get('sql_header', none) -%}
-   {%- set as_columnstore = config.get('as_columnstore', default=true) -%}
-   {%- set temp_view_sql = sql.replace("'", "''") -%}
-   {%- set tmp_relation = relation.incorporate(
-        path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
-        type='view') -%}
 
-   {{- sql_header if sql_header is not none -}}
+   {% set tmp_relation = relation.incorporate(
+   path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
+   type='view')-%}
+   {% do run_query(fabric__drop_relation_script(tmp_relation)) %}
 
-    -- drop previous temp view
-   {{- sqlserver__drop_relation_script(tmp_relation) }}
+   {% set contract_config = config.get('contract') %}
 
-    -- create temp view
-   USE [{{ relation.database }}];
-   EXEC('create view {{ tmp_relation.include(database=False) }} as
-    {{ temp_view_sql }}
-    ');
+    {{ fabric__create_view_as(tmp_relation, sql) }}
+    {% if contract_config.enforced %}
 
-   -- select into the table and create it that way
-   {# TempDB schema is ignored, always goes to dbo #}
-   SELECT *
-   INTO {{ relation.include(database=False, schema=(not temporary))  }}
-   FROM {{ tmp_relation }}
+        CREATE TABLE [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}]
+        {{ fabric__table_columns_and_constraints(relation) }}
+        {{ get_assert_columns_equivalent(sql)  }}
 
-   -- drop temp view
-   {{ sqlserver__drop_relation_script(tmp_relation) }}
+        {% set listColumns %}
+            {% for column in model['columns'] %}
+                {{ "["~column~"]" }}{{ ", " if not loop.last }}
+            {% endfor %}
+        {%endset%}
 
-   {%- if not temporary and as_columnstore -%}
-        -- add columnstore index
-        {{ sqlserver__create_clustered_columnstore_index(relation) }}
-   {%- endif -%}
+        INSERT INTO [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}]
+        ({{listColumns}}) SELECT {{listColumns}} FROM [{{tmp_relation.database}}].[{{tmp_relation.schema}}].[{{tmp_relation.identifier}}];
+
+    {%- else %}
+      EXEC('SELECT * INTO [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}] FROM [{{tmp_relation.database}}].[{{tmp_relation.schema}}].[{{tmp_relation.identifier}}];');
+    {% endif %}
+
+    {{ fabric__drop_relation_script(tmp_relation) }}
 
 {% endmacro %}

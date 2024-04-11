@@ -117,4 +117,9 @@ class TestIncrementalPredicatesDeleteInsertSQLServer(BaseIncrementalPredicates):
 class TestPredicatesDeleteInsertSQLServer(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"models": {"+predicates": ["id != 2"], "+incremental_strategy": "delete+insert"}}
+        return {
+            "models": {
+                "+predicates": ["id != 2"],
+                "+incremental_strategy": "delete+insert",
+            }
+        }

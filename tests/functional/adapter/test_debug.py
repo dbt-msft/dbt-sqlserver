@@ -1,7 +1,9 @@
 import os
 import re
 
+import pytest
 import yaml
+from dbt.cli.exceptions import DbtUsageException
 from dbt.tests.adapter.dbt_debug.test_dbt_debug import BaseDebug, BaseDebugProfileVariable
 from dbt.tests.util import run_dbt
 
@@ -48,7 +50,9 @@ class TestDebugInvalidProjectSQLServer(BaseDebug):
         self.check_project(splitout)
 
     def test_not_found_project(self, project):
-        run_dbt(["debug", "--project-dir", "nopass"], expect_pass=False)
+        with pytest.raises(DbtUsageException) as dbt_exeption:
+            run_dbt(["debug", "--project-dir", "nopass"], expect_pass=False)
+            dbt_exeption = dbt_exeption
         splitout = self.capsys.readouterr().out.split("\n")
         self.check_project(splitout, msg="ERROR not found")
 
