@@ -16,7 +16,7 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
     {% if contract_config.enforced %}
 
         CREATE TABLE [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}]
-        {{ fabric__table_columns_and_constraints(relation) }}
+        {{ fabric__build_columns_constraints(relation) }}
         {{ get_assert_columns_equivalent(sql)  }}
 
         {% set listColumns %}
