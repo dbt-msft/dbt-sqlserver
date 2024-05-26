@@ -2,7 +2,12 @@ import os
 
 import pytest
 from dbt.tests.adapter.simple_seed.fixtures import models__downstream_from_seed_actual
-from dbt.tests.adapter.simple_seed.seeds import seed__actual_csv, seeds__expected_sql
+from dbt.tests.adapter.simple_seed.seeds import (
+    seed__actual_csv,
+    seeds__disabled_in_config_csv,
+    seeds__enabled_in_config_csv,
+    seeds__expected_sql,
+)
 from dbt.tests.adapter.simple_seed.test_seed import SeedConfigBase
 from dbt.tests.adapter.simple_seed.test_seed import TestBasicSeedTests as BaseBasicSeedTests
 from dbt.tests.adapter.simple_seed.test_seed import (
@@ -19,11 +24,7 @@ from dbt.tests.adapter.simple_seed.test_seed import (
 from dbt.tests.adapter.simple_seed.test_seed import (
     TestSimpleSeedEnabledViaConfig as BaseSimpleSeedEnabledViaConfig,
 )
-from dbt.tests.adapter.simple_seed.test_seed_type_override import (
-    BaseSimpleSeedColumnOverride,
-    seeds__disabled_in_config_csv,
-    seeds__enabled_in_config_csv,
-)
+from dbt.tests.adapter.simple_seed.test_seed_type_override import BaseSimpleSeedColumnOverride
 from dbt.tests.util import check_relations_equal, check_table_does_exist, get_connection, run_dbt
 
 from dbt.adapters.sqlserver import SQLServerAdapter
