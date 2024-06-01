@@ -8,7 +8,7 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
    {% set tmp_relation = relation.incorporate(
    path={"identifier": relation.identifier.replace("#", "") ~ '_temp_view'},
    type='view')-%}
-   {% do run_query(fabric__drop_relation_script(tmp_relation)) %}
+   {% do run_query(fabric__get_drop_sql(tmp_relation)) %}
 
    {% set contract_config = config.get('contract') %}
 
@@ -32,6 +32,6 @@ SQL Server doesnt support this, so we use the 'SELECT * INTO XYZ FROM ABC' synta
       EXEC('SELECT * INTO [{{relation.database}}].[{{relation.schema}}].[{{relation.identifier}}] FROM [{{tmp_relation.database}}].[{{tmp_relation.schema}}].[{{tmp_relation.identifier}}];');
     {% endif %}
 
-    {{ fabric__drop_relation_script(tmp_relation) }}
+    {% do run_query(fabric__get_drop_sql(tmp_relation)) %}
 
 {% endmacro %}

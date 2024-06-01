@@ -51,7 +51,7 @@ class TestSnapshotGrantsSQLServer(BaseSnapshotGrants):
         (results, log_output) = run_dbt_and_capture(["--debug", "snapshot"])
         assert len(results) == 1
         assert "revoke " not in log_output
-        assert "grant " in log_output
+        assert "grants are in place" in log_output
         self.assert_expected_grants_match_actual(project, "my_snapshot", expected)
 
         # change the grantee, assert it updates

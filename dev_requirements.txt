@@ -1,12 +1,12 @@
-pytest==8.2.0
-twine==5.0.0
+pytest==8.2.1
+twine==5.1.0
 wheel==0.43.0
-pre-commit==3.7.0
+pre-commit==3.7.1
 pytest-dotenv==0.5.2
 dbt-core==1.8.1
 dbt-adapters==1.2.1
 dbt-tests-adapter==1.8.0
-dbt-fabric==1.8.3
+dbt-fabric==1.8.6
 flaky==3.8.1
 pytest-xdist==3.6.1
 -e .
