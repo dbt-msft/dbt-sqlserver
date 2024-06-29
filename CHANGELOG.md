@@ -1,5 +1,10 @@
 # Changelog
 
+### v.1.8.0
+Updated Forceably
+
+
+
 ### v1.7.2
 
 Huge thanks to GitHub users **@cody-scott** and **@prescode** for help with this long-awaited update to enable `dbt-core` 1.7.2 compatibility!

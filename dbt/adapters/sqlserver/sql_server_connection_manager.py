@@ -12,8 +12,8 @@ from dbt.adapters.fabric.fabric_connection_manager import (
     bool_to_connection_string_arg,
     get_pyodbc_attrs_before,
 )
-from dbt.contracts.connection import Connection, ConnectionState
-from dbt.events import AdapterLogger
+from dbt_common.contracts.connection import Connection, ConnectionState
+from dbt.adapters.events.logging import AdapterLogger
 
 from dbt.adapters.sqlserver import __version__
 from dbt.adapters.sqlserver.sql_server_credentials import SQLServerCredentials

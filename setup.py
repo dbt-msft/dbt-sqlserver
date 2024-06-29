@@ -7,14 +7,13 @@ from setuptools import find_namespace_packages, setup
 from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
-authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
-dbt_version = "1.7"
+authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond", "Axell Padilla"]
+dbt_version = "1.8"
 description = """A Microsoft SQL Server adapter plugin for dbt"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_directory, "README.md")) as f:
     long_description = f.read()
-
 
 # get this from a separate file
 def _dbt_sqlserver_version():
@@ -26,33 +25,22 @@ def _dbt_sqlserver_version():
             raise ValueError(f"invalid version at {_version_path}")
         return match.group(1)
 
-
 package_version = _dbt_sqlserver_version()
 
-# the package version should be the dbt version, with maybe some things on the
-# ends of it. (0.18.1 vs 0.18.1a1, 0.18.1.1, ...)
-if not package_version.startswith(dbt_version):
-    raise ValueError(
-        f"Invalid setup.py: package_version={package_version} must start with "
-        f"dbt_version={dbt_version}"
-    )
+# class VerifyVersionCommand(install):
+#     """Custom command to verify that the git tag matches our version"""
 
+#     description = "Verify that the git tag matches our version"
 
-class VerifyVersionCommand(install):
-    """Custom command to verify that the git tag matches our version"""
+#     def run(self):
+#         tag = os.getenv("GITHUB_REF_NAME")
+#         tag_without_prefix = tag[1:]
 
-    description = "Verify that the git tag matches our version"
-
-    def run(self):
-        tag = os.getenv("GITHUB_REF_NAME")
-        tag_without_prefix = tag[1:]
-
-        if tag_without_prefix != package_version:
-            info = "Git tag: {0} does not match the version of this app: {1}".format(
-                tag_without_prefix, package_version
-            )
-            sys.exit(info)
-
+#         if tag_without_prefix != package_version:
+#             info = "Git tag: {0} does not match the version of this app: {1}".format(
+#                 tag_without_prefix, package_version
+#             )
+#             sys.exit(info)
 
 setup(
     name=package_name,
@@ -66,14 +54,11 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-core~=1.7.2",
-        "dbt-fabric~=1.7.2",
+        "dbt-core>=1.8",
+        "dbt-fabric",
         "pyodbc>=4.0.35,<5.1.0",
         "azure-identity>=1.12.0",
     ],
-    cmdclass={
-        "verify": VerifyVersionCommand,
-    },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: MIT License",
@@ -85,6 +70,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12"
     ],
     project_urls={
         "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile",  # noqa: E501

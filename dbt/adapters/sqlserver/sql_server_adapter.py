@@ -3,7 +3,7 @@ from typing import Optional
 
 import dbt.exceptions
 from dbt.adapters.fabric import FabricAdapter
-from dbt.contracts.graph.nodes import ConstraintType, ModelLevelConstraint
+from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
 
 from dbt.adapters.sqlserver.sql_server_column import SQLServerColumn
 from dbt.adapters.sqlserver.sql_server_configs import SQLServerConfigs
