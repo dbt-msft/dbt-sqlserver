@@ -7,7 +7,7 @@ from setuptools import find_namespace_packages, setup
 from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
-authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond"]
+authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond", "Cody Scott"]
 dbt_version = "1.8"
 description = """A Microsoft SQL Server adapter plugin for dbt"""
 
