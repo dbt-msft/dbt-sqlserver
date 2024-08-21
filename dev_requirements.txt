@@ -20,3 +20,4 @@ pytz
 tox>=3.13
 twine
 wheel
+-e .
