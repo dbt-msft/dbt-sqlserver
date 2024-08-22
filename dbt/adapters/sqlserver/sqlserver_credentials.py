@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 from dbt.adapters.fabric import FabricCredentials
 
@@ -10,8 +11,8 @@ class SQLServerCredentials(FabricCredentials):
     profiles.yml to connect to new adapter
     """
 
-    port: int | None = 1433
-    authentication: str | None = "sql"
+    port: Optional[int] = 1433
+    authentication: Optional[str] = "sql"
 
     @property
     def type(self):

@@ -137,6 +137,23 @@ class TestSeedWithEmptyDelimiter(BaseSeedWithEmptyDelimiter):
 
 
 class TestSimpleSeedEnabledViaConfig__seed_with_disabled(BaseSimpleSeedEnabledViaConfig):
+    @pytest.fixture(scope="function")
+    def clear_test_schema(self, project):
+        yield
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_enabled"
+        )
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_disabled"
+        )
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_tricky"
+        )
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_enabled")
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_disabled")
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_tricky")
+        project.run_sql(f"drop schema if exists {project.test_schema}")
+
     def test_simple_seed_with_disabled(self, clear_test_schema, project):
         results = run_dbt(["seed"])
         assert len(results) == 2
@@ -172,6 +189,23 @@ class TestSimpleSeedEnabledViaConfig__seed_with_disabled(BaseSimpleSeedEnabledVi
 
 
 class TestSimpleSeedEnabledViaConfig__seed_selection(BaseSimpleSeedEnabledViaConfig):
+    @pytest.fixture(scope="function")
+    def clear_test_schema(self, project):
+        yield
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_enabled"
+        )
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_disabled"
+        )
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_tricky"
+        )
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_enabled")
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_disabled")
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_tricky")
+        project.run_sql(f"drop schema if exists {project.test_schema}")
+
     @pytest.mark.skip(
         reason="""
         Running all the tests in the same schema causes the tests to fail
@@ -207,6 +241,23 @@ class TestSimpleSeedEnabledViaConfig__seed_selection(BaseSimpleSeedEnabledViaCon
 
 
 class TestSimpleSeedEnabledViaConfig__seed_exclude(BaseSimpleSeedEnabledViaConfig):
+    @pytest.fixture(scope="function")
+    def clear_test_schema(self, project):
+        yield
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_enabled"
+        )
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_disabled"
+        )
+        project.run_sql(
+            f"drop table if exists {project.database}.{project.test_schema}.seed_tricky"
+        )
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_enabled")
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_disabled")
+        project.run_sql(f"drop view if exists {project.test_schema}.seed_tricky")
+        project.run_sql(f"drop schema if exists {project.test_schema}")
+
     @pytest.mark.skip(
         reason="""
         Running all the tests in the same schema causes the tests to fail
