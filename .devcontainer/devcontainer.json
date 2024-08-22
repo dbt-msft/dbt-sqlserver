@@ -2,7 +2,8 @@
     "name": "Python 3",
     "image": "mcr.microsoft.com/devcontainers/python:1-3.10-bookworm",
     "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
     },
     "forwardPorts": [1433],
     "postStartCommand": "/bin/bash ./.devcontainer/setup_odbc.sh & /bin/bash ./.devcontainer/setup_env.sh",
