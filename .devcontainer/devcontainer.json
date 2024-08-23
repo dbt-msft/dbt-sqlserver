@@ -4,7 +4,8 @@
     "features": {
         "ghcr.io/devcontainers/features/docker-in-docker:2": {}
     },
-    "postStartCommand": "sudo bash .devcontainer/setup_odbc.sh && bash .devcontainer/install_pyenv.sh && bash .devcontainer/setup_env.sh",
+    "forwardPorts": [1433],
+    "postStartCommand": "/bin/bash ./.devcontainer/setup_odbc.sh & /bin/bash ./.devcontainer/setup_env.sh",
     "containerEnv": {
         "SQLSERVER_TEST_DRIVER": "ODBC Driver 18 for SQL Server",
         "SQLSERVER_TEST_HOST": "127.0.0.1",

@@ -1,5 +1,26 @@
 # Changelog
 
+### v1.8.0
+
+Updates dbt-sqlserver to support dbt 1.8.
+
+Notable changes
+
+- Adopts `dbt-common` and `dbt-adapters` as the upstream, in line with dbt projects.
+- Implements the majority of the tests from the `dbt-test-adapters` project to provide better coverage.
+- Implements better testing for `dbt-sqlserver` specific functions, including indexes.
+- Realigns to closer to the global project, overriding some fabric specific implementations
+
+Update also fixes a number of regressions related to the fabric adapter. These include
+
+- Proper ALTER syntax for column changes (in both )
+  - https://github.com/dbt-msft/dbt-sqlserver/pull/504/files
+- Restoring cluster columntables post create on `tables`
+  - https://github.com/dbt-msft/dbt-sqlserver/issues/473
+- Adds proper constraints to tables and columns
+  - https://github.com/dbt-msft/dbt-sqlserver/pull/500
+
+
 ### v1.7.2
 
 Huge thanks to GitHub users **@cody-scott** and **@prescode** for help with this long-awaited update to enable `dbt-core` 1.7.2 compatibility!
