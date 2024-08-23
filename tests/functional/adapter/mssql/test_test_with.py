@@ -37,6 +37,15 @@ models:
       field: ID
 """
 
+comments_model_yml = """
+version: 2
+models:
+- name: sample_model
+  data_tests:
+  - with_statement_comments:
+      field: ID
+"""
+
 with_test_fail_sql = """
 {% test with_statement_fail(model, field) %}
 
@@ -63,6 +72,18 @@ SELECT * FROM test_sample
 {% endtest %}
 """
 
+with_test_with_comments_sql = """
+{% test with_statement_comments(model, field) %}
+-- comments
+with test_sample AS (
+    SELECT {{ field }} FROM {{ model }}
+    GROUP BY {{ field }}
+    HAVING COUNT(*) > 2
+)
+SELECT * FROM test_sample
+{% endtest %}
+"""
+
 
 class BaseSQLTestWith:
     @pytest.fixture(scope="class")
@@ -77,6 +98,7 @@ class BaseSQLTestWith:
         return {
             "with_statement_pass.sql": with_test_pass_sql,
             "with_statement_fail.sql": with_test_fail_sql,
+            "with_statement_comments.sql": with_test_with_comments_sql,
         }
 
     @pytest.fixture(scope="class")
@@ -111,3 +133,16 @@ class TestSQLTestWithFail(BaseSQLTestWith):
     def test_sql_test_contains_with(self, project):
         run_dbt(["run"])
         run_dbt(["test"], expect_pass=False)
+
+
+class TestSQLTestWithComment(BaseSQLTestWith):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "sample_model.sql": sample_model,
+            "schema.yml": comments_model_yml,
+        }
+
+    def test_sql_test_contains_with(self, project):
+        run_dbt(["run"])
+        run_dbt(["test"])
