@@ -20,6 +20,10 @@ make help
 [Pre-commit](https://pre-commit.com/) helps us to maintain a consistent style and code quality across the entire project.
 After running `make dev`, pre-commit will automatically validate your commits and fix any formatting issues whenever possible.
 
+## Devcontainer
+
+A devcontainer file has been added since 1.7.2 to simpify creating the development environment.
+
 ## Testing
 
 The functional tests require a running SQL Server instance. You can easily spin up a local instance with the following command:

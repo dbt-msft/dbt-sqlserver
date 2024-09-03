@@ -1,0 +1,19 @@
+fixed:
+  type: sqlserver
+prompts:
+  host:
+    hint: "your host name"
+  port:
+    default: 5432
+    type: "int"
+  user:
+    hint: "dev username"
+  password:
+    hint: "dev password"
+    hide_input: true
+  database:
+    hint: "default database"
+  threads:
+    hint: "1 or more"
+    type: "int"
+    default: 1

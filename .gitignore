@@ -95,3 +95,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.mise.toml
+
+**devcontainer-lock.json**
