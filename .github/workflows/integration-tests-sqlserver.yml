@@ -35,7 +35,7 @@ jobs:
           DBT_TEST_USER_3: DBT_TEST_USER_3
           COLLATION: ${{ matrix.collation }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: pip install -r dev_requirements.txt
