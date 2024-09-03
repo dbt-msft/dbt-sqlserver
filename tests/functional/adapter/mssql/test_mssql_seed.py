@@ -10,8 +10,8 @@ seeds:
 
 class TestLargeSeed:
     def build_large_seed_file(self):
-        row_count = 1000
-        column_count = 100
+        row_count = 3000
+        column_count = 10
 
         headers = ",".join(["id"] + [f"column_{_}" for _ in range(1, column_count)])
         seed_data = [headers]
