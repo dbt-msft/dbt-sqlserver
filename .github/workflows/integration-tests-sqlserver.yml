@@ -40,9 +40,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r dev_requirements.txt
 
-      - name: Setup secondary db
-        run: /bin/bash ./devops/scripts/init_db.sh
-
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"
         env:

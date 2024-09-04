@@ -6,7 +6,7 @@ snapshot_sql = """
 
 {{
    config(
-       target_database='TestDB_Secondary',
+       target_database='secondary_db',
        target_schema='dbo',
        unique_key='id',
 
@@ -37,6 +37,31 @@ sources:
 
 
 class TestCrossDB:
+    def create_secondary_db(self, project):
+        create_sql = """
+        DECLARE @col NVARCHAR(256)
+        SET @col = (SELECT CONVERT (varchar(256), SERVERPROPERTY('collation')));
+
+        IF NOT EXISTS (SELECT * FROM sys.databases WHERE name='secondary_db')
+        BEGIN
+            EXEC ('CREATE DATABASE secondary_db COLLATE ' + @col)
+        END
+        """
+
+        with get_connection(project.adapter):
+            project.adapter.execute(
+                create_sql.format(database=project.database),
+                fetch=True,
+            )
+
+    def cleanup_secondary_database(self, project):
+        drop_sql = "DROP DATABASE IF EXISTS secondary_db"
+        with get_connection(project.adapter):
+            project.adapter.execute(
+                drop_sql.format(database=project.database),
+                fetch=True,
+            )
+
     def cleanup_primary_table(self, project):
         drop_sql = "DROP TABLE IF EXISTS {database}.mysource.claims"
         with get_connection(project.adapter):
@@ -98,7 +123,7 @@ class TestCrossDB:
 
     def create_secondary_schema(self, project):
         src_query = """
-        USE [TestDB_Secondary]
+        USE [secondary_db]
         EXEC ('CREATE SCHEMA {schema}')
         """
         with get_connection(project.adapter):
@@ -130,12 +155,16 @@ class TestCrossDB:
         return {"claims_snapshot.sql": snapshot_sql}
 
     def test_cross_db_snapshot(self, project):
+        self.create_secondary_db(project)
+
         self.cleanup_primary_table(project)
         self.cleanup_snapshot_table(project)
 
         self.create_source_schema(project)
         self.create_primary_table(project)
-        # self.create_secondary_schema(project)
         run_dbt(["snapshot"])
         self.update_primary_table(project)
         run_dbt(["snapshot"])
+
+        self.cleanup_snapshot_table(project)
+        self.cleanup_secondary_database(project)
