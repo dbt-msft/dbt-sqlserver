@@ -3,6 +3,7 @@
     {%- set tmp_relation = relation.incorporate(path={"identifier": relation.identifier ~ '__dbt_tmp_vw'}, type='view') -%}
 
     {%- do adapter.drop_relation(tmp_relation) -%}
+    USE [{{ relation.database }}];
     {{ get_create_view_as_sql(tmp_relation, sql) }}
 
     {%- set table_name -%}
