@@ -35,6 +35,7 @@
 
   {% set temp_snapshot_relation_sql = model['compiled_code'].replace("'", "''") %}
   {% call statement('create temp_snapshot_relation') %}
+    USE [{{ model.database}}];
     EXEC('DROP VIEW IF EXISTS {{ temp_snapshot_relation.include(database=False) }};');
     EXEC('create view {{ temp_snapshot_relation.include(database=False) }} as {{ temp_snapshot_relation_sql }};');
   {% endcall %}
