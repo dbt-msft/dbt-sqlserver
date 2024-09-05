@@ -13,7 +13,7 @@
     {% set tst %}
     SELECT '1' as col
     {% endset %}
-
+    USE [{{ relation.database }}];
     EXEC('{{- escape_single_quotes(query) -}}')
 
 {% endmacro %}
