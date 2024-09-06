@@ -108,6 +108,7 @@
         inner join sys.tables {{ information_schema_hints() }}
         on sys.indexes.object_id = sys.tables.object_id
         where sys.indexes.[name] is not null
+        and SCHEMA_NAME(sys.tables.schema_id) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
     ); exec sp_executesql @drop_remaining_indexes_last;

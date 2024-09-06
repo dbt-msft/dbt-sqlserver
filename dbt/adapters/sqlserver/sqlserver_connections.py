@@ -130,7 +130,7 @@ class SQLServerConnectionManager(FabricConnectionManager):
 
         plugin_version = __version__.version
         application_name = f"dbt-{credentials.type}/{plugin_version}"
-        con_str.append(f"Application Name={application_name}")
+        con_str.append(f"APP={application_name}")
 
         con_str_concat = ";".join(con_str)
 

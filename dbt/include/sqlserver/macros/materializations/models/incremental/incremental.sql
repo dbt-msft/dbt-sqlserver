@@ -59,6 +59,7 @@
     {% set strategy_arg_dict = ({'target_relation': target_relation, 'temp_relation': temp_relation, 'unique_key': unique_key, 'dest_columns': dest_columns, 'incremental_predicates': incremental_predicates }) %}
     {% set build_sql = strategy_sql_macro_func(strategy_arg_dict) %}
 
+    {% do to_drop.append(temp_relation) %}
   {% endif %}
 
   {% call statement("main") %}
