@@ -48,3 +48,7 @@ DBT expects a limit function, but the sqlserver syntax does not support it. Fabr
 ## `sqlserver__snapshot_merge_sql`
 
 Restores logic to the merge statement logic like the dbt core. Merge will probably be slower then the existing logic
+
+## unit tests
+
+To accomidate the nested CTE situation, we create a temp view for the actual/expected and use those both in the test.
