@@ -10,8 +10,10 @@ Notable changes
 - Implements the majority of the tests from the `dbt-test-adapters` project to provide better coverage.
 - Implements better testing for `dbt-sqlserver` specific functions, including indexes.
 - Realigns to closer to the global project, overriding some fabric specific implementations
+- Adds new 1.8 features (and tests), including Unit Tests
 
-Update also fixes a number of regressions related to the fabric adapter. These include
+Update also fixes a number of regressions related to the fabric adapter and 1.7 releases.
+These include
 
 - Proper ALTER syntax for column changes (in both )
   - https://github.com/dbt-msft/dbt-sqlserver/pull/504/files
@@ -20,6 +22,9 @@ Update also fixes a number of regressions related to the fabric adapter. These i
 - Adds proper constraints to tables and columns
   - https://github.com/dbt-msft/dbt-sqlserver/pull/500
 
+There is a number of other changes as well, which can be found in the 1.8.0rc1, 1.8.0rc2 and 1.8.0 release notes.
+
+While not directly included, credit also to **@ms32035**, **@axellpadilla**, **@gbarrington**, **@tkirschke** and others for their help with testing.
 
 ### v1.7.2
 
