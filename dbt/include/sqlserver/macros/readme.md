@@ -52,4 +52,3 @@ Restores logic to the merge statement logic like the dbt core. Merge will probab
 ## unit tests
 
 To accomidate the nested CTE situation, we create a temp view for the actual/expected and use those both in the test.
-

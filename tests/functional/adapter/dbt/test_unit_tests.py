@@ -1,10 +1,8 @@
 import pytest
-
 from dbt.tests.adapter.unit_testing.test_case_insensitivity import BaseUnitTestCaseInsensivity
 from dbt.tests.adapter.unit_testing.test_invalid_input import BaseUnitTestInvalidInput
 from dbt.tests.adapter.unit_testing.test_types import BaseUnitTestingTypes
-
-from dbt.tests.util import write_file, run_dbt
+from dbt.tests.util import run_dbt, write_file
 
 my_model_sql = """
 select
@@ -29,11 +27,14 @@ unit_tests:
         - {{ tested_column: {yaml_value} }}
 """
 
+
 class TestUnitTestCaseInsensitivity(BaseUnitTestCaseInsensivity):
     pass
 
+
 class TestUnitTestInvalidInput(BaseUnitTestInvalidInput):
     pass
+
 
 class TestUnitTestingTypes(BaseUnitTestingTypes):
     @pytest.fixture
