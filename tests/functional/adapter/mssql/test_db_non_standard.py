@@ -25,7 +25,7 @@ FROM
 """
 
 
-class TestCrossDB:
+class TestNonStandardDB:
     def create_db(self, project):
         create_sql = """
         DECLARE @col NVARCHAR(256)
@@ -104,7 +104,7 @@ class TestCrossDB:
     def models(self):
         return {"model.sql": model_sql, "sources.yml": sources_yml}
 
-    def test_cross_db_snapshot(self, project):
+    def test_non_standard_database(self, project):
         self.create_db(project)
 
         self.cleanup_primary_table(project)
