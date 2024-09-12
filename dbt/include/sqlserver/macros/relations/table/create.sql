@@ -7,8 +7,9 @@
     {{ get_create_view_as_sql(tmp_relation, sql) }}
 
     {%- set table_name -%}
-        {{ relation.database}}.{{ relation.schema }}.{{ relation.identifier }}
+        {{ relation }}
     {%- endset -%}
+
 
     {%- set contract_config = config.get('contract') -%}
     {%- set query -%}
