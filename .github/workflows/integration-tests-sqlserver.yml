@@ -10,6 +10,8 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
+  schedule:
+    - cron: '0 22 * * 0'
 
 jobs:
   integration-tests-sql-server:
