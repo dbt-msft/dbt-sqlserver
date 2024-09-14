@@ -1,5 +1,13 @@
 # Changelog
 
+### v1.8.2
+
+- Restores no lock behaviour from 1.4.2
+
+### v1.8.1
+
+- Fixes problem where databases with dashes are rendered properly
+
 ### v1.8.0
 
 Updates dbt-sqlserver to support dbt 1.8.
