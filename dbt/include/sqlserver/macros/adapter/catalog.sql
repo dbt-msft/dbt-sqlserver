@@ -96,7 +96,7 @@
                 c.column_id as column_index,
                 t.name as column_type
             from sys.columns as c {{ information_schema_hints() }}
-            left join sys.types {{ information_schema_hints() }} as t on c.system_type_id = t.system_type_id
+            left join sys.types as t {{ information_schema_hints() }} on c.system_type_id = t.system_type_id
         )
 
         select
