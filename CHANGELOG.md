@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.8.3
+
+- Minor fix in no lock behaviour https://github.com/dbt-msft/dbt-sqlserver/pull/557
+
 ### v1.8.2
 
 - Restores no lock behaviour from 1.4.2
