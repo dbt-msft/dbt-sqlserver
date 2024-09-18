@@ -84,6 +84,20 @@ SELECT * FROM test_sample
 {% endtest %}
 """
 
+with_test_multiline = """
+{% test with_test_multiline(model, field) %}
+-- comments
+with
+
+test_sample AS (
+    SELECT {{ field }} FROM {{ model }}
+    GROUP BY {{ field }}
+    HAVING COUNT(*) > 2
+)
+SELECT * FROM test_sample
+{% endtest %}
+"""
+
 
 class BaseSQLTestWith:
     @pytest.fixture(scope="class")
@@ -99,6 +113,7 @@ class BaseSQLTestWith:
             "with_statement_pass.sql": with_test_pass_sql,
             "with_statement_fail.sql": with_test_fail_sql,
             "with_statement_comments.sql": with_test_with_comments_sql,
+            "with_test_multiline.sql": with_test_multiline,
         }
 
     @pytest.fixture(scope="class")

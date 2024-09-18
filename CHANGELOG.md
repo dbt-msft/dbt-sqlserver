@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.8.4
+
+- Minor fix to tests with CTEs which do not start on first line. https://github.com/dbt-msft/dbt-sqlserver/issues/560
+
 ### v1.8.3
 
 - Minor fix in no lock behaviour https://github.com/dbt-msft/dbt-sqlserver/pull/557
