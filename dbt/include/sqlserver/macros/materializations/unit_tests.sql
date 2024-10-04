@@ -3,7 +3,7 @@
 USE [{{ target.database }}];
 IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ target.schema }}')
 BEGIN
-EXEC('CREATE SCHEMA [{{ target.schema }}]')
+EXEC('CREATE SCHEMA "{{ target.database }}"."{{ target.schema }}"')
 END
 
 {% set test_view %}
