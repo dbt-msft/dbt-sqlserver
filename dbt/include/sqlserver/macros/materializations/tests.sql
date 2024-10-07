@@ -4,11 +4,11 @@
   USE [{{ target.database }}];
   IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ target.schema }}')
   BEGIN
-    EXEC('CREATE SCHEMA [{{ target.schema }}]')
+    EXEC('CREATE SCHEMA "{{ target.schema }}"')
   END
 
   {% set testview %}
-    [{{ target.schema }}.testview_{{ range(1300, 19000) | random }}]
+    "{{ target.schema }}"."testview_{{ range(1300, 19000) | random }}"
   {% endset %}
 
   {% set sql = main_sql.replace("'", "''")%}
