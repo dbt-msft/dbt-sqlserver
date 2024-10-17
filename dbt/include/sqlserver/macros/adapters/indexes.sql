@@ -236,3 +236,18 @@
   {% endcall %}
   {{ return(load_result('list_nonclustered_rowstore_indexes').table) }}
 {% endmacro %}
+
+
+{% macro sqlserver__get_create_index_sql(relation, index_dict) -%}
+  {%- set index_config = adapter.parse_index(index_dict) -%}
+  {%- set comma_separated_columns = ", ".join(index_config.columns) -%}
+  {%- set index_name = index_config.render(relation) -%}
+
+  {# Validations are made on the adapter class SQLServerIndexConfig to control resulting sql #}
+  create
+  {% if index_config.unique -%} unique {% endif %}{{ index_config.type }}
+  index "{{ index_name }}"
+  on {{ relation }}
+  ({{ comma_separated_columns }})
+
+{%- endmacro %}

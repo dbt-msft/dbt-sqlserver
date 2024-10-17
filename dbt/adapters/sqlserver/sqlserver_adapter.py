@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import agate
 import dbt_common.exceptions
@@ -18,6 +18,7 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.events.types import SchemaCreation
 from dbt.adapters.reference_keys import _make_ref_key_dict
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
+from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
@@ -33,6 +34,7 @@ class SQLServerAdapter(SQLAdapter):
     Column = SQLServerColumn
     AdapterSpecificConfigs = SQLServerConfigs
     Relation = SQLServerRelation
+    AdapterSpecificConfigs = SQLServerConfigs
 
     _capabilities: CapabilityDict = CapabilityDict(
         {
@@ -287,6 +289,10 @@ class SQLServerAdapter(SQLAdapter):
             return f"{constraint_prefix} {constraint.name} {constraint.expression}"
         else:
             return None
+
+    @available
+    def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
+        return SQLServerIndexConfig.parse(raw_index)
 
 
 COLUMNS_EQUAL_SQL = """
