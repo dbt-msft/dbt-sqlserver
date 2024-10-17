@@ -1,11 +1,13 @@
-from typing import Optional
+from typing import Any, Optional
 
 import dbt.exceptions
-from dbt.adapters.base.impl import ConstraintSupport
+from dbt.adapters.base import ConstraintSupport, available
 from dbt.adapters.fabric import FabricAdapter
 from dbt.contracts.graph.nodes import ConstraintType
 
+from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn
+from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
@@ -18,6 +20,7 @@ class SQLServerAdapter(FabricAdapter):
     ConnectionManager = SQLServerConnectionManager
     Column = SQLServerColumn
     Relation = SQLServerRelation
+    AdapterSpecificConfigs = SQLServerConfigs
 
     CONSTRAINT_SUPPORT = {
         ConstraintType.check: ConstraintSupport.ENFORCED,
@@ -59,6 +62,10 @@ class SQLServerAdapter(FabricAdapter):
     @classmethod
     def date_function(cls):
         return "getdate()"
+
+    @available
+    def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
+        return SQLServerIndexConfig.parse(raw_index)
 
     def valid_incremental_strategies(self):
         """The set of standard builtin strategies which this adapter supports out-of-the-box.
