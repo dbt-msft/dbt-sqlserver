@@ -1,6 +1,6 @@
-pyenv install 3.10.7
-pyenv virtualenv 3.10.7 dbt-sqlserver
-pyenv activate dbt-sqlserver
+cp test.env.sample test.env
 
-make dev
-make server
+docker compose build
+docker compose up -d
+
+pip install -r dev_requirements.txt
