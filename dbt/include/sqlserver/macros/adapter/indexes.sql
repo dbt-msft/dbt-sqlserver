@@ -181,5 +181,8 @@
   index "{{ index_name }}"
   on {{ relation }}
   ({{ comma_separated_columns }})
+    {% if index_config.included_columns -%}
+        include ({{ ", ".join(index_config.included_columns) }})
+    {% endif %}
 
 {%- endmacro %}
