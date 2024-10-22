@@ -104,9 +104,9 @@ class TestIndex:
             )
         schema_dict = {_[0]: _[1] for _ in table.rows}
         expected = {
-            "Clustered columnstore index": 1,
-            "Clustered index": 1,
-            "Nonclustered unique index": 4,
+            "clustered columnstore": 1,
+            "clustered unique": 1,
+            "nonclustered": 4,
         }
         self.drop_artifacts(project)
         assert schema_dict == expected
