@@ -17,9 +17,8 @@ jobs:
   integration-tests-sql-server:
     name: Regular
     strategy:
-      fail-fast: false
       matrix:
-        python_version: ["3.8", "3.9", "3.10", "3.11"]
+        python_version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
         collation: ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
