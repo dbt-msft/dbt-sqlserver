@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import FrozenSet, Optional, Set, Tuple
 
 import agate
 from dbt.adapters.exceptions import IndexConfigError, IndexConfigNotDictError
@@ -14,6 +14,11 @@ from dbt.adapters.relation_configs import (
 from dbt_common.dataclass_schema import StrEnum, ValidationError, dbtClassMixin
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import encoding as dbt_encoding
+
+
+# Handle datetime now for testing.
+def datetime_now(tz: Optional[timezone] = timezone.utc) -> datetime:
+    return datetime.now(tz)
 
 
 # ALTERED FROM:
@@ -32,7 +37,7 @@ class SQLServerIndexType(StrEnum):
 
     @classmethod
     def valid_types(cls):
-        return list(cls)
+        return tuple(cls)
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
@@ -52,17 +57,19 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     """
 
     name: str = field(default="", hash=False, compare=False)
-    columns: list[str] = field(default_factory=list, hash=True)  # Keeping order is important
+    columns: Tuple[str, ...] = field(
+        default_factory=tuple, hash=True
+    )  # Keeping order is important
     unique: bool = field(
         default=False, hash=True
     )  # Uniqueness can be a property of both clustered and nonclustered indexes.
     type: SQLServerIndexType = field(default=SQLServerIndexType.default(), hash=True)
-    included_columns: frozenset[str] = field(
+    included_columns: FrozenSet[str] = field(
         default_factory=frozenset, hash=True
     )  # Keeping order is not important
 
     @property
-    def validation_rules(self) -> set[RelationConfigValidationRule]:
+    def validation_rules(self) -> Set[RelationConfigValidationRule]:
         return {
             RelationConfigValidationRule(
                 validation_check=True if self.columns else False,
@@ -102,7 +109,7 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     def from_dict(cls, config_dict) -> "SQLServerIndexConfig":
         kwargs_dict = {
             "name": config_dict.get("name"),
-            "columns": list(column for column in config_dict.get("columns", list())),
+            "columns": tuple(column for column in config_dict.get("columns", tuple())),
             "unique": config_dict.get("unique"),
             "type": config_dict.get("type"),
             "included_columns": frozenset(
@@ -115,7 +122,7 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     @classmethod
     def parse_model_node(cls, model_node_entry: dict) -> dict:
         config_dict = {
-            "columns": list(model_node_entry.get("columns", list())),
+            "columns": tuple(model_node_entry.get("columns", tuple())),
             "unique": model_node_entry.get("unique"),
             "type": model_node_entry.get("type"),
             "included_columns": frozenset(model_node_entry.get("included_columns", set())),
@@ -126,7 +133,7 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     def parse_relation_results(cls, relation_results_entry: agate.Row) -> dict:
         config_dict = {
             "name": relation_results_entry.get("name"),
-            "columns": list(relation_results_entry.get("columns", "").split(",")),
+            "columns": tuple(relation_results_entry.get("columns", "").split(",")),
             "unique": relation_results_entry.get("unique"),
             "type": relation_results_entry.get("type"),
             "included_columns": set(relation_results_entry.get("included_columns", "").split(",")),
@@ -139,10 +146,10 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         Returns: a dictionary that can be passed into `get_create_index_sql()`
         """
         node_config = {
-            "columns": list(self.columns),
+            "columns": tuple(self.columns),
             "unique": self.unique,
             "type": self.type.value,
-            "included_columns": list(self.included_columns),
+            "included_columns": frozenset(self.included_columns),
         }
         return node_config
 
@@ -152,9 +159,10 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         # https://github.com/dbt-labs/dbt-core/issues/1945#issuecomment-576714925
         # for an explanation.
 
-        now = datetime.now(timezone.utc).isoformat()
-        inputs = self.columns + [relation.render(), str(self.unique), str(self.type), now]
+        now = datetime_now(tz=timezone.utc).isoformat()
+        inputs = self.columns + tuple((relation.render(), str(self.unique), str(self.type), now))
         string = "_".join(inputs)
+        print(f"Actual string before MD5: {string}")
         return dbt_encoding.md5(string)
 
     @classmethod
@@ -162,6 +170,8 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         if raw_index is None:
             return None
         try:
+            if not isinstance(raw_index, dict):
+                raise IndexConfigNotDictError(raw_index)
             cls.validate(raw_index)
             return cls.from_dict(raw_index)
         except ValidationError as exc:
@@ -202,7 +212,7 @@ class SQLServerIndexConfigChange(RelationConfigChange, RelationConfigValidationM
         return False
 
     @property
-    def validation_rules(self) -> set[RelationConfigValidationRule]:
+    def validation_rules(self) -> Set[RelationConfigValidationRule]:
         return {
             RelationConfigValidationRule(
                 validation_check=self.action
