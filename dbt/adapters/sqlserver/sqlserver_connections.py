@@ -11,8 +11,8 @@ from dbt.adapters.fabric.fabric_connection_manager import (
 from dbt.adapters.fabric.fabric_connection_manager import (
     AZURE_CREDENTIAL_SCOPE,
     bool_to_connection_string_arg,
+    get_pyodbc_attrs_before_accesstoken,
     get_pyodbc_attrs_before_credentials,
-    get_pyodbc_attrs_before_accesstoken
 )
 
 from dbt.adapters.sqlserver import __version__
@@ -135,12 +135,12 @@ class SQLServerConnectionManager(FabricConnectionManager):
 
         def connect():
             logger.debug(f"Using connection string: {con_str_display}")
-            
+
             if credentials.authentication == "ActiveDirectoryAccessToken":
                 attrs_before = get_pyodbc_attrs_before_accesstoken(credentials.access_token)
             else:
                 attrs_before = get_pyodbc_attrs_before_credentials(credentials)
-            
+
             handle = pyodbc.connect(
                 con_str_concat,
                 attrs_before=attrs_before,
