@@ -3,7 +3,7 @@ from azure.identity import AzureCliCredential
 
 from dbt.adapters.sqlserver.sqlserver_connections import (  # byte_array_to_datetime,
     bool_to_connection_string_arg,
-    get_pyodbc_attrs_before,
+    get_pyodbc_attrs_before_credentials,
 )
 from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
 
@@ -29,7 +29,7 @@ def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
     """
     When the authentication is set to sql we expect an empty attrs before.
     """
-    attrs_before = get_pyodbc_attrs_before(credentials)
+    attrs_before = get_pyodbc_attrs_before_credentials(credentials)
     assert attrs_before == {}
 
 
