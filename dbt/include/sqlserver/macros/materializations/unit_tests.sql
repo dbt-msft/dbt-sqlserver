@@ -7,7 +7,7 @@ EXEC('CREATE SCHEMA [{{ target.schema }}]')
 END
 
 {% set test_view %}
-    [{{ target.schema }}.testview_{{ range(1300, 19000) | random }}]
+    [{{ target.schema }}].[testview_{{ range(1300, 19000) | random }}]
 {% endset %}
 {% set test_sql = main_sql.replace("'", "''")%}
 EXEC('create view {{test_view}} as {{ test_sql }};')
