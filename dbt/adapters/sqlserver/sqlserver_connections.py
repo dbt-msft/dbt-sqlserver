@@ -11,7 +11,8 @@ from dbt.adapters.fabric.fabric_connection_manager import (
 from dbt.adapters.fabric.fabric_connection_manager import (
     AZURE_CREDENTIAL_SCOPE,
     bool_to_connection_string_arg,
-    get_pyodbc_attrs_before,
+    get_pyodbc_attrs_before_accesstoken,
+    get_pyodbc_attrs_before_credentials,
 )
 
 from dbt.adapters.sqlserver import __version__
@@ -69,27 +70,6 @@ AZURE_AUTH_FUNCTIONS = {
 
 class SQLServerConnectionManager(FabricConnectionManager):
     TYPE = "sqlserver"
-
-    # @contextmanager
-    # def exception_handler(self, sql: str):
-    #     """
-    #     Returns a context manager, that will handle exceptions raised
-    #     from queries, catch, log, and raise dbt exceptions it knows how to handle.
-    #     """
-    #     # ## Example ##
-    #     # try:
-    #     #     yield
-    #     # except myadapter_library.DatabaseError as exc:
-    #     #     self.release(connection_name)
-
-    #     #     logger.debug("myadapter error: {}".format(str(e)))
-    #     #     raise dbt.exceptions.DatabaseException(str(exc))
-    #     # except Exception as exc:
-    #     #     logger.debug("Error running SQL: {}".format(sql))
-    #     #     logger.debug("Rolling back transaction.")
-    #     #     self.release(connection_name)
-    #     #     raise dbt.exceptions.RuntimeException(str(exc))
-    #     pass
 
     @classmethod
     def open(cls, connection: Connection) -> Connection:
@@ -156,7 +136,11 @@ class SQLServerConnectionManager(FabricConnectionManager):
         def connect():
             logger.debug(f"Using connection string: {con_str_display}")
 
-            attrs_before = get_pyodbc_attrs_before(credentials)
+            if credentials.authentication == "ActiveDirectoryAccessToken":
+                attrs_before = get_pyodbc_attrs_before_accesstoken(credentials.access_token)
+            else:
+                attrs_before = get_pyodbc_attrs_before_credentials(credentials)
+
             handle = pyodbc.connect(
                 con_str_concat,
                 attrs_before=attrs_before,
@@ -174,28 +158,3 @@ class SQLServerConnectionManager(FabricConnectionManager):
             retry_limit=credentials.retries,
             retryable_exceptions=retryable_exceptions,
         )
-
-    # @classmethod
-    # def get_response(cls,cursor):
-    #     """
-    #     Gets a cursor object and returns adapter-specific information
-    #     about the last executed command generally a AdapterResponse ojbect
-    #     that has items such as code, rows_affected,etc. can also just be a string ex. "OK"
-    #     if your cursor does not offer rich metadata.
-    #     """
-    #     # ## Example ##
-    #     # return cursor.status_message
-    #     pass
-
-    # def cancel(self, connection):
-    #     """
-    #     Gets a connection object and attempts to cancel any ongoing queries.
-    #     """
-    #     # ## Example ##
-    #     # tid = connection.handle.transaction_id()
-    #     # sql = "select cancel_transaction({})".format(tid)
-    #     # logger.debug("Cancelling query "{}" ({})".format(connection_name, pid))
-    #     # _, cursor = self.add_query(sql, "master")
-    #     # res = cursor.fetchone()
-    #     # logger.debug("Canceled query "{}": {}".format(connection_name, res))
-    #     pass
