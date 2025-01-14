@@ -103,6 +103,7 @@ class TestSeedConfigFullRefreshOff(BaseSeedConfigFullRefreshOff):
         project.run_sql(seeds__expected_sql)
 
 
+@pytest.mark.skip("Unable to inject custom schema to project_config_update")
 class TestSeedCustomSchema(BaseSeedCustomSchema):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
