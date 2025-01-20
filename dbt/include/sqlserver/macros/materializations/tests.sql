@@ -8,7 +8,7 @@
   END
 
   {% set testview %}
-    [{{ target.schema }}.testview_{{ range(1300, 19000) | random }}]
+    [{{ target.schema }}].[testview_{{ local_md5(main_sql) }}_{{ range(1300, 19000) | random }}]
   {% endset %}
 
   {% set sql = main_sql.replace("'", "''")%}
