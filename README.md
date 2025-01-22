@@ -1,6 +1,6 @@
 # dbt-sqlserver
 
-[dbt](https://www.getdbt.com) adapter for Microsoft SQL Server and Azure SQL services.
+[dbt](https://www.getdbt.com) adapter for Microsoft SQL Server, Azure SQL services and SQL database in Microsoft Fabric.
 
 The adapter supports dbt-core 0.14 or newer and follows the same versioning scheme.
 E.g. version 1.1.x of the adapter will be compatible with dbt-core 1.1.x.
