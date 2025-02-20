@@ -58,19 +58,19 @@ class SQLServerRelation(BaseRelation):
         if event_time_filter.start and event_time_filter.end:
             filter = (
                 f"{event_time_filter.field_name} >="
-                f" parse('{event_time_filter.start}' as datetimeoffset)"
+                f" cast('{event_time_filter.start}' as datetimeoffset)"
                 f" and {event_time_filter.field_name} <"
-                f" parse('{event_time_filter.end}' as datetimeoffset)"
+                f" cast('{event_time_filter.end}' as datetimeoffset)"
             )
         elif event_time_filter.start:
             filter = (
                 f"{event_time_filter.field_name} >="
-                f" parse('{event_time_filter.start}' as datetimeoffset)"
+                f" cast('{event_time_filter.start}' as datetimeoffset)"
             )
         elif event_time_filter.end:
             filter = (
                 f"{event_time_filter.field_name} <"
-                f" parse('{event_time_filter.end}' as datetimeoffset)"
+                f" cast('{event_time_filter.end}' as datetimeoffset)"
             )
 
         return filter
