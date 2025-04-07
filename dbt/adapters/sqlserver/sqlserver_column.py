@@ -1,4 +1,5 @@
 from dbt.adapters.fabric import FabricColumn
+from dbt_common.exceptions import DbtRuntimeError
 
 
 class SQLServerColumn(FabricColumn):
