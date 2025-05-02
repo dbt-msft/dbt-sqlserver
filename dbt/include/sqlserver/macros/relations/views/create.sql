@@ -6,8 +6,14 @@
         {{ get_assert_columns_equivalent(sql) }}
     {%- endif %}
 
+    {% set existing_relation = load_cached_relation(relation) %}
+
     {% set query %}
-        create view {{ relation.include(database=False) }} as {{ sql }};
+        {% if existing_relation is not none %}
+            alter view {{ relation.include(database=False) }} as {{ sql }};
+        {% else %}
+            create view {{ relation.include(database=False) }} as {{ sql }};
+        {% endif %}
     {% endset %}
 
     {% set tst %}

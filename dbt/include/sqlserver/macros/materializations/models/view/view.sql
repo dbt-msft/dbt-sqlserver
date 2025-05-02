@@ -36,14 +36,8 @@
   -- `BEGIN` happens here:
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
-  -- build model
-  {% call statement('main') -%}
-    {{ get_create_view_as_sql(intermediate_relation, sql) }}
-  {%- endcall %}
-
-  -- cleanup
-  -- move the existing view out of the way
-  {% if existing_relation is not none %}
+  -- move the existing table if not view out of the way
+  {% if existing_relation is not none and existing_relation.type != 'view' %}
      /* Do the equivalent of rename_if_exists. 'existing_relation' could have been dropped
         since the variable was first set. */
     {% set existing_relation = load_cached_relation(existing_relation) %}
@@ -51,7 +45,14 @@
         {{ adapter.rename_relation(existing_relation, backup_relation) }}
     {% endif %}
   {% endif %}
-  {{ adapter.rename_relation(intermediate_relation, target_relation) }}
+
+  -- build model
+  {% call statement('main') -%}
+    {# The underlying macro sqlserver__create_view_as handles CREATE vs ALTER logic #}
+    {{ get_create_view_as_sql(target_relation, sql) }}
+  {%- endcall %}
+
+  -- cleanup
 
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
