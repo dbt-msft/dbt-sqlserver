@@ -1,8 +1,5 @@
 import pytest
 from dbt.tests.adapter.incremental import fixtures
-from dbt.tests.adapter.incremental.test_incremental_merge_exclude_columns import (
-    BaseMergeExcludeColumns,
-)
 from dbt.tests.adapter.incremental.test_incremental_on_schema_change import (
     BaseIncrementalOnSchemaChange,
 )
@@ -74,10 +71,6 @@ select id
 
 from source_data
 """
-
-
-class TestIncrementalMergeExcludeColumns(BaseMergeExcludeColumns):
-    pass
 
 
 class TestIncrementalOnSchemaChange(BaseIncrementalOnSchemaChange):

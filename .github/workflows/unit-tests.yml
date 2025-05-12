@@ -18,7 +18,7 @@ jobs:
     name: Unit tests
     strategy:
       matrix:
-        python_version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python_version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ubuntu-latest
     permissions:
       contents: read
