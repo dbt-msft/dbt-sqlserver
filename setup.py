@@ -8,7 +8,7 @@ from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
 authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond", "Cody Scott"]
-dbt_version = "1.8"
+dbt_version = "1.9"
 description = """A Microsoft SQL Server adapter plugin for dbt"""
 
 this_directory = os.path.abspath(os.path.dirname(__file__))
@@ -66,10 +66,10 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-fabric>=1.8.0,<1.9.0",
-        "dbt-core>=1.8.0,<1.9.0",
+        "dbt-fabric==1.9.3",
+        "dbt-core>=1.9.0,<2.0",
         "dbt-common>=1.0,<2.0",
-        "dbt-adapters>=1.1.1,<2.0",
+        "dbt-adapters>=1.11.0,<2.0",
     ],
     cmdclass={
         "verify": VerifyVersionCommand,
