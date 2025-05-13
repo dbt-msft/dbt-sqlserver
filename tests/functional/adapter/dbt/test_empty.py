@@ -1,12 +1,11 @@
 import pytest
+from dbt.tests.adapter.empty._models import model_input_sql, schema_sources_yml
 
 # switch for 1.9
 # from dbt.tests.adapter.empty import _models
 from dbt.tests.adapter.empty.test_empty import (  # MetadataWithEmptyFlag
     BaseTestEmpty,
     BaseTestEmptyInlineSourceRef,
-    model_input_sql,
-    schema_sources_yml,
 )
 from dbt.tests.util import run_dbt
 
