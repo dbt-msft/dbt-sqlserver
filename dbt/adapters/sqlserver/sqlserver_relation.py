@@ -20,6 +20,7 @@ class SQLServerRelation(BaseRelation):
         default_factory=lambda: SQLServerIncludePolicy()
     )
     quote_policy: SQLServerQuotePolicy = field(default_factory=lambda: SQLServerQuotePolicy())
+    require_alias: bool = False
 
     @classproperty
     def get_relation_type(cls) -> Type[SQLServerRelationType]:
