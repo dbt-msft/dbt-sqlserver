@@ -48,3 +48,36 @@
     {% do run_query(rename_column) %}
 
 {% endmacro %}
+
+{% macro sqlserver__get_columns_in_relation(relation) -%}
+    {% set query_label = apply_label() %}
+    {% call statement('get_columns_in_relation', fetch_result=True) %}
+        {{ get_use_database_sql(relation.database) }}
+        with mapping as (
+            select
+                row_number() over (partition by object_name(c.object_id) order by c.column_id) as ordinal_position,
+                c.name collate database_default as column_name,
+                t.name as data_type,
+                c.max_length as character_maximum_length,
+                c.precision as numeric_precision,
+                c.scale as numeric_scale
+            from sys.columns c {{ information_schema_hints() }}
+            inner join sys.types t {{ information_schema_hints() }}
+            on c.user_type_id = t.user_type_id
+            where c.object_id = object_id('{{ 'tempdb..' ~ relation.include(database=false, schema=false) if '#' in relation.identifier else relation }}')
+        )
+
+        select
+            column_name,
+            data_type,
+            character_maximum_length,
+            numeric_precision,
+            numeric_scale
+        from mapping
+        order by ordinal_position
+        {{ query_label }}
+
+    {% endcall %}
+    {% set table = load_result('get_columns_in_relation').table %}
+    {{ return(sql_convert_columns_in_relation(table)) }}
+{% endmacro %}
