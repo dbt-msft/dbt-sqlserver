@@ -1,7 +1,20 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 from dbt.adapters.fabric import FabricCredentials
+
+# Source: https://learn.microsoft.com/en-us/sql/relational-databases/security/networking/tds-8?view=sql-server-ver17#additional-changes-to-connection-string-encryption-properties  # noqa: E501
+EncryptType = Literal[
+    "true",
+    "yes",
+    "mandatory",
+    "strict",
+    "optional",
+    "false",
+    "no",
+    True,
+    False,
+]
 
 
 @dataclass
@@ -13,6 +26,7 @@ class SQLServerCredentials(FabricCredentials):
 
     port: Optional[int] = 1433
     authentication: Optional[str] = "sql"
+    encrypt: Optional[EncryptType] = True
 
     @property
     def type(self):
