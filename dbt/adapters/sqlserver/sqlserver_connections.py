@@ -103,7 +103,10 @@ class SQLServerConnectionManager(FabricConnectionManager):
         assert credentials.encrypt is not None
         assert credentials.trust_cert is not None
 
-        con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
+        if isinstance(credentials.encrypt, bool):
+            con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
+        else:
+            con_str.append(f"encrypt={credentials.encrypt}")
         con_str.append(
             bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert)
         )
