@@ -2,7 +2,7 @@
 dbt-tests-adapter>=1.9.0,<2.0
 
 ruff
-black==24.8.0
+black==24.10.0
 bumpversion
 flake8
 flaky
