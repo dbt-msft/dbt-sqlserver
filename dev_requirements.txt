@@ -13,7 +13,6 @@ pip-tools
 pre-commit
 pytest
 pytest-dotenv
-pytest-logbook
 pytest-csv
 pytest-xdist
 pytz
