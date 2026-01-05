@@ -20,4 +20,6 @@ pytz
 tox>=3.13
 twine
 wheel
+pyodbc
+azure-identity
 -e .
