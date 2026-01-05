@@ -1,8 +1,5 @@
-import atexit
 import datetime as dt
 import struct
-import sys
-import threading
 import time
 from contextlib import contextmanager
 from itertools import chain, repeat
@@ -16,7 +13,7 @@ from azure.identity import AzureCliCredential, ClientSecretCredential, DefaultAz
 from dbt.adapters.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
-from dbt.adapters.sql import SQLConnectionManager
+from dbt.adapters.sql.connections import SQLConnectionManager
 from dbt_common.clients.agate_helper import empty_table
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
