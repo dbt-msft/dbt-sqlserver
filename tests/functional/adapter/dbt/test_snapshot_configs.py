@@ -1,3 +1,4 @@
+# flake8: noqa: E501
 import datetime
 
 import pytest
@@ -122,8 +123,18 @@ select
     updated_at as test_valid_from,
     cast(null as Datetime2(6)) as test_valid_to,
     updated_at as test_updated_at,
-    convert(varchar(50), hashbytes('md5', coalesce(cast(id1 as varchar(8000)), '') + '|' + coalesce(cast(id2 as varchar(8000)), '') + '|' + coalesce(cast(updated_at as varchar(8000)), '')), 2) as test_scd_id
-from {schema}.seed;
+    convert(
+        varchar(50),
+        hashbytes(
+            "md5",
+            coalesce(cast(id1 as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(id2 as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(updated_at as varchar(8000)), ""),
+        ),
+        2,
+    ) as test_scd_id
 """
 
 model_seed_sql = """
@@ -193,7 +204,18 @@ select
     updated_at as test_valid_from,
     cast(null as Datetime2(6)) as test_valid_to,
     updated_at as test_updated_at,
-    convert(varchar(50), hashbytes('md5', coalesce(cast(id1 as varchar(8000)), '') + '|' + coalesce(cast(id2 as varchar(8000)), '') + '|' + coalesce(cast(updated_at as varchar(8000)), '')), 2) as test_scd_id
+    convert(
+        varchar(50),
+        hashbytes(
+            "md5",
+            coalesce(cast(id1 as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(id2 as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(updated_at as varchar(8000)), ""),
+        ),
+        2,
+    ) as test_scd_id
 from {schema}.seed
 where id1 >= 10 and id1 <= 20;
 """
@@ -315,7 +337,18 @@ select
     updated_at as test_valid_from,
     cast('2099-12-31' as date) as test_valid_to,
     updated_at as test_updated_at,
-    convert(varchar(50), hashbytes('md5', coalesce(cast(id as varchar(8000)), '') + '-' + coalesce(cast(first_name as varchar(8000)), '') + '|' + coalesce(cast(updated_at as varchar(8000)), '')), 2) as test_scd_id
+    convert(
+        varchar(50),
+        hashbytes(
+            "md5",
+            coalesce(cast(id as varchar(8000)), "")
+            + "-"
+            + coalesce(cast(first_name as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(updated_at as varchar(8000)), ""),
+        ),
+        2,
+    ) as test_scd_id
 from {schema}.seed;
 """
 
@@ -347,7 +380,18 @@ select
     updated_at as test_valid_from,
     cast(null as date)  as test_valid_to,
     updated_at as test_updated_at,
-    convert(varchar(50), hashbytes('md5', coalesce(cast(id as varchar(8000)), '') + '-' + coalesce(cast(first_name as varchar(8000)), '') + '|' + coalesce(cast(updated_at as varchar(8000)), '')), 2) as test_scd_id
+    convert(
+        varchar(50),
+        hashbytes(
+            "md5",
+            coalesce(cast(id as varchar(8000)), "")
+            + "-"
+            + coalesce(cast(first_name as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(updated_at as varchar(8000)), ""),
+        ),
+        2,
+    ) as test_scd_id
 from {schema}.seed;
 """
 
@@ -380,7 +424,18 @@ select
     updated_at as test_valid_from,
     cast('2099-12-31' as date) as test_valid_to,
     updated_at as test_updated_at,
-    convert(varchar(50), hashbytes('md5', coalesce(cast(id as varchar(8000)), '') + '-' + coalesce(cast(first_name as varchar(8000)), '') + '|' + coalesce(cast(updated_at as varchar(8000)), '')), 2) as test_scd_id
+    convert(
+        varchar(50),
+        hashbytes(
+            "md5",
+            coalesce(cast(id as varchar(8000)), "")
+            + "-"
+            + coalesce(cast(first_name as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(updated_at as varchar(8000)), ""),
+        ),
+        2,
+    ) as test_scd_id
 from {schema}.seed
 where id >= 10 and id <= 20;
 """
@@ -439,7 +494,18 @@ select
     updated_at as test_valid_from,
     cast (null as date) as test_valid_to,
     updated_at as test_updated_at,
-    convert(varchar(50), hashbytes('md5', coalesce(cast(id as varchar(8000)), '') + '-' + coalesce(cast(first_name as varchar(8000)), '') + '|' + coalesce(cast(updated_at as varchar(8000)), '')), 2) as test_scd_id
+    convert(
+        varchar(50),
+        hashbytes(
+            "md5",
+            coalesce(cast(id as varchar(8000)), "")
+            + "-"
+            + coalesce(cast(first_name as varchar(8000)), "")
+            + "|"
+            + coalesce(cast(updated_at as varchar(8000)), ""),
+        ),
+        2,
+    ) as test_scd_id
 from {schema}.seed
 where id >= 10 and id <= 20;
 """

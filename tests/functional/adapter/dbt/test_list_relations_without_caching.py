@@ -16,7 +16,7 @@ VIEW_X_SQL = """
 select id from {{ ref('my_model_base') }}
 """.lstrip()
 
-MACROS__VALIDATE__SQLSERVER__LIST_RELATIONS_WITHOUT_CACHING = """
+VALIDATE_LIST_RELATIONS_MACRO = """
 {% macro validate_list_relations_without_caching(schema_relation) -%}
 
     {% call statement('list_relations_without_caching', fetch_result=True) -%}
@@ -93,7 +93,7 @@ class TestListRelationsWithoutCachingSingleSQLServer:
     @pytest.fixture(scope="class")
     def macros(self):
         return {
-            "validate_list_relations_without_caching.sql": MACROS__VALIDATE__SQLSERVER__LIST_RELATIONS_WITHOUT_CACHING,
+            "validate_list_relations_without_caching.sql": VALIDATE_LIST_RELATIONS_MACRO,
         }
 
     def test__fabric__list_relations_without_caching(self, project):
@@ -133,7 +133,7 @@ class TestListRelationsWithoutCachingFullSQLServer:
     @pytest.fixture(scope="class")
     def macros(self):
         return {
-            "validate_list_relations_without_caching.sql": MACROS__VALIDATE__SQLSERVER__LIST_RELATIONS_WITHOUT_CACHING,
+            "validate_list_relations_without_caching.sql": VALIDATE_LIST_RELATIONS_MACRO,
         }
 
     def test__fabric__list_relations_without_caching(self, project):

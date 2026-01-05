@@ -54,7 +54,10 @@ class SQLServerAdapter(SQLAdapter):
             {
                 "name": "empty",
                 "default": False,
-                "description": "When enabled, table and view materializations will be created as empty structures (no data).",
+                "description": (
+                    "When enabled, table and view materializations will be created as empty "
+                    "structures (no data)."
+                ),
             },
         ]
 

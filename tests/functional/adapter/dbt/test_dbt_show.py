@@ -9,7 +9,7 @@ from dbt.tests.adapter.dbt_show.test_dbt_show import BaseShowSqlHeader
 from dbt.tests.util import run_dbt
 
 
-# -- Below we define base classes for tests you import based on if your adapter supports dbt show or not --
+# -- Base classes for tests are imported based on whether the adapter supports dbt show --
 class BaseShowLimit:
     @pytest.fixture(scope="class")
     def models(self):

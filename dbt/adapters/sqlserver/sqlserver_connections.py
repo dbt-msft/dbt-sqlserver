@@ -238,12 +238,16 @@ def get_pyodbc_attrs_before_credentials(credentials: SQLServerCredentials) -> Di
             _TOKEN = AZURE_AUTH_FUNCTIONS[credentials.authentication.lower()](
                 credentials, AZURE_CREDENTIAL_SCOPE
             )
-        return {sql_copt_ss_access_token: convert_access_token_to_mswindows_byte_string(_TOKEN)}
+        token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
+        return {sql_copt_ss_access_token: token_bytes}
 
     if credentials.authentication.lower() == "activedirectoryaccesstoken":
         if credentials.access_token is None or credentials.access_token_expires_on is None:
             raise ValueError(
-                "Access token and access token expiry are required for ActiveDirectoryAccessToken authentication."
+                (
+                    "Access token and access token expiry are "
+                    "required for ActiveDirectoryAccessToken authentication."
+                )
             )
         _TOKEN = AccessToken(
             token=credentials.access_token,
@@ -370,8 +374,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         assert credentials.authentication is not None
 
-        # Access token authentication does not additional connection string parameters. The access token
-        # is passed in the pyodbc attributes.
+        # Access token authentication does not additional connection string parameters.
+        # The access token is passed in the pyodbc attributes.
         if (
             "ActiveDirectory" in credentials.authentication
             and credentials.authentication != "ActiveDirectoryAccessToken"
@@ -412,7 +416,10 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         except Exception as e:
             logger.debug(
-                "Retry count should be a integer value. Skipping retries in the connection string.",
+                (
+                    "Retry count should be a integer value. "
+                    "Skipping retries in the connection string."
+                ),
                 str(e),
             )
 
@@ -519,7 +526,11 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
                 fire_event(
                     AdapterEventDebug(
-                        message=f"Got a retryable error {type(e)}. {retry_limit-attempt} retries left. Retrying in 1 second.\nError:\n{e}"
+                        message=(
+                            f"Got a retryable error {type(e)}. {retry_limit-attempt} "
+                            "retries left. Retrying in 1 second.\n"
+                            f"Error:\n{e}"
+                        )
                     )
                 )
                 time.sleep(1)
@@ -601,7 +612,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def data_type_code_to_name(cls, type_code: Union[str, str]) -> str:
-        data_type = str(type_code)[str(type_code).index("'") + 1 : str(type_code).rindex("'")]
+        data_type = str(type_code)[
+            str(type_code).index("'") + 1 : str(type_code).rindex("'")  # noqa: E203
+        ]
         return datatypes[data_type]
 
     def execute(
