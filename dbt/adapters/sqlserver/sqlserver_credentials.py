@@ -20,7 +20,7 @@ class SQLServerCredentials(Credentials):
     client_secret: Optional[str] = None
     access_token: Optional[str] = None
     access_token_expires_on: Optional[int] = 0
-    authentication: str = "ActiveDirectoryServicePrincipal"
+    authentication: str = "sql"
     encrypt: Optional[bool] = True
     trust_cert: Optional[bool] = False
     retries: int = 3
