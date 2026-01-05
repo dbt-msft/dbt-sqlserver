@@ -96,4 +96,3 @@ class SQLServerColumn(Column):
         if not self.is_string() or not other_column.is_string():
             return False
         return other_column.string_size() > self.string_size()
-

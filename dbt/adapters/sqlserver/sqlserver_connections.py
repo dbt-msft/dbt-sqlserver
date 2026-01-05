@@ -9,7 +9,13 @@ import agate
 import dbt_common.exceptions
 import pyodbc
 from azure.core.credentials import AccessToken
-from azure.identity import AzureCliCredential, ClientSecretCredential, DefaultAzureCredential, EnvironmentCredential, ManagedIdentityCredential
+from azure.identity import (
+    AzureCliCredential,
+    ClientSecretCredential,
+    DefaultAzureCredential,
+    EnvironmentCredential,
+    ManagedIdentityCredential,
+)
 from dbt.adapters.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
