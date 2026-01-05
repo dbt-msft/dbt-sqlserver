@@ -60,12 +60,12 @@
 
     {#-- Add additional incremental_predicates to filter for batch --#}
     {% if model.config.get("__dbt_internal_microbatch_event_time_start") -%}
-    {{ log("incremenal append event start time > DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " >= '" ~ model.config.__dbt_internal_microbatch_event_time_start ~ "'") }}
-        {% do incremental_predicates.append("DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " >= '" ~ model.config.__dbt_internal_microbatch_event_time_start ~ "'") %}
+    {{ log("incremental append event start time > DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " >= cast('" ~ model.config.__dbt_internal_microbatch_event_time_start ~ "' as datetimeoffset)") }}
+        {% do incremental_predicates.append("DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " >= cast('" ~ model.config.__dbt_internal_microbatch_event_time_start ~ "' as datetimeoffset)") %}
     {% endif %}
     {% if model.config.__dbt_internal_microbatch_event_time_end -%}
-    {{ log("incremenal append event end time < DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " < '" ~ model.config.__dbt_internal_microbatch_event_time_end ~ "'") }}
-        {% do incremental_predicates.append("DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " < '" ~ model.config.__dbt_internal_microbatch_event_time_end ~ "'") %}
+    {{ log("incremental append event end time < DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " < cast('" ~ model.config.__dbt_internal_microbatch_event_time_end ~ "' as datetimeoffset)") }}
+        {% do incremental_predicates.append("DBT_INTERNAL_TARGET." ~ model.config.event_time ~ " < cast('" ~ model.config.__dbt_internal_microbatch_event_time_end ~ "' as datetimeoffset)") %}
     {% endif %}
     {% do arg_dict.update({'incremental_predicates': incremental_predicates}) %}
 
