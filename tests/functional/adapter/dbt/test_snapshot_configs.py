@@ -126,15 +126,16 @@ select
     convert(
         varchar(50),
         hashbytes(
-            "md5",
-            coalesce(cast(id1 as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(id2 as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(updated_at as varchar(8000)), ""),
+            'md5',
+            coalesce(cast(id1 as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(id2 as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(updated_at as varchar(8000)), '')
         ),
-        2,
+        2
     ) as test_scd_id
+from {schema}.seed;
 """
 
 model_seed_sql = """
@@ -207,14 +208,14 @@ select
     convert(
         varchar(50),
         hashbytes(
-            "md5",
-            coalesce(cast(id1 as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(id2 as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(updated_at as varchar(8000)), ""),
+            'md5',
+            coalesce(cast(id1 as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(id2 as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(updated_at as varchar(8000)), '')
         ),
-        2,
+        2
     ) as test_scd_id
 from {schema}.seed
 where id1 >= 10 and id1 <= 20;
@@ -340,14 +341,14 @@ select
     convert(
         varchar(50),
         hashbytes(
-            "md5",
-            coalesce(cast(id as varchar(8000)), "")
-            + "-"
-            + coalesce(cast(first_name as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(updated_at as varchar(8000)), ""),
+            'md5',
+            coalesce(cast(id as varchar(8000)), '')
+            + '-'
+            + coalesce(cast(first_name as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(updated_at as varchar(8000)), '')
         ),
-        2,
+        2
     ) as test_scd_id
 from {schema}.seed;
 """
@@ -383,14 +384,14 @@ select
     convert(
         varchar(50),
         hashbytes(
-            "md5",
-            coalesce(cast(id as varchar(8000)), "")
-            + "-"
-            + coalesce(cast(first_name as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(updated_at as varchar(8000)), ""),
+            'md5',
+            coalesce(cast(id as varchar(8000)), '')
+            + '-'
+            + coalesce(cast(first_name as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(updated_at as varchar(8000)), '')
         ),
-        2,
+        2
     ) as test_scd_id
 from {schema}.seed;
 """
@@ -427,14 +428,14 @@ select
     convert(
         varchar(50),
         hashbytes(
-            "md5",
-            coalesce(cast(id as varchar(8000)), "")
-            + "-"
-            + coalesce(cast(first_name as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(updated_at as varchar(8000)), ""),
+            'md5',
+            coalesce(cast(id as varchar(8000)), '')
+            + '-'
+            + coalesce(cast(first_name as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(updated_at as varchar(8000)), '')
         ),
-        2,
+        2
     ) as test_scd_id
 from {schema}.seed
 where id >= 10 and id <= 20;
@@ -497,14 +498,14 @@ select
     convert(
         varchar(50),
         hashbytes(
-            "md5",
-            coalesce(cast(id as varchar(8000)), "")
-            + "-"
-            + coalesce(cast(first_name as varchar(8000)), "")
-            + "|"
-            + coalesce(cast(updated_at as varchar(8000)), ""),
+            'md5',
+            coalesce(cast(id as varchar(8000)), '')
+            + '-'
+            + coalesce(cast(first_name as varchar(8000)), '')
+            + '|'
+            + coalesce(cast(updated_at as varchar(8000)), '')
         ),
-        2,
+        2
     ) as test_scd_id
 from {schema}.seed
 where id >= 10 and id <= 20;
