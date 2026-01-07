@@ -96,9 +96,9 @@ class TestListRelationsWithoutCachingSingleSQLServer:
             "validate_list_relations_without_caching.sql": VALIDATE_LIST_RELATIONS_MACRO,
         }
 
-    def test__fabric__list_relations_without_caching(self, project):
+    def test__sqlserver__list_relations_without_caching(self, project):
         """
-        validates that fabric__list_relations_without_caching
+        validates that sqlserver__list_relations_without_caching
         macro returns a single record
         """
         run_dbt(["run", "-s", "my_model_base"])
@@ -136,7 +136,7 @@ class TestListRelationsWithoutCachingFullSQLServer:
             "validate_list_relations_without_caching.sql": VALIDATE_LIST_RELATIONS_MACRO,
         }
 
-    def test__fabric__list_relations_without_caching(self, project):
+    def test_sqlserver__list_relations_without_caching(self, project):
         # purpose of the first run is to create the replicated views in the target schema
         run_dbt(["run"])
 

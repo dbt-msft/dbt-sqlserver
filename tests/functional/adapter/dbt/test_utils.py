@@ -105,9 +105,7 @@ class TestConcat(BaseConcat):
     pass
 
 
-@pytest.mark.skip(
-    reason="Only should implement Aware or Naive. Opted for Naive to align with fabric."
-)
+@pytest.mark.skip(reason="Only should implement Aware or Naive. Opted for Naive.")
 class TestCurrentTimestampAware(BaseCurrentTimestampAware):
     pass
 
