@@ -195,8 +195,7 @@ class BaseHookRefs(BaseTestPrePost):
             "models": {
                 "test": {
                     "hooked": {
-                        "post-hook": [
-                            """
+                        "post-hook": ["""
                         insert into {{this.schema}}.on_model_hook select
                         test_state,
                         '{{ target.dbname }}' as target_dbname,
@@ -210,8 +209,7 @@ class BaseHookRefs(BaseTestPrePost):
                         '{{ run_started_at }}' as run_started_at,
                         '{{ invocation_id }}' as invocation_id,
                         '{{ thread_id }}' as thread_id
-                        from {{ ref('post') }}""".strip()
-                        ],
+                        from {{ ref('post') }}""".strip()],
                     }
                 },
             }
