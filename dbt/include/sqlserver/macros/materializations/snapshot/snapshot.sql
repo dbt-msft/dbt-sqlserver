@@ -55,11 +55,16 @@
       {% do adapter.expand_target_column_types(from_relation=staging_table,
                                                to_relation=target_relation) %}
 
+      {% set remove_columns = ['dbt_change_type', 'DBT_CHANGE_TYPE', 'dbt_unique_key', 'DBT_UNIQUE_KEY'] %}
+      {% if unique_key is sequence and unique_key is not string %}
+        {% for key in strategy.unique_key %}
+          {{ remove_columns.append('dbt_unique_key_' + loop.index|string) or "" }}
+          {{ remove_columns.append('DBT_UNIQUE_KEY_' + loop.index|string) or "" }}
+        {% endfor %}
+      {% endif %}
+
       {% set missing_columns = adapter.get_missing_columns(staging_table, target_relation)
-                                   | rejectattr('name', 'equalto', 'dbt_change_type')
-                                   | rejectattr('name', 'equalto', 'DBT_CHANGE_TYPE')
-                                   | rejectattr('name', 'equalto', 'dbt_unique_key')
-                                   | rejectattr('name', 'equalto', 'DBT_UNIQUE_KEY')
+                                   | rejectattr('name', 'in', remove_columns)
                                    | list %}
      {% if missing_columns|length > 0 %}
         {{log("Missing columns length is: "~ missing_columns|length)}}
@@ -67,10 +72,7 @@
       {% endif %}
 
       {% set source_columns = adapter.get_columns_in_relation(staging_table)
-                                   | rejectattr('name', 'equalto', 'dbt_change_type')
-                                   | rejectattr('name', 'equalto', 'DBT_CHANGE_TYPE')
-                                   | rejectattr('name', 'equalto', 'dbt_unique_key')
-                                   | rejectattr('name', 'equalto', 'DBT_UNIQUE_KEY')
+                                   | rejectattr('name', 'in', remove_columns)
                                    | list %}
 
       {% set quoted_source_columns = [] %}
