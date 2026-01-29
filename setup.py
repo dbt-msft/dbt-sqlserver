@@ -66,7 +66,7 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-fabric==1.9.3",
+        "dbt-fabric==1.9.6",
         "dbt-core>=1.9.0,<2.0",
         "dbt-common>=1.0,<2.0",
         "dbt-adapters>=1.11.0,<2.0",
@@ -86,6 +86,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     project_urls={
         "Setup & configuration": "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile",  # noqa: E501
