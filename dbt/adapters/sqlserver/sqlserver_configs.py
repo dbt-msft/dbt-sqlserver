@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+from typing import Optional
 
-from dbt.adapters.fabric import FabricConfigs
+from dbt.adapters.protocol import AdapterConfig
 
 
 @dataclass
-class SQLServerConfigs(FabricConfigs):
-    pass
+class SQLServerConfigs(AdapterConfig):
+    auto_provision_aad_principals: Optional[bool] = False

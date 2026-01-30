@@ -13,11 +13,12 @@ pip-tools
 pre-commit
 pytest
 pytest-dotenv
-pytest-logbook
 pytest-csv
 pytest-xdist
 pytz
 tox>=3.13
 twine
 wheel
+pyodbc
+azure-identity
 -e .
