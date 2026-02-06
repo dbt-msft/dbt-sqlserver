@@ -30,6 +30,8 @@ def dbt_profile_target(request: FixtureRequest, dbt_profile_target_update):
         target = _profile_user()
     elif profile == "user_azure":
         target = _profile_user_azure()
+    elif profile == "user_encrypt_strict":
+        target = _profile_user_encrypt_strict()
     else:
         raise ValueError(f"Unknown profile: {profile}")
 
@@ -150,6 +152,15 @@ def _profile_user_azure():
         },
     }
     return profile
+
+
+def _profile_user_encrypt_strict():
+    return {
+        **_profile_user(),
+        **{
+            "encrypt": "strict",
+        },
+    }
 
 
 @pytest.fixture(autouse=True)
