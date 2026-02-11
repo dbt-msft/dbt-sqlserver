@@ -1,6 +1,8 @@
 import pytest
 from dbt.tests.util import get_connection, run_dbt
 
+from tests.functional.adapter.mssql.test_index_config import index_count, indexes_def
+
 # flake8: noqa: E501
 
 index_seed_csv = """id_col,data,secondary_data,tertiary_data
@@ -66,74 +68,6 @@ drop_schema_model = """
 select * from {{ ref('raw_data') }}
 """
 
-base_validation = """
-with base_query AS (
-select i.[name] as index_name,
-    substring(column_names, 1, len(column_names)-1) as [columns],
-    case when i.[type] = 1 then 'Clustered index'
-        when i.[type] = 2 then 'Nonclustered unique index'
-        when i.[type] = 3 then 'XML index'
-        when i.[type] = 4 then 'Spatial index'
-        when i.[type] = 5 then 'Clustered columnstore index'
-        when i.[type] = 6 then 'Nonclustered columnstore index'
-        when i.[type] = 7 then 'Nonclustered hash index'
-        end as index_type,
-    case when i.is_unique = 1 then 'Unique'
-        else 'Not unique' end as [unique],
-    schema_name(t.schema_id) + '.' + t.[name] as table_view,
-    case when t.[type] = 'U' then 'Table'
-        when t.[type] = 'V' then 'View'
-        end as [object_type],
-  s.name as schema_name
-from sys.objects t
-  inner join sys.schemas s
-    on
-      t.schema_id = s.schema_id
-    inner join sys.indexes i
-        on t.object_id = i.object_id
-    cross apply (select col.[name] + ', '
-                    from sys.index_columns ic
-                        inner join sys.columns col
-                            on ic.object_id = col.object_id
-                            and ic.column_id = col.column_id
-                    where ic.object_id = t.object_id
-                        and ic.index_id = i.index_id
-                            order by key_ordinal
-                            for xml path ('') ) D (column_names)
-where t.is_ms_shipped <> 1
-and index_id > 0
-)
-"""
-
-index_count = (
-    base_validation
-    + """
-select
-  index_type,
-  count(*) index_count
-from
-  base_query
-WHERE
-  schema_name='{schema_name}'
-group by index_type
-"""
-)
-
-other_index_count = (
-    base_validation
-    + """
-SELECT
-  *
-FROM
-  base_query
-WHERE
-  schema_name='{schema_name}'
-  AND
-  table_view='{schema_name}.{table_name}'
-
-"""
-)
-
 
 class TestIndex:
     @pytest.fixture(scope="class")
@@ -155,6 +89,11 @@ class TestIndex:
             "schema.yml": model_yml,
         }
 
+    def drop_artifacts(self, project):
+        with get_connection(project.adapter):
+            project.adapter.execute("DROP TABLE IF EXISTS index_model", fetch=True)
+            project.adapter.execute("DROP TABLE IF EXISTS index_ccs_model")
+
     def test_create_index(self, project):
         run_dbt(["seed"])
         run_dbt(["run"])
@@ -165,10 +104,11 @@ class TestIndex:
             )
         schema_dict = {_[0]: _[1] for _ in table.rows}
         expected = {
-            "Clustered columnstore index": 1,
-            "Clustered index": 1,
-            "Nonclustered unique index": 4,
+            "clustered columnstore": 1,
+            "clustered unique": 1,
+            "nonclustered": 4,
         }
+        self.drop_artifacts(project)
         assert schema_dict == expected
 
 
@@ -230,7 +170,7 @@ class TestIndexDropsOnlySchema:
     def validate_other_schema(self, project):
         with get_connection(project.adapter):
             result, table = project.adapter.execute(
-                other_index_count.format(
+                indexes_def.format(
                     schema_name=project.test_schema + "other", table_name="index_model"
                 ),
                 fetch=True,
