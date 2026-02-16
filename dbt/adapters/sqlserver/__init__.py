@@ -11,7 +11,6 @@ Plugin = AdapterPlugin(
     adapter=SQLServerAdapter,
     credentials=SQLServerCredentials,
     include_path=sqlserver.PACKAGE_PATH,
-    dependencies=["fabric"],
 )
 
 __all__ = [

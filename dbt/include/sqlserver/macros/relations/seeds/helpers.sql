@@ -20,32 +20,41 @@
 {%  endmacro %}
 
 {% macro sqlserver__load_csv_rows(model, agate_table) %}
+  {#
+      ADBC's mssql driver does not support parameterized queries with '?' placeholders.
+      Instead, we inline literal values directly into the INSERT statements.
+  #}
   {% set cols_sql = get_seed_column_quoted_csv(model, agate_table.column_names) %}
   {% set batch_size = calc_batch_size(agate_table.column_names|length) %}
-  {% set bindings = [] %}
   {% set statements = [] %}
 
   {{ log("Inserting batches of " ~ batch_size ~ " records") }}
 
   {% for chunk in agate_table.rows | batch(batch_size) %}
-      {% set bindings = [] %}
-
-      {% for row in chunk %}
-          {% do bindings.extend(row) %}
-      {% endfor %}
-
       {% set sql %}
           insert into {{ this.render() }} ({{ cols_sql }}) values
           {% for row in chunk -%}
-              ({%- for column in agate_table.column_names -%}
-                  {{ get_binding_char() }}
+              ({%- for value in row -%}
+                  {%- if value is none -%}
+                      null
+                  {%- elif value is sameas true -%}
+                      1
+                  {%- elif value is sameas false -%}
+                      0
+                  {%- elif value is number -%}
+                      {{ value }}
+                  {%- elif value is string -%}
+                      '{{ value | replace("'", "''") }}'
+                  {%- else -%}
+                      '{{ value | replace("'", "''") }}'
+                  {%- endif -%}
                   {%- if not loop.last%},{%- endif %}
               {%- endfor -%})
               {%- if not loop.last%},{%- endif %}
           {%- endfor %}
       {% endset %}
 
-      {% do adapter.add_query(sql, bindings=bindings, abridge_sql_log=True) %}
+      {% do adapter.add_query(sql, abridge_sql_log=True) %}
 
       {% if loop.index0 == 0 %}
           {% do statements.append(sql) %}
