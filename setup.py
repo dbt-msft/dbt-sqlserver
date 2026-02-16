@@ -66,10 +66,11 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-fabric==1.9.6",
         "dbt-core>=1.9.0,<2.0",
         "dbt-common>=1.0,<2.0",
         "dbt-adapters>=1.11.0,<2.0",
+        "adbc-driver-manager>=1.9.0",
+        "pyarrow>=20.0.0",
     ],
     cmdclass={
         "verify": VerifyVersionCommand,

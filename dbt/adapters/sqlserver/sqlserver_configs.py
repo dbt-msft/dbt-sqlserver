@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from dbt.adapters.fabric import FabricConfigs
+from dbt.adapters.protocol import AdapterConfig
 
 
 @dataclass
-class SQLServerConfigs(FabricConfigs):
+class SQLServerConfigs(AdapterConfig):
     pass
