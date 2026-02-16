@@ -67,9 +67,7 @@ class SQLServerCredentials(Credentials):
         if self.encrypt is not None:
             params.append(f"encrypt={'true' if self.encrypt else 'false'}")
         if self.trust_cert is not None:
-            params.append(
-                f"TrustServerCertificate={'true' if self.trust_cert else 'false'}"
-            )
+            params.append(f"TrustServerCertificate={'true' if self.trust_cert else 'false'}")
         if self.login_timeout:
             params.append(f"connection timeout={self.login_timeout}")
 

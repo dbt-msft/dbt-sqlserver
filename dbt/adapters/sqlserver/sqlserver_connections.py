@@ -9,7 +9,6 @@ from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.sql import SQLConnectionManager
 from dbt_common.clients.agate_helper import empty_table
 
-from dbt.adapters.sqlserver import __version__
 from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
 
 logger = AdapterLogger("sqlserver")

@@ -13,7 +13,6 @@ from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
-
 COLUMNS_EQUAL_SQL = """
 with diff_count as (
     SELECT
@@ -160,10 +159,7 @@ class SQLServerAdapter(SQLAdapter):
         if constraint.type == ConstraintType.unique:
             return constraint_prefix + f"{constraint.name} unique nonclustered({column_list})"
         elif constraint.type == ConstraintType.primary_key:
-            return (
-                constraint_prefix
-                + f"{constraint.name} primary key nonclustered({column_list})"
-            )
+            return constraint_prefix + f"{constraint.name} primary key nonclustered({column_list})"
         elif constraint.type == ConstraintType.foreign_key and constraint.expression:
             return (
                 constraint_prefix
