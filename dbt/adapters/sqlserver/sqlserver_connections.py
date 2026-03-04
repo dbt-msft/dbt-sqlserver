@@ -1,5 +1,7 @@
+from contextlib import contextmanager
+from typing import Any, Optional, Tuple, Type
+
 import dbt_common.exceptions  # noqa
-import mssql_python
 from azure.core.credentials import AccessToken
 from azure.identity import ClientSecretCredential, ManagedIdentityCredential
 from dbt.adapters.contracts.connection import Connection, ConnectionState
@@ -12,8 +14,8 @@ from dbt.adapters.fabric.fabric_connection_manager import (
     AZURE_CREDENTIAL_SCOPE,
 )
 
-from dbt.adapters.sqlserver import __version__
-from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
+from dbt.adapters.sqlserver import __version__  # noqa: E402
+from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials  # noqa: E402
 
 logger = AdapterLogger("sqlserver")
 
@@ -68,6 +70,36 @@ AZURE_AUTH_FUNCTIONS = {
 class SQLServerConnectionManager(FabricConnectionManager):
     TYPE = "sqlserver"
 
+    @contextmanager
+    def exception_handler(self, sql):
+        """Override Fabric's exception_handler to avoid pyodbc exception types."""
+        try:
+            yield
+
+        except Exception as e:
+            logger.debug("Error running SQL: {}".format(str(e)))
+
+            try:
+                self.release()
+            except Exception:
+                logger.debug("Failed to release connection!")
+
+            if isinstance(e, dbt_common.exceptions.DbtDatabaseError):
+                raise
+            if isinstance(e, dbt_common.exceptions.DbtRuntimeError):
+                raise
+
+            # Check for mssql_python exceptions
+            try:
+                import mssql_python
+
+                if isinstance(e, (mssql_python.DatabaseError,)):
+                    raise dbt_common.exceptions.DbtDatabaseError(str(e).strip()) from e
+            except ImportError:
+                pass
+
+            raise dbt_common.exceptions.DbtRuntimeError(e)
+
     @classmethod
     def open(cls, connection: Connection) -> Connection:
         if connection.state == ConnectionState.OPEN:
@@ -75,10 +107,18 @@ class SQLServerConnectionManager(FabricConnectionManager):
             return connection
 
         credentials = cls.get_credentials(connection.credentials)
+
+        driver_type = getattr(credentials, "driver_type", "mssql-python")
+
+        if driver_type == "pyodbc":
+            # Delegate to Fabric's pyodbc-based open()
+            return super().open(connection)
+
         if credentials.authentication != "sql":
             return super().open(connection)
 
-        # sql login authentication
+        # --- mssql-python path (lazy import) ---
+        import mssql_python
 
         con_str = []
 
@@ -145,4 +185,31 @@ class SQLServerConnectionManager(FabricConnectionManager):
             logger=logger,
             retry_limit=credentials.retries,
             retryable_exceptions=retryable_exceptions,
+        )
+
+    def add_query(
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+        retryable_exceptions: Tuple[Type[Exception], ...] = (),
+        retry_limit: int = 2,
+    ) -> Tuple[Connection, Any]:
+        """Override to skip pyodbc-specific add_output_converter call for mssql-python."""
+        connection = self.get_thread_connection()
+        credentials = self.get_credentials(connection.credentials)
+        driver_type = getattr(credentials, "driver_type", "mssql-python")
+
+        if driver_type == "pyodbc":
+            return super().add_query(
+                sql, auto_begin, bindings, abridge_sql_log, retryable_exceptions, retry_limit
+            )
+
+        # For mssql-python, use parent's add_query but avoid the output_converter call.
+        # We call the grandparent (SQLConnectionManager) add_query instead.
+        from dbt.adapters.sql import SQLConnectionManager
+
+        return SQLConnectionManager.add_query(
+            self, sql, auto_begin, bindings, abridge_sql_log
         )
