@@ -51,6 +51,7 @@ def is_azure(request: FixtureRequest) -> bool:
 def _all_profiles_base():
     return {
         "type": "sqlserver",
+        "driver": "mssql-python",
         "port": int(os.getenv("SQLSERVER_TEST_PORT", "1433")),
         "retries": 2,
     }

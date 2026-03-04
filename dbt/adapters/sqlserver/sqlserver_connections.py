@@ -145,10 +145,6 @@ class SQLServerConnectionManager(FabricConnectionManager):
             f"TrustServerCertificate={'yes' if credentials.trust_cert else 'no'}"
         )
 
-        plugin_version = __version__.version
-        application_name = f"dbt-{credentials.type}/{plugin_version}"
-        con_str.append(f"APP={application_name}")
-
         con_str_concat = ";".join(con_str)
 
         index = []
