@@ -28,6 +28,84 @@ Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shield
 pip install -U --pre dbt-sqlserver
 ```
 
+## Profile Setup
+
+The adapter now uses the native `mssql-python` driver by default, eliminating the need for ODBC driver installation.
+
+### SQL Server (SQL Authentication)
+
+```yaml
+my_project:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      driver: "mssql-python"
+      host: 127.0.0.1
+      port: 1433
+      user: my_user
+      password: "my_password"
+      database: my_database
+      schema: dbo
+      authentication: sql
+      encrypt: true
+      trust_cert: true
+```
+
+### Azure SQL (CLI Authentication)
+
+```yaml
+my_project:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      driver: "mssql-python"
+      host: your-server.database.windows.net
+      database: your-db
+      schema: dbo
+      authentication: cli
+      encrypt: true
+      trust_cert: true
+```
+
+### Azure SQL (Service Principal)
+
+```yaml
+my_project:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      driver: "mssql-python"
+      host: your-server.database.windows.net
+      database: your-db
+      schema: dbo
+      authentication: serviceprincipal
+      tenant_id: "your-tenant-id"
+      client_id: "your-client-id"
+      client_secret: "your-client-secret"
+      encrypt: true
+      trust_cert: true
+```
+
+### Profile Fields
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `type` | yes | — | Must be `sqlserver` |
+| `driver` | yes | — | Set to `mssql-python` (recommended) or an ODBC driver name for legacy pyodbc |
+| `host` | yes | — | SQL Server hostname or IP |
+| `port` | no | `1433` | SQL Server port |
+| `user` | yes* | — | Username (*not required for CLI/auto auth) |
+| `password` | yes* | — | Password (*not required for CLI/auto auth) |
+| `database` | yes | — | Target database |
+| `schema` | yes | — | Target schema |
+| `authentication` | no | `sql` | Auth method: `sql`, `cli`, `auto`, `environment`, `serviceprincipal`, `msi` |
+| `encrypt` | no | `true` | Encrypt the connection |
+| `trust_cert` | no | `false` | Trust the server certificate |
+| `driver_type` | no | `mssql-python` | Driver backend: `mssql-python` (default) or `pyodbc` |
+
 ## Changelog
 
 See [the changelog](CHANGELOG.md)
