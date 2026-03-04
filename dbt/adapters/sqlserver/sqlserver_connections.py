@@ -1,5 +1,5 @@
 import dbt_common.exceptions  # noqa
-import pyodbc
+import mssql_python
 from azure.core.credentials import AccessToken
 from azure.identity import ClientSecretCredential, ManagedIdentityCredential
 from dbt.adapters.contracts.connection import Connection, ConnectionState
@@ -10,8 +10,6 @@ from dbt.adapters.fabric.fabric_connection_manager import (
 )
 from dbt.adapters.fabric.fabric_connection_manager import (
     AZURE_CREDENTIAL_SCOPE,
-    bool_to_connection_string_arg,
-    get_pyodbc_attrs_before_credentials,
 )
 
 from dbt.adapters.sqlserver import __version__
@@ -82,14 +80,14 @@ class SQLServerConnectionManager(FabricConnectionManager):
 
         # sql login authentication
 
-        con_str = [f"DRIVER={{{credentials.driver}}}"]
+        con_str = []
+
+        con_str.append(f"Server={credentials.host},{credentials.port}")
 
         if "\\" in credentials.host:
             # If there is a backslash \ in the host name, the host is a
             # SQL Server named instance. In this case then port number has to be omitted.
-            con_str.append(f"SERVER={credentials.host}")
-        else:
-            con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            con_str[-1] = f"Server={credentials.host}"
 
         con_str.append(f"Database={credentials.database}")
 
@@ -102,9 +100,9 @@ class SQLServerConnectionManager(FabricConnectionManager):
         assert credentials.encrypt is not None
         assert credentials.trust_cert is not None
 
-        con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
+        con_str.append(f"Encrypt={'yes' if credentials.encrypt else 'no'}")
         con_str.append(
-            bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert)
+            f"TrustServerCertificate={'yes' if credentials.trust_cert else 'no'}"
         )
 
         plugin_version = __version__.version
@@ -123,26 +121,20 @@ class SQLServerConnectionManager(FabricConnectionManager):
 
         con_str_display = ";".join(con_str)
 
-        retryable_exceptions = [  # https://github.com/mkleehammer/pyodbc/wiki/Exceptions
-            pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
-            pyodbc.OperationalError,
+        retryable_exceptions = [  # DB-API 2.0 standard exceptions
+            mssql_python.InternalError,
+            mssql_python.OperationalError,
         ]
 
         if credentials.authentication.lower() in AZURE_AUTH_FUNCTIONS:
             # Temporary login/token errors fall into this category when using AAD
-            retryable_exceptions.append(pyodbc.InterfaceError)
+            retryable_exceptions.append(mssql_python.InterfaceError)
 
         def connect():
             logger.debug(f"Using connection string: {con_str_display}")
 
-            attrs_before = get_pyodbc_attrs_before_credentials(credentials)
-
-            handle = pyodbc.connect(
-                con_str_concat,
-                attrs_before=attrs_before,
-                autocommit=True,
-                timeout=credentials.login_timeout,
-            )
+            handle = mssql_python.connect(con_str_concat)
+            handle.setautocommit(True)
             handle.timeout = credentials.query_timeout
             logger.debug(f"Connected to db: {credentials.database}")
             return handle

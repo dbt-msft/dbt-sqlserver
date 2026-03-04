@@ -16,23 +16,6 @@ Join us on the [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W) to ask q
 
 ## Installation
 
-This adapter requires the Microsoft ODBC driver to be installed:
-[Windows](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16#download-for-windows) |
-[macOS](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/install-microsoft-odbc-driver-sql-server-macos?view=sql-server-ver16) |
-[Linux](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server?view=sql-server-ver16)
-
-<details><summary>Debian/Ubuntu</summary>
-<p>
-
-Make sure to install the ODBC headers as well as the driver linked above:
-
-```shell
-sudo apt-get install -y unixodbc-dev
-```
-
-</p>
-</details>
-
 Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-sqlserver?label=latest%20stable&logo=pypi)
 
 ```shell
