@@ -76,10 +76,7 @@ class SQLServerHealthMixin:
 
     def get_active_session_count(self) -> int:
         """Return the number of active user sessions."""
-        sql = (
-            "SELECT COUNT(*) AS cnt FROM sys.dm_exec_sessions "
-            "WHERE is_user_process = 1"
-        )
+        sql = "SELECT COUNT(*) AS cnt FROM sys.dm_exec_sessions " "WHERE is_user_process = 1"
         _, table = self.execute(sql, fetch=True)
         return int(table.rows[0][0])
 

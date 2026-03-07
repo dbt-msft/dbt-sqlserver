@@ -10,9 +10,7 @@ from dbt.adapters.fabric import FabricConnectionManager
 from dbt.adapters.fabric.fabric_connection_manager import (
     AZURE_AUTH_FUNCTIONS as AZURE_AUTH_FUNCTIONS_FABRIC,
 )
-from dbt.adapters.fabric.fabric_connection_manager import (
-    AZURE_CREDENTIAL_SCOPE,
-)
+from dbt.adapters.fabric.fabric_connection_manager import AZURE_CREDENTIAL_SCOPE
 
 from dbt.adapters.sqlserver import __version__  # noqa: E402
 from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials  # noqa: E402
@@ -141,9 +139,7 @@ class SQLServerConnectionManager(FabricConnectionManager):
         assert credentials.trust_cert is not None
 
         con_str.append(f"Encrypt={'yes' if credentials.encrypt else 'no'}")
-        con_str.append(
-            f"TrustServerCertificate={'yes' if credentials.trust_cert else 'no'}"
-        )
+        con_str.append(f"TrustServerCertificate={'yes' if credentials.trust_cert else 'no'}")
 
         con_str_concat = ";".join(con_str)
 
@@ -211,9 +207,7 @@ class SQLServerConnectionManager(FabricConnectionManager):
         # Call the grandparent (SQLConnectionManager) directly instead.
         from dbt.adapters.sql import SQLConnectionManager
 
-        return SQLConnectionManager.add_query(
-            self, sql, auto_begin, bindings, abridge_sql_log
-        )
+        return SQLConnectionManager.add_query(self, sql, auto_begin, bindings, abridge_sql_log)
 
     def _admission_control(self, connection: Connection):
         """Run load-aware admission control using a dedicated health-check connection."""

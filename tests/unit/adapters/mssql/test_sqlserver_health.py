@@ -1,13 +1,8 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from dbt.adapters.sqlserver.sqlserver_health import (
-    ActiveQuery,
-    DatabaseSize,
-    SQLServerHealthMixin,
-    ServerInfo,
-)
+from dbt.adapters.sqlserver.sqlserver_health import ServerInfo, SQLServerHealthMixin
 
 
 class FakeTable:
@@ -43,7 +38,12 @@ def test_check_connection_health_failure(adapter):
 
 def test_get_server_info(adapter):
     adapter.execute = MagicMock(
-        return_value=(None, FakeTable([("15.0.4123.1", "Developer Edition", "RTM", "SQL_Latin1_General_CP1_CI_AS")]))
+        return_value=(
+            None,
+            FakeTable(
+                [("15.0.4123.1", "Developer Edition", "RTM", "SQL_Latin1_General_CP1_CI_AS")]
+            ),
+        )
     )
     info = adapter.get_server_info()
     assert isinstance(info, ServerInfo)
@@ -65,10 +65,15 @@ def test_get_active_session_count(adapter):
 
 def test_get_active_queries(adapter):
     adapter.execute = MagicMock(
-        return_value=(None, FakeTable([
-            (55, "running", "SELECT", "CXPACKET", 100, 200, 300, 400),
-            (60, "suspended", "INSERT", None, 50, 100, 150, 200),
-        ]))
+        return_value=(
+            None,
+            FakeTable(
+                [
+                    (55, "running", "SELECT", "CXPACKET", 100, 200, 300, 400),
+                    (60, "suspended", "INSERT", None, 50, 100, 150, 200),
+                ]
+            ),
+        )
     )
     queries = adapter.get_active_queries()
     assert len(queries) == 2
@@ -79,10 +84,15 @@ def test_get_active_queries(adapter):
 
 def test_get_database_size(adapter):
     adapter.execute = MagicMock(
-        return_value=(None, FakeTable([
-            ("mydb", "mydb_data", "DATA", 512.00),
-            ("mydb", "mydb_log", "LOG", 128.00),
-        ]))
+        return_value=(
+            None,
+            FakeTable(
+                [
+                    ("mydb", "mydb_data", "DATA", 512.00),
+                    ("mydb", "mydb_log", "LOG", 128.00),
+                ]
+            ),
+        )
     )
     files = adapter.get_database_size()
     assert len(files) == 2

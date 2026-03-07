@@ -77,12 +77,9 @@ def wait_for_healthy_server(
             return True
 
         logger.debug(
-            f"Server busy, backing off {backoff_seconds}s "
-            f"(attempt {attempt}/{max_retries})"
+            f"Server busy, backing off {backoff_seconds}s " f"(attempt {attempt}/{max_retries})"
         )
         time.sleep(backoff_seconds)
 
-    logger.warning(
-        f"Server still busy after {max_retries} retries, proceeding to avoid deadlock."
-    )
+    logger.warning(f"Server still busy after {max_retries} retries, proceeding to avoid deadlock.")
     return False
