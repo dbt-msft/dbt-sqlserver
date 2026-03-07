@@ -7,10 +7,11 @@ from dbt.contracts.graph.nodes import ConstraintType
 
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sqlserver_health import SQLServerHealthMixin
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
 
-class SQLServerAdapter(FabricAdapter):
+class SQLServerAdapter(SQLServerHealthMixin, FabricAdapter):
     """
     Controls actual implmentation of adapter, and ability to override certain methods.
     """

@@ -13,6 +13,7 @@ class SQLServerCredentials(FabricCredentials):
 
     port: Optional[int] = 1433
     authentication: Optional[str] = "sql"
+    driver_type: Optional[str] = "mssql-python"  # options: 'mssql-python', 'pyodbc'
 
     @property
     def type(self):

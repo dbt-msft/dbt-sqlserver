@@ -1,5 +1,7 @@
+from contextlib import contextmanager
+from typing import Any, Optional, Tuple, Type
+
 import dbt_common.exceptions  # noqa
-import pyodbc
 from azure.core.credentials import AccessToken
 from azure.identity import ClientSecretCredential, ManagedIdentityCredential
 from dbt.adapters.contracts.connection import Connection, ConnectionState
@@ -10,12 +12,10 @@ from dbt.adapters.fabric.fabric_connection_manager import (
 )
 from dbt.adapters.fabric.fabric_connection_manager import (
     AZURE_CREDENTIAL_SCOPE,
-    bool_to_connection_string_arg,
-    get_pyodbc_attrs_before_credentials,
 )
 
-from dbt.adapters.sqlserver import __version__
-from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
+from dbt.adapters.sqlserver import __version__  # noqa: E402
+from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials  # noqa: E402
 
 logger = AdapterLogger("sqlserver")
 
@@ -70,6 +70,36 @@ AZURE_AUTH_FUNCTIONS = {
 class SQLServerConnectionManager(FabricConnectionManager):
     TYPE = "sqlserver"
 
+    @contextmanager
+    def exception_handler(self, sql):
+        """Override Fabric's exception_handler to avoid pyodbc exception types."""
+        try:
+            yield
+
+        except Exception as e:
+            logger.debug("Error running SQL: {}".format(str(e)))
+
+            try:
+                self.release()
+            except Exception:
+                logger.debug("Failed to release connection!")
+
+            if isinstance(e, dbt_common.exceptions.DbtDatabaseError):
+                raise
+            if isinstance(e, dbt_common.exceptions.DbtRuntimeError):
+                raise
+
+            # Check for mssql_python exceptions
+            try:
+                import mssql_python
+
+                if isinstance(e, (mssql_python.DatabaseError,)):
+                    raise dbt_common.exceptions.DbtDatabaseError(str(e).strip()) from e
+            except ImportError:
+                pass
+
+            raise dbt_common.exceptions.DbtRuntimeError(e)
+
     @classmethod
     def open(cls, connection: Connection) -> Connection:
         if connection.state == ConnectionState.OPEN:
@@ -77,19 +107,27 @@ class SQLServerConnectionManager(FabricConnectionManager):
             return connection
 
         credentials = cls.get_credentials(connection.credentials)
+
+        driver_type = getattr(credentials, "driver_type", "mssql-python")
+
+        if driver_type == "pyodbc":
+            # Delegate to Fabric's pyodbc-based open()
+            return super().open(connection)
+
         if credentials.authentication != "sql":
             return super().open(connection)
 
-        # sql login authentication
+        # --- mssql-python path (lazy import) ---
+        import mssql_python
 
-        con_str = [f"DRIVER={{{credentials.driver}}}"]
+        con_str = []
+
+        con_str.append(f"Server={credentials.host},{credentials.port}")
 
         if "\\" in credentials.host:
             # If there is a backslash \ in the host name, the host is a
             # SQL Server named instance. In this case then port number has to be omitted.
-            con_str.append(f"SERVER={credentials.host}")
-        else:
-            con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            con_str[-1] = f"Server={credentials.host}"
 
         con_str.append(f"Database={credentials.database}")
 
@@ -102,14 +140,10 @@ class SQLServerConnectionManager(FabricConnectionManager):
         assert credentials.encrypt is not None
         assert credentials.trust_cert is not None
 
-        con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
+        con_str.append(f"Encrypt={'yes' if credentials.encrypt else 'no'}")
         con_str.append(
-            bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert)
+            f"TrustServerCertificate={'yes' if credentials.trust_cert else 'no'}"
         )
-
-        plugin_version = __version__.version
-        application_name = f"dbt-{credentials.type}/{plugin_version}"
-        con_str.append(f"APP={application_name}")
 
         con_str_concat = ";".join(con_str)
 
@@ -123,26 +157,20 @@ class SQLServerConnectionManager(FabricConnectionManager):
 
         con_str_display = ";".join(con_str)
 
-        retryable_exceptions = [  # https://github.com/mkleehammer/pyodbc/wiki/Exceptions
-            pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
-            pyodbc.OperationalError,
+        retryable_exceptions = [  # DB-API 2.0 standard exceptions
+            mssql_python.InternalError,
+            mssql_python.OperationalError,
         ]
 
         if credentials.authentication.lower() in AZURE_AUTH_FUNCTIONS:
             # Temporary login/token errors fall into this category when using AAD
-            retryable_exceptions.append(pyodbc.InterfaceError)
+            retryable_exceptions.append(mssql_python.InterfaceError)
 
         def connect():
             logger.debug(f"Using connection string: {con_str_display}")
 
-            attrs_before = get_pyodbc_attrs_before_credentials(credentials)
-
-            handle = pyodbc.connect(
-                con_str_concat,
-                attrs_before=attrs_before,
-                autocommit=True,
-                timeout=credentials.login_timeout,
-            )
+            handle = mssql_python.connect(con_str_concat)
+            handle.setautocommit(True)
             handle.timeout = credentials.query_timeout
             logger.debug(f"Connected to db: {credentials.database}")
             return handle
@@ -154,3 +182,53 @@ class SQLServerConnectionManager(FabricConnectionManager):
             retry_limit=credentials.retries,
             retryable_exceptions=retryable_exceptions,
         )
+
+    def add_query(
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+        retryable_exceptions: Tuple[Type[Exception], ...] = (),
+        retry_limit: int = 2,
+    ) -> Tuple[Connection, Any]:
+        """Override to skip pyodbc-specific add_output_converter call for mssql-python.
+        Also runs admission control before each query."""
+        connection = self.get_thread_connection()
+        credentials = self.get_credentials(connection.credentials)
+        driver_type = getattr(credentials, "driver_type", "mssql-python")
+
+        if driver_type == "pyodbc":
+            return super().add_query(
+                sql, auto_begin, bindings, abridge_sql_log, retryable_exceptions, retry_limit
+            )
+
+        # Sentinel: throttle queries when SQL Server's scheduler is under CPU pressure.
+        # This prevents dbt's high --threads concurrency from saturating the server.
+        self._admission_control(connection)
+
+        # Skip Fabric's add_query which calls add_output_converter(-155, ...) — a pyodbc-only API.
+        # Call the grandparent (SQLConnectionManager) directly instead.
+        from dbt.adapters.sql import SQLConnectionManager
+
+        return SQLConnectionManager.add_query(
+            self, sql, auto_begin, bindings, abridge_sql_log
+        )
+
+    def _admission_control(self, connection: Connection):
+        """Run load-aware admission control using a dedicated health-check connection."""
+        from dbt.adapters.sqlserver.monitor import wait_for_healthy_server
+
+        try:
+            # Only run if connection is already open — avoid triggering lazy resolution
+            if connection.state != ConnectionState.OPEN:
+                return
+
+            handle = connection.handle
+            if handle is None:
+                return
+
+            wait_for_healthy_server(handle)
+        except Exception as e:
+            # Never let the health check block execution
+            logger.debug(f"Admission control check failed, proceeding: {e}")
