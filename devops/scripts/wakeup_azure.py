@@ -3,7 +3,7 @@
 import os
 import time
 
-import mssql_python
+import pyodbc
 
 
 def resume_azsql():
@@ -12,11 +12,13 @@ def resume_azsql():
     database_name = os.getenv("DBT_AZURESQL_DB")
     username = os.getenv("DBT_AZURESQL_UID")
     password = os.getenv("DBT_AZURESQL_PWD")
+    driver = f"ODBC Driver {os.getenv('MSODBC_VERSION')} for SQL Server"
 
     con_str = [
-        f"Server={sql_server_name},{sql_server_port}",
+        f"DRIVER={{{driver}}}",
+        f"SERVER={sql_server_name},{sql_server_port}",
         f"Database={database_name}",
-        "Encrypt=yes",
+        "Encrypt=Yes",
         f"UID={{{username}}}",
         f"PWD={{{password}}}",
     ]
@@ -30,12 +32,11 @@ def resume_azsql():
     while not connected and attempts < 20:
         try:
             attempts += 1
-            handle = mssql_python.connect(con_str_concat)
-            handle.setautocommit(True)
+            handle = pyodbc.connect(con_str_concat, autocommit=True)
             cursor = handle.cursor()
             cursor.execute("SELECT 1")
             connected = True
-        except mssql_python.Error as e:
+        except pyodbc.Error as e:
             print("Failed to connect to SQL Server. Retrying...")
             print(e)
             time.sleep(10)

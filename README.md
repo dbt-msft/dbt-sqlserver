@@ -16,6 +16,23 @@ Join us on the [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W) to ask q
 
 ## Installation
 
+This adapter requires the Microsoft ODBC driver to be installed:
+[Windows](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16#download-for-windows) |
+[macOS](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/install-microsoft-odbc-driver-sql-server-macos?view=sql-server-ver16) |
+[Linux](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server?view=sql-server-ver16)
+
+<details><summary>Debian/Ubuntu</summary>
+<p>
+
+Make sure to install the ODBC headers as well as the driver linked above:
+
+```shell
+sudo apt-get install -y unixodbc-dev
+```
+
+</p>
+</details>
+
 Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-sqlserver?label=latest%20stable&logo=pypi)
 
 ```shell
@@ -27,84 +44,6 @@ Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shield
 ```shell
 pip install -U --pre dbt-sqlserver
 ```
-
-## Profile Setup
-
-The adapter now uses the native `mssql-python` driver by default, eliminating the need for ODBC driver installation.
-
-### SQL Server (SQL Authentication)
-
-```yaml
-my_project:
-  target: dev
-  outputs:
-    dev:
-      type: sqlserver
-      driver: "mssql-python"
-      host: 127.0.0.1
-      port: 1433
-      user: my_user
-      password: "my_password"
-      database: my_database
-      schema: dbo
-      authentication: sql
-      encrypt: true
-      trust_cert: true
-```
-
-### Azure SQL (CLI Authentication)
-
-```yaml
-my_project:
-  target: dev
-  outputs:
-    dev:
-      type: sqlserver
-      driver: "mssql-python"
-      host: your-server.database.windows.net
-      database: your-db
-      schema: dbo
-      authentication: cli
-      encrypt: true
-      trust_cert: true
-```
-
-### Azure SQL (Service Principal)
-
-```yaml
-my_project:
-  target: dev
-  outputs:
-    dev:
-      type: sqlserver
-      driver: "mssql-python"
-      host: your-server.database.windows.net
-      database: your-db
-      schema: dbo
-      authentication: serviceprincipal
-      tenant_id: "your-tenant-id"
-      client_id: "your-client-id"
-      client_secret: "your-client-secret"
-      encrypt: true
-      trust_cert: true
-```
-
-### Profile Fields
-
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `type` | yes | — | Must be `sqlserver` |
-| `driver` | yes | — | Set to `mssql-python` (recommended) or an ODBC driver name for legacy pyodbc |
-| `host` | yes | — | SQL Server hostname or IP |
-| `port` | no | `1433` | SQL Server port |
-| `user` | yes* | — | Username (*not required for CLI/auto auth) |
-| `password` | yes* | — | Password (*not required for CLI/auto auth) |
-| `database` | yes | — | Target database |
-| `schema` | yes | — | Target schema |
-| `authentication` | no | `sql` | Auth method: `sql`, `cli`, `auto`, `environment`, `serviceprincipal`, `msi` |
-| `encrypt` | no | `true` | Encrypt the connection |
-| `trust_cert` | no | `false` | Trust the server certificate |
-| `driver_type` | no | `mssql-python` | Driver backend: `mssql-python` (default) or `pyodbc` |
 
 ## Changelog
 
