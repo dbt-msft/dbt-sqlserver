@@ -32,13 +32,33 @@ The functional tests require a running SQL Server instance. You can easily spin 
 make server
 ```
 
+The default development flow uses the existing ODBC-based path. If you want to develop or test the optional `mssql-python` backend instead, make sure the package is installed in your environment before running tests.
+
+```shell
+pip install mssql-python
+```
+
+On Debian/Ubuntu-based environments, `mssql-python` may also require these system libraries:
+
+```shell
+sudo apt-get install -y libltdl7 libkrb5-3 libgssapi-krb5-2
+```
+
 This will use Docker Compose to spin up a local instance of SQL Server. Docker Compose is now bundled with Docker, so make sure to [install the latest version of Docker](https://docs.docker.com/get-docker/).
 
 Next, tell our tests how they should connect to the local instance by creating a file called `test.env` in the root of the project.
 You can use the provided `test.env.sample` as a base and if you started the server with `make server`, then this matches the instance running on your local machine.
 
+If you are testing the optional `mssql-python` backend, also enable its profile flag in `test.env` so the adapter selects that implementation instead of the legacy driver-based one.
+
 ```shell
 cp test.env.sample test.env
+```
+
+When using the optional `mssql-python` backend, update `test.env` with:
+
+```shell
+SQLSERVER_TEST_USE_MSSQL_PYTHON=True
 ```
 
 You can tweak the contents of this file to test against a different database.
@@ -56,6 +76,8 @@ You can use the following commands to run the unit and the functional tests resp
 make unit
 make functional
 ```
+
+This remains the documented test procedure for both connection backends. When the `mssql-python` flag is enabled, run the same commands after installing `mssql-python` and setting `SQLSERVER_TEST_USE_MSSQL_PYTHON=True` in `test.env`.
 
 ## CI/CD
 

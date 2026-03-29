@@ -11,6 +11,14 @@ import dbt_common.exceptions
 import pyodbc
 
 try:
+    import mssql_python as MSSQL_PYTHON
+except ModuleNotFoundError as exc:
+    MSSQL_PYTHON = None
+    _MSSQL_PYTHON_IMPORT_ERROR: Optional[ModuleNotFoundError] = exc
+else:
+    _MSSQL_PYTHON_IMPORT_ERROR = None
+
+try:
     from azure.core.credentials import AccessToken
 except ModuleNotFoundError:
 
@@ -72,6 +80,14 @@ datatypes = {
     "decimal.Decimal": "decimal",
 }
 
+MSSQL_PYTHON_UNSUPPORTED_AUTHENTICATIONS = {
+    "cli",
+    "auto",
+    "environment",
+    "serviceprincipal",
+    "activedirectoryaccesstoken",
+}
+
 
 def _require_azure_identity(authentication: str) -> None:
     if _AZURE_IDENTITY_IMPORT_ERROR is not None:
@@ -82,6 +98,49 @@ def _require_azure_identity(authentication: str) -> None:
                 "azure-identity` or use a non-Azure authentication mode."
             ).format(authentication)
         ) from _AZURE_IDENTITY_IMPORT_ERROR
+
+
+def _require_mssql_python() -> None:
+    if _MSSQL_PYTHON_IMPORT_ERROR is not None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `mssql-python` backend was requested, but the optional dependency "
+            "`mssql-python` is not installed. Install it with `pip install mssql-python` "
+            "or disable `use_mssql_python` in the profile."
+        ) from _MSSQL_PYTHON_IMPORT_ERROR
+
+
+def _requires_pyodbc_backend(credentials: SQLServerCredentials) -> bool:
+    authentication = str(credentials.authentication or "sql").lower().strip()
+    return authentication in AZURE_AUTH_FUNCTIONS or authentication == "activedirectoryaccesstoken"
+
+
+def _use_mssql_python_backend(credentials: SQLServerCredentials) -> bool:
+    return bool(getattr(credentials, "use_mssql_python", False))
+
+
+def _validate_pyodbc_requirements(credentials: SQLServerCredentials) -> None:
+    if not credentials.driver:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The pyodbc backend requires a SQL Server ODBC driver name "
+            "in the `driver` profile field."
+        )
+
+
+def _validate_mssql_python_requirements(credentials: SQLServerCredentials) -> None:
+    authentication = str(credentials.authentication or "sql").strip()
+    authentication_lower = authentication.lower()
+
+    if authentication_lower in MSSQL_PYTHON_UNSUPPORTED_AUTHENTICATIONS:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "Authentication '{}' is currently only supported by the pyodbc backend "
+            "in this adapter. "
+            "Disable `use_mssql_python` or use a connection-string-supported "
+            "authentication mode such as "
+            "`sql`, `ActiveDirectoryPassword`, `ActiveDirectoryInteractive`, "
+            "`ActiveDirectoryIntegrated`, "
+            "`ActiveDirectoryMSI`, `ActiveDirectoryDeviceCode`, "
+            "or `ActiveDirectoryDefault`.".format(authentication)
+        )
 
 
 def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
@@ -316,7 +375,7 @@ def bool_to_connection_string_arg(key: str, value: bool) -> str:
     out : str
         The connection string argument.
     """
-    return f'{key}={"Yes" if value else "No"}'
+    return f"{key}={'Yes' if value else 'No'}"
 
 
 def byte_array_to_datetime(value: bytes) -> dt.datetime:
@@ -353,6 +412,128 @@ def byte_array_to_datetime(value: bytes) -> dt.datetime:
     )
 
 
+def _build_server_arg(credentials: SQLServerCredentials) -> str:
+    if "\\" in credentials.host:
+        # If there is a backslash \ in the host name, the host is a
+        # SQL Server named instance. In this case then port number has to be omitted.
+        return credentials.host
+    return f"{credentials.host},{credentials.port}"
+
+
+def _build_common_connection_string_parts(
+    credentials: SQLServerCredentials,
+) -> list[str]:
+    con_str = [f"SERVER={_build_server_arg(credentials)}"]
+    con_str.append(f"Database={credentials.database}")
+
+    assert credentials.authentication is not None
+
+    if (
+        "ActiveDirectory" in credentials.authentication
+        and credentials.authentication != "ActiveDirectoryAccessToken"
+    ):
+        con_str.append(f"Authentication={credentials.authentication}")
+
+        if credentials.authentication == "ActiveDirectoryPassword":
+            con_str.append(f"UID={{{credentials.UID}}}")
+            con_str.append(f"PWD={{{credentials.PWD}}}")
+        if credentials.authentication == "ActiveDirectoryServicePrincipal":
+            con_str.append(f"UID={{{credentials.client_id}}}")
+            con_str.append(f"PWD={{{credentials.client_secret}}}")
+        elif credentials.authentication == "ActiveDirectoryInteractive":
+            con_str.append(f"UID={{{credentials.UID}}}")
+
+    elif credentials.windows_login:
+        con_str.append("trusted_connection=Yes")
+    elif credentials.authentication == "sql":
+        con_str.append(f"UID={{{credentials.UID}}}")
+        con_str.append(f"PWD={{{credentials.PWD}}}")
+
+    assert credentials.encrypt is not None
+    assert credentials.trust_cert is not None
+
+    con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
+    con_str.append(bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert))
+
+    return con_str
+
+
+def _build_pyodbc_connection_string(credentials: SQLServerCredentials) -> str:
+    con_str = [f"DRIVER={{{credentials.driver}}}"]
+    con_str.extend(_build_common_connection_string_parts(credentials))
+    con_str.append("Pooling=true")
+
+    if credentials.trace_flag:
+        con_str.append("SQL_ATTR_TRACE=SQL_OPT_TRACE_ON")
+    else:
+        con_str.append("SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF")
+
+    plugin_version = __version__.version
+    application_name = f"dbt-{credentials.type}/{plugin_version}"
+    con_str.append(f"APP={application_name}")
+
+    try:
+        con_str.append("ConnectRetryCount=3")
+        con_str.append("ConnectRetryInterval=10")
+    except Exception as e:
+        logger.debug(
+            (
+                "Retry count should be a integer value. "
+                "Skipping retries in the connection string."
+            ),
+            str(e),
+        )
+
+    return ";".join(con_str)
+
+
+def _build_mssql_python_connection_string(credentials: SQLServerCredentials) -> str:
+    con_str = _build_common_connection_string_parts(credentials)
+    con_str.append("ConnectRetryCount=3")
+    con_str.append("ConnectRetryInterval=10")
+    return ";".join(con_str)
+
+
+def _sanitize_connection_string_for_logging(connection_string: str) -> str:
+    parts = connection_string.split(";")
+    sanitized = []
+    for part in parts:
+        if part.lower().startswith("pwd="):
+            sanitized.append("PWD=***")
+        else:
+            sanitized.append(part)
+    return ";".join(sanitized)
+
+
+def _get_backend_exceptions(
+    credentials: SQLServerCredentials,
+) -> Tuple[Type[Exception], ...]:
+    if _use_mssql_python_backend(credentials):
+        _require_mssql_python()
+        retryable_exceptions = []
+        retryable_exceptions.append(getattr(MSSQL_PYTHON, "InternalError", Exception))
+        retryable_exceptions.append(getattr(MSSQL_PYTHON, "OperationalError", Exception))
+
+        if _requires_pyodbc_backend(credentials):
+            retryable_exceptions.append(getattr(MSSQL_PYTHON, "InterfaceError", Exception))
+
+        return tuple(retryable_exceptions)
+
+    retryable_exceptions = [  # https://github.com/mkleehammer/pyodbc/wiki/Exceptions
+        pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
+        pyodbc.OperationalError,
+    ]
+
+    if credentials.authentication.lower() in AZURE_AUTH_FUNCTIONS:
+        retryable_exceptions.append(pyodbc.InterfaceError)
+
+    return tuple(retryable_exceptions)
+
+
+def _is_pyodbc_handle(handle: Any) -> bool:
+    return hasattr(handle, "add_output_converter")
+
+
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
 
@@ -365,7 +546,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
             logger.debug("Database error: {}".format(str(e)))
 
             try:
-                # attempt to release the connection
                 self.release()
             except pyodbc.Error:
                 logger.debug("Failed to release connection!")
@@ -373,13 +553,23 @@ class SQLServerConnectionManager(SQLConnectionManager):
             raise dbt_common.exceptions.DbtDatabaseError(str(e).strip()) from e
 
         except Exception as e:
+            if _use_mssql_python_backend(self.get_thread_connection().credentials):
+                if MSSQL_PYTHON is not None and isinstance(
+                    e, getattr(MSSQL_PYTHON, "DatabaseError", tuple())
+                ):
+                    logger.debug("Database error: {}".format(str(e)))
+
+                    try:
+                        self.release()
+                    except Exception:
+                        logger.debug("Failed to release connection!")
+
+                    raise dbt_common.exceptions.DbtDatabaseError(str(e).strip()) from e
+
             logger.debug(f"Error running SQL: {sql}")
             logger.debug("Rolling back transaction.")
             self.release()
             if isinstance(e, dbt_common.exceptions.DbtRuntimeError):
-                # during a sql query, an internal to dbt exception was raised.
-                # this sounds a lot like a signal handler and probably has
-                # useful information, so raise it without modification.
                 raise
 
             raise dbt_common.exceptions.DbtRuntimeError(e)
@@ -392,101 +582,38 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         credentials = cls.get_credentials(connection.credentials)
 
-        con_str = [f"DRIVER={{{credentials.driver}}}"]
-
-        if "\\" in credentials.host:
-            # If there is a backslash \ in the host name, the host is a
-            # SQL Server named instance. In this case then port number has to be omitted.
-            con_str.append(f"SERVER={credentials.host}")
+        if _use_mssql_python_backend(credentials):
+            _require_mssql_python()
+            _validate_mssql_python_requirements(credentials)
+            con_str_concat = _build_mssql_python_connection_string(credentials)
         else:
-            con_str.append(f"SERVER={credentials.host},{credentials.port}")
+            _validate_pyodbc_requirements(credentials)
+            con_str_concat = _build_pyodbc_connection_string(credentials)
 
-        con_str.append(f"Database={credentials.database}")
-        con_str.append("Pooling=true")
-
-        # Enabling trace flag
-        if credentials.trace_flag:
-            con_str.append("SQL_ATTR_TRACE=SQL_OPT_TRACE_ON")
-        else:
-            con_str.append("SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF")
-
-        assert credentials.authentication is not None
-
-        # Access token authentication does not additional connection string parameters.
-        # The access token is passed in the pyodbc attributes.
-        if (
-            "ActiveDirectory" in credentials.authentication
-            and credentials.authentication != "ActiveDirectoryAccessToken"
-        ):
-            con_str.append(f"Authentication={credentials.authentication}")
-
-            if credentials.authentication == "ActiveDirectoryPassword":
-                con_str.append(f"UID={{{credentials.UID}}}")
-                con_str.append(f"PWD={{{credentials.PWD}}}")
-            if credentials.authentication == "ActiveDirectoryServicePrincipal":
-                con_str.append(f"UID={{{credentials.client_id}}}")
-                con_str.append(f"PWD={{{credentials.client_secret}}}")
-            elif credentials.authentication == "ActiveDirectoryInteractive":
-                con_str.append(f"UID={{{credentials.UID}}}")
-
-        elif credentials.windows_login:
-            con_str.append("trusted_connection=Yes")
-        elif credentials.authentication == "sql":
-            con_str.append(f"UID={{{credentials.UID}}}")
-            con_str.append(f"PWD={{{credentials.PWD}}}")
-
-        # https://docs.microsoft.com/en-us/sql/relational-databases/native-client/features/using-encryption-without-validation?view=sql-server-ver15
-        assert credentials.encrypt is not None
-        assert credentials.trust_cert is not None
-
-        con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
-        con_str.append(
-            bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert)
-        )
-
-        plugin_version = __version__.version
-        application_name = f"dbt-{credentials.type}/{plugin_version}"
-        con_str.append(f"APP={application_name}")
-
-        try:
-            con_str.append("ConnectRetryCount=3")
-            con_str.append("ConnectRetryInterval=10")
-
-        except Exception as e:
-            logger.debug(
-                (
-                    "Retry count should be a integer value. "
-                    "Skipping retries in the connection string."
-                ),
-                str(e),
-            )
-
-        con_str_concat = ";".join(con_str)
-
-        index = []
-        for i, elem in enumerate(con_str):
-            if "pwd=" in elem.lower():
-                index.append(i)
-
-        if len(index) != 0:
-            con_str[index[0]] = "PWD=***"
-
-        con_str_display = ";".join(con_str)
-
-        retryable_exceptions = [  # https://github.com/mkleehammer/pyodbc/wiki/Exceptions
-            pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
-            pyodbc.OperationalError,
-        ]
-
-        if credentials.authentication.lower() in AZURE_AUTH_FUNCTIONS:
-            # Temporary login/token errors fall into this category when using AAD
-            retryable_exceptions.append(pyodbc.InterfaceError)
+        con_str_display = _sanitize_connection_string_for_logging(con_str_concat)
+        retryable_exceptions = _get_backend_exceptions(credentials)
 
         def connect():
             logger.debug(f"Using connection string: {con_str_display}")
-            pyodbc.pooling = True
 
-            # pyodbc attributes includes the access token provided by the user if required.
+            if _use_mssql_python_backend(credentials):
+                MSSQL_PYTHON.pooling(enabled=False)
+                handle = MSSQL_PYTHON.connect(
+                    con_str_concat,
+                    autocommit=True,
+                    timeout=credentials.login_timeout,
+                )
+                try:
+                    handle.timeout = credentials.query_timeout
+                except Exception:
+                    logger.debug(
+                        "The mssql-python connection object does not expose a mutable `timeout` "
+                        "attribute; continuing without setting query timeout on the handle."
+                    )
+                logger.debug(f"Connected to db: {credentials.database}")
+                return handle
+
+            pyodbc.pooling = True
             attrs_before = get_pyodbc_attrs_before_credentials(credentials)
 
             handle = pyodbc.connect(
@@ -513,11 +640,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
         logger.debug("Cancel query")
 
     def add_begin_query(self):
-        # return self.add_query('BEGIN TRANSACTION', auto_begin=False)
         pass
 
     def add_commit_query(self):
-        # return self.add_query('COMMIT TRANSACTION', auto_begin=False)
         pass
 
     def add_query(
@@ -548,7 +673,6 @@ class SQLServerConnectionManager(SQLConnectionManager):
             retries. Failure begins a sleep and retry routine.
             """
             try:
-                # pyodbc does not handle a None type binding!
                 if bindings is None:
                     cursor.execute(sql)
                 else:
@@ -558,14 +682,13 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     ]
                     cursor.execute(sql, bindings)
             except retryable_exceptions as e:
-                # Cease retries and fail when limit is hit.
                 if attempt >= retry_limit:
                     raise e
 
                 fire_event(
                     AdapterEventDebug(
                         message=(
-                            f"Got a retryable error {type(e)}. {retry_limit-attempt} "
+                            f"Got a retryable error {type(e)}. {retry_limit - attempt} "
                             "retries left. Retrying in 1 second.\n"
                             f"Error:\n{e}"
                         )
@@ -603,7 +726,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
             fire_event(
                 SQLQuery(
-                    conn_name=cast_to_str(connection.name), sql=log_sql, node_info=get_node_info()
+                    conn_name=cast_to_str(connection.name),
+                    sql=log_sql,
+                    node_info=get_node_info(),
                 )
             )
 
@@ -621,9 +746,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 attempt=1,
             )
 
-            # convert DATETIMEOFFSET binary structures to datetime ojbects
-            # https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
-            connection.handle.add_output_converter(-155, byte_array_to_datetime)
+            if _is_pyodbc_handle(connection.handle):
+                connection.handle.add_output_converter(-155, byte_array_to_datetime)
 
             fire_event(
                 SQLQueryStatus(
@@ -656,18 +780,25 @@ class SQLServerConnectionManager(SQLConnectionManager):
         return datatypes[data_type]
 
     def execute(
-        self, sql: str, auto_begin: bool = True, fetch: bool = False, limit: Optional[int] = None
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        fetch: bool = False,
+        limit: Optional[int] = None,
     ) -> Tuple[AdapterResponse, agate.Table]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
-        response = self.get_response(cursor)
-        if fetch:
-            while cursor.description is None:
-                if not cursor.nextset():
-                    break
-            table = self.get_result_from_cursor(cursor, limit)
-        else:
-            table = empty_table()
-        while cursor.nextset():
-            pass
-        return response, table
+        try:
+            response = self.get_response(cursor)
+            if fetch:
+                while cursor.description is None:
+                    if not cursor.nextset():
+                        break
+                table = self.get_result_from_cursor(cursor, limit)
+            else:
+                table = empty_table()
+            while cursor.nextset():
+                pass
+            return response, table
+        finally:
+            cursor.close()

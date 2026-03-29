@@ -54,6 +54,8 @@ def _all_profiles_base():
         "driver": os.getenv("SQLSERVER_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
         "port": int(os.getenv("SQLSERVER_TEST_PORT", "1433")),
         "retries": 2,
+        "use_mssql_python": os.getenv("SQLSERVER_TEST_USE_MSSQL_PYTHON", "False").lower()
+        == "true",
     }
 
 

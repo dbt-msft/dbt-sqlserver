@@ -1,9 +1,14 @@
+from types import SimpleNamespace
+from typing import Any, Dict, List
+
 import pytest
 from azure.identity import AzureCliCredential
+from dbt.adapters.contracts.connection import Connection, ConnectionState
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.sqlserver import sqlserver_connections
-from dbt.adapters.sqlserver.sqlserver_connections import (  # byte_array_to_datetime,
+from dbt.adapters.sqlserver.sqlserver_connections import (
+    SQLServerConnectionManager,
     bool_to_connection_string_arg,
     get_pyodbc_attrs_before_credentials,
 )
@@ -16,13 +21,12 @@ CHECK_OUTPUT = AzureCliCredential.__module__ + ".subprocess.check_output"
 
 @pytest.fixture
 def credentials() -> SQLServerCredentials:
-    credentials = SQLServerCredentials(
+    return SQLServerCredentials(
         driver="ODBC Driver 17 for SQL Server",
         host="fake.sql.sqlserver.net",
         database="dbt",
         schema="sqlserver",
     )
-    return credentials
 
 
 def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
@@ -65,3 +69,146 @@ def test_get_pyodbc_attrs_before_cli_auth_requires_azure_identity(
 )
 def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> None:
     assert bool_to_connection_string_arg(key, value) == expected
+
+
+def test_open_with_mssql_python_feature_flag_requires_optional_dependency(
+    credentials: SQLServerCredentials, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    credentials.driver = None
+    credentials.use_mssql_python = True
+
+    connection = Connection(type="sqlserver", name="feature-flag-test", credentials=credentials)
+
+    monkeypatch.setattr(sqlserver_connections, "MSSQL_PYTHON", None, raising=False)
+    monkeypatch.setattr(
+        sqlserver_connections,
+        "_MSSQL_PYTHON_IMPORT_ERROR",
+        ModuleNotFoundError("No module named 'mssql_python'"),
+        raising=False,
+    )
+
+    with pytest.raises(DbtRuntimeError, match="mssql-python"):
+        SQLServerConnectionManager.open(connection)
+
+
+def test_open_with_mssql_python_feature_flag_builds_connection_without_odbc_driver(
+    credentials: SQLServerCredentials, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    credentials.driver = None
+    credentials.UID = "dbt_user"
+    credentials.PWD = "super-secret"
+    credentials.encrypt = True
+    credentials.trust_cert = True
+    credentials.login_timeout = 17
+    credentials.query_timeout = 23
+    credentials.retries = 5
+    credentials.use_mssql_python = True
+
+    captured: Dict[str, Any] = {}
+    pooling_calls: List[Dict[str, Any]] = []
+
+    class FakeHandle:
+        def __init__(self):
+            self.timeout = None
+
+    fake_handle = FakeHandle()
+
+    def fake_connect(connection_string, autocommit, timeout):
+        captured["connection_string"] = connection_string
+        captured["autocommit"] = autocommit
+        captured["timeout"] = timeout
+        return fake_handle
+
+    def fake_pooling(*, enabled):
+        pooling_calls.append({"enabled": enabled})
+
+    fake_module = SimpleNamespace(
+        connect=fake_connect,
+        pooling=fake_pooling,
+        OperationalError=type("OperationalError", (Exception,), {}),
+        InterfaceError=type("InterfaceError", (Exception,), {}),
+        InternalError=type("InternalError", (Exception,), {}),
+    )
+
+    def fake_retry_connection(
+        cls,
+        connection,
+        connect,
+        logger,
+        retry_limit,
+        retryable_exceptions,
+    ):
+        captured["retry_limit"] = retry_limit
+        captured["retryable_exceptions"] = retryable_exceptions
+        handle = connect()
+        connection.handle = handle
+        connection.state = ConnectionState.OPEN
+        return connection
+
+    monkeypatch.setattr(sqlserver_connections, "MSSQL_PYTHON", fake_module, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_IMPORT_ERROR", None, raising=False)
+    monkeypatch.setattr(
+        SQLServerConnectionManager,
+        "retry_connection",
+        classmethod(fake_retry_connection),
+    )
+
+    connection = Connection(type="sqlserver", name="feature-flag-test", credentials=credentials)
+    opened = SQLServerConnectionManager.open(connection)
+
+    assert opened is connection
+    assert opened.handle is fake_handle
+    assert opened.state == ConnectionState.OPEN
+
+    assert captured["autocommit"] is True
+    assert captured["timeout"] == 17
+    assert captured["retry_limit"] == 5
+    assert pooling_calls == [{"enabled": False}]
+
+    con_str = captured["connection_string"]
+    assert "DRIVER=" not in con_str
+    assert "SERVER=fake.sql.sqlserver.net,1433" in con_str
+    assert "Database=dbt" in con_str
+    assert "UID={dbt_user}" in con_str
+    assert "PWD={super-secret}" in con_str
+    assert "encrypt=Yes" in con_str
+    assert "TrustServerCertificate=Yes" in con_str
+    assert "APP=dbt-sqlserver/" not in con_str
+
+    assert fake_module.OperationalError in captured["retryable_exceptions"]
+    assert fake_module.InternalError in captured["retryable_exceptions"]
+
+
+def test_open_with_mssql_python_feature_flag_fails_fast_for_pyodbc_token_auth_aliases(
+    credentials: SQLServerCredentials, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    credentials.driver = None
+    credentials.use_mssql_python = True
+    credentials.authentication = "cli"
+
+    fake_module = SimpleNamespace(
+        connect=lambda *args, **kwargs: None,
+        OperationalError=type("OperationalError", (Exception,), {}),
+        InterfaceError=type("InterfaceError", (Exception,), {}),
+        InternalError=type("InternalError", (Exception,), {}),
+    )
+
+    monkeypatch.setattr(sqlserver_connections, "MSSQL_PYTHON", fake_module, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_IMPORT_ERROR", None, raising=False)
+
+    connection = Connection(type="sqlserver", name="feature-flag-test", credentials=credentials)
+
+    with pytest.raises(DbtRuntimeError, match="authentication"):
+        SQLServerConnectionManager.open(connection)
+
+
+def test_open_with_pyodbc_path_still_requires_driver_when_feature_flag_disabled(
+    credentials: SQLServerCredentials,
+) -> None:
+    credentials.driver = None
+    credentials.use_mssql_python = False
+
+    connection = Connection(type="sqlserver", name="pyodbc-test", credentials=credentials)
+
+    with pytest.raises(DbtRuntimeError, match="driver"):
+        SQLServerConnectionManager.open(connection)

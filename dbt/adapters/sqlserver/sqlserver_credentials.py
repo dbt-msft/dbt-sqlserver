@@ -6,10 +6,10 @@ from dbt.adapters.contracts.connection import Credentials
 
 @dataclass
 class SQLServerCredentials(Credentials):
-    driver: str
-    host: str
-    database: str
-    schema: str
+    driver: Optional[str] = None
+    host: str = ""
+    database: str = ""
+    schema: str = ""
     UID: Optional[str] = None
     PWD: Optional[str] = None
     port: Optional[int] = 1433
@@ -27,6 +27,7 @@ class SQLServerCredentials(Credentials):
     schema_authorization: Optional[str] = None
     login_timeout: Optional[int] = 0
     query_timeout: Optional[int] = 0
+    use_mssql_python: bool = False
 
     _ALIASES = {
         "user": "UID",
@@ -41,6 +42,8 @@ class SQLServerCredentials(Credentials):
         "TrustServerCertificate": "trust_cert",
         "schema_auth": "schema_authorization",
         "SQL_ATTR_TRACE": "trace_flag",
+        "mssql_python": "use_mssql_python",
+        "use_mssql_python_backend": "use_mssql_python",
     }
 
     @property
@@ -54,7 +57,7 @@ class SQLServerCredentials(Credentials):
         if self.authentication.lower().strip() == "serviceprincipal":
             self.authentication = "ActiveDirectoryServicePrincipal"
 
-        return (
+        keys = (
             "server",
             "port",
             "database",
@@ -67,7 +70,13 @@ class SQLServerCredentials(Credentials):
             "trace_flag",
             "encrypt",
             "trust_cert",
+            "use_mssql_python",
         )
+
+        if not self.use_mssql_python:
+            keys = ("driver",) + keys
+
+        return keys
 
     @property
     def unique_field(self):

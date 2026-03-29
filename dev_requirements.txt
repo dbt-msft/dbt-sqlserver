@@ -20,5 +20,6 @@ tox>=3.13
 twine
 wheel
 pyodbc
+mssql-python
 azure-identity
 -e .

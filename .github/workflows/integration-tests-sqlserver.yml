@@ -11,7 +11,7 @@ on:  # yamllint disable-line rule:truthy
       - master
       - v*
   schedule:
-    - cron: '0 22 * * 0'
+    - cron: "0 22 * * 0"
 
 jobs:
   integration-tests-sql-server:
@@ -21,7 +21,8 @@ jobs:
         python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
-        collation: ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
+        collation:
+          ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
@@ -29,7 +30,7 @@ jobs:
       sqlserver:
         image: ghcr.io/${{ github.repository }}:server-${{ matrix.sqlserver_version }}
         env:
-          ACCEPT_EULA: 'Y'
+          ACCEPT_EULA: "Y"
           SA_PASSWORD: 5atyaNadella
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
@@ -50,4 +51,40 @@ jobs:
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
           DBT_TEST_USER_3: DBT_TEST_USER_3
-          SQLSERVER_TEST_DRIVER: 'ODBC Driver ${{ matrix.msodbc_version }} for SQL Server'
+          SQLSERVER_TEST_DRIVER: "ODBC Driver ${{ matrix.msodbc_version }} for SQL Server"
+
+  integration-tests-sql-server-mssql-python:
+    name: mssql-python
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ghcr.io/${{ github.repository }}:CI-3.13-msodbc18
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    services:
+      sqlserver:
+        image: ghcr.io/${{ github.repository }}:server-2022
+        env:
+          ACCEPT_EULA: "Y"
+          SA_PASSWORD: 5atyaNadella
+          DBT_TEST_USER_1: DBT_TEST_USER_1
+          DBT_TEST_USER_2: DBT_TEST_USER_2
+          DBT_TEST_USER_3: DBT_TEST_USER_3
+          COLLATION: SQL_Latin1_General_CP1_CS_AS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install -r dev_requirements.txt
+
+      - name: Run functional tests with mssql-python
+        run: pytest -ra -v tests/functional --profile "ci_sql_server"
+        env:
+          DBT_TEST_USER_1: DBT_TEST_USER_1
+          DBT_TEST_USER_2: DBT_TEST_USER_2
+          DBT_TEST_USER_3: DBT_TEST_USER_3
+          SQLSERVER_TEST_DRIVER: "ODBC Driver 18 for SQL Server"
+          SQLSERVER_TEST_USE_MSSQL_PYTHON: "True"

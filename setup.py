@@ -7,7 +7,13 @@ from setuptools import find_namespace_packages, setup
 from setuptools.command.install import install
 
 package_name = "dbt-sqlserver"
-authors_list = ["Mikael Ene", "Anders Swanson", "Sam Debruyn", "Cor Zuurmond", "Cody Scott"]
+authors_list = [
+    "Mikael Ene",
+    "Anders Swanson",
+    "Sam Debruyn",
+    "Cor Zuurmond",
+    "Cody Scott",
+]
 dbt_version = "1.9"
 description = """A Microsoft SQL Server adapter plugin for dbt"""
 
@@ -70,6 +76,11 @@ setup(
         "dbt-common>=1.0,<2.0",
         "dbt-adapters>=1.11.0,<2.0",
     ],
+    extras_require={
+        "mssql-python": [
+            "mssql-python>=1.0.0",
+        ],
+    },
     cmdclass={
         "verify": VerifyVersionCommand,
     },

@@ -16,10 +16,12 @@ Join us on the [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W) to ask q
 
 ## Installation
 
+By default this adapter uses the Microsoft ODBC driver.
+
 This adapter requires the Microsoft ODBC driver to be installed:
 [Windows](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16#download-for-windows) |
 [macOS](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/install-microsoft-odbc-driver-sql-server-macos?view=sql-server-ver16) |
-[Linux](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server?view=sql-server-ver16)
+[Linux](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-sql-server?view=sql-server-ver16)
 
 <details><summary>Debian/Ubuntu</summary>
 <p>
@@ -45,6 +47,18 @@ Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shield
 pip install -U --pre dbt-sqlserver
 ```
 
+### Optional: `mssql-python` backend
+
+This adapter can also use the `mssql-python` driver behind a feature flag.
+
+Install it explicitly when you want to use that backend:
+
+```shell
+pip install -U mssql-python
+```
+
+When this backend is enabled, the adapter does not require the ODBC driver-based connection path for that profile.
+
 ## Changelog
 
 See [the changelog](CHANGELOG.md)
@@ -54,6 +68,8 @@ See [the changelog](CHANGELOG.md)
 ### Flags
 
 - `dbt_sqlserver_use_default_schema_concat`: *(default: `false`)* Controls schema name generation when a [custom schema](https://docs.getdbt.com/docs/build/custom-schemas) is set on a model.
+
+- `use_mssql_python`: *(default: `false` in the profile)* Switches the connection backend from the legacy ODBC / `pyodbc` path to the `mssql-python` driver for that target profile.
 
   | Flag value | `custom_schema_name` | Result |
   |---|---|---|
@@ -73,6 +89,55 @@ See [the changelog](CHANGELOG.md)
   ```
 
   > **Note:** If you want to permanently customise schema generation and avoid any future deprecation of this flag, override the `sqlserver__generate_schema_name` macro directly in your project.
+
+### `mssql-python` feature flag usage
+
+Enable the backend per target in your `profiles.yml`:
+
+```yaml
+your_profile:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      host: your-server
+      port: 1433
+      database: your-database
+      schema: dbo
+      user: your-user
+      password: your-password
+      encrypt: true
+      trust_cert: false
+      use_mssql_python: true
+```
+
+#### Notes
+
+- `use_mssql_python: true` is a profile-level feature flag.
+- When enabled, the adapter uses `mssql-python` instead of the legacy `pyodbc` connection path.
+- The legacy ODBC driver setting is only needed for profiles that continue to use the ODBC backend.
+- If you enable `use_mssql_python`, make sure the `mssql-python` package is installed in the environment running dbt.
+- This path is intended to fail fast when required dependencies or unsupported settings are missing.
+
+#### Testing
+
+For local development and validation, use the documented adapter workflow from `CONTRIBUTING.md`:
+
+```shell
+make dev
+make server
+cp test.env.sample test.env
+make unit
+make functional
+```
+
+To exercise the `mssql-python` backend in tests, configure the profile or environment so that the target under test sets:
+
+```yaml
+use_mssql_python: true
+```
+
+If you are testing in the devcontainer, ensure the `mssql-python` package is installed in that environment before running the unit or functional suite.
 
 
 
