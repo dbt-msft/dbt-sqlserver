@@ -38,7 +38,9 @@ def test_get_pyodbc_attrs_before_empty_dict_when_service_principal(
 def test_get_pyodbc_attrs_before_sql_auth_without_azure_identity(
     credentials: SQLServerCredentials, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(sqlserver_connections, "_AZURE_IDENTITY_IMPORT_ERROR", ModuleNotFoundError())
+    monkeypatch.setattr(
+        sqlserver_connections, "_AZURE_IDENTITY_IMPORT_ERROR", ModuleNotFoundError()
+    )
 
     attrs_before = get_pyodbc_attrs_before_credentials(credentials)
 
@@ -49,7 +51,9 @@ def test_get_pyodbc_attrs_before_cli_auth_requires_azure_identity(
     credentials: SQLServerCredentials, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     credentials.authentication = "cli"
-    monkeypatch.setattr(sqlserver_connections, "_AZURE_IDENTITY_IMPORT_ERROR", ModuleNotFoundError())
+    monkeypatch.setattr(
+        sqlserver_connections, "_AZURE_IDENTITY_IMPORT_ERROR", ModuleNotFoundError()
+    )
 
     with pytest.raises(DbtRuntimeError, match="requires the optional dependency 'azure-identity'"):
         get_pyodbc_attrs_before_credentials(credentials)
