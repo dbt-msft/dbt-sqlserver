@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:
 
     @dataclass
-    class AccessToken:
+    class AccessToken:  # type: ignore[no-redef]
         token: str
         expires_on: int
 
@@ -76,10 +76,11 @@ datatypes = {
 def _require_azure_identity(authentication: str) -> None:
     if _AZURE_IDENTITY_IMPORT_ERROR is not None:
         raise dbt_common.exceptions.DbtRuntimeError(
-            "Azure authentication '{}' requires the optional dependency 'azure-identity'. "
-            "Install it with `pip install azure-identity` or use a non-Azure authentication mode.".format(
-                authentication
-            )
+            (
+                "Azure authentication '{}' requires the optional "
+                "dependency 'azure-identity'. Install it with `pip install "
+                "azure-identity` or use a non-Azure authentication mode."
+            ).format(authentication)
         ) from _AZURE_IDENTITY_IMPORT_ERROR
 
 
