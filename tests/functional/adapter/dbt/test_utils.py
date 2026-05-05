@@ -1,5 +1,10 @@
 import pytest
-from dbt.tests.adapter.utils import fixture_cast_bool_to_text, fixture_dateadd, fixture_listagg
+from dbt.tests.adapter.utils import (
+    fixture_cast_bool_to_text,
+    fixture_dateadd,
+    fixture_listagg,
+    fixture_split_part,
+)
 from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_array_append import BaseArrayAppend
 from dbt.tests.adapter.utils.test_array_concat import BaseArrayConcat
@@ -340,7 +345,18 @@ class TestSafeCast(BaseSafeCast):
 
 
 class TestSplitPart(BaseSplitPart):
-    pass
+    @pytest.fixture(scope="class")
+    def models(self):
+        model_sql = """
+-- depends_on: {{ ref('data_split_part') }}
+""" + self.interpolate_macro_namespace(
+            fixture_split_part.models__test_split_part_sql, "split_part"
+        )
+
+        return {
+            "test_split_part.yml": fixture_split_part.models__test_split_part_yml,
+            "test_split_part.sql": model_sql,
+        }
 
 
 class TestStringLiteral(BaseStringLiteral):

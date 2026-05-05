@@ -2,20 +2,41 @@ import datetime as dt
 import struct
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from itertools import chain, repeat
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type, Union
 
 import agate
 import dbt_common.exceptions
 import pyodbc
-from azure.core.credentials import AccessToken
-from azure.identity import (
-    AzureCliCredential,
-    ClientSecretCredential,
-    DefaultAzureCredential,
-    EnvironmentCredential,
-    ManagedIdentityCredential,
-)
+
+try:
+    from azure.core.credentials import AccessToken
+except ModuleNotFoundError:
+    @dataclass
+    class AccessToken:
+        token: str
+        expires_on: int
+
+
+try:
+    from azure.identity import (
+        AzureCliCredential,
+        ClientSecretCredential,
+        DefaultAzureCredential,
+        EnvironmentCredential,
+        ManagedIdentityCredential,
+    )
+
+    _AZURE_IDENTITY_IMPORT_ERROR = None
+except ModuleNotFoundError as exc:
+    AzureCliCredential = None
+    ClientSecretCredential = None
+    DefaultAzureCredential = None
+    EnvironmentCredential = None
+    ManagedIdentityCredential = None
+    _AZURE_IDENTITY_IMPORT_ERROR = exc
+
 from dbt.adapters.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
@@ -49,6 +70,15 @@ datatypes = {
     "datetime.time": "time",
     "decimal.Decimal": "decimal",
 }
+
+
+def _require_azure_identity(authentication: str) -> None:
+    if _AZURE_IDENTITY_IMPORT_ERROR is not None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "Azure authentication '{}' requires the optional dependency 'azure-identity'. "
+            "Install it with `pip install azure-identity` or use a non-Azure authentication mode."
+            .format(authentication)
+        ) from _AZURE_IDENTITY_IMPORT_ERROR
 
 
 def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
@@ -110,6 +140,7 @@ def get_cli_access_token(
         Access token.
     """
     _ = credentials
+    _require_azure_identity("cli")
     token = AzureCliCredential().get_token(
         scope, timeout=getattr(credentials, "login_timeout", None)
     )
@@ -132,6 +163,7 @@ def get_auto_access_token(
     out : AccessToken
         The access token.
     """
+    _require_azure_identity("auto")
     token = DefaultAzureCredential().get_token(
         scope, timeout=getattr(credentials, "login_timeout", None)
     )
@@ -154,6 +186,7 @@ def get_environment_access_token(
     out : AccessToken
         The access token.
     """
+    _require_azure_identity("environment")
     token = EnvironmentCredential().get_token(
         scope, timeout=getattr(credentials, "login_timeout", None)
     )
@@ -177,6 +210,7 @@ def get_msi_access_token(
         The access token.
     """
     _ = credentials
+    _require_azure_identity("msi")
     token = ManagedIdentityCredential().get_token(scope)
     return token
 
@@ -198,6 +232,7 @@ def get_sp_access_token(
         The access token.
     """
     _ = scope
+    _require_azure_identity("serviceprincipal")
     token = ClientSecretCredential(
         str(credentials.tenant_id),
         str(credentials.client_id),
