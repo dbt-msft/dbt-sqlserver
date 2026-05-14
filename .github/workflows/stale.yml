@@ -31,8 +31,7 @@ jobs:
             if this is still needed.
           close-pr-message: >-
             Closing this pull request due to inactivity. Please reopen or create a
-            new
-            pull request if this is still needed.
+            new pull request if this is still needed.
           stale-issue-label: stale
           stale-pr-label: stale
           close-issue-reason: not_planned
