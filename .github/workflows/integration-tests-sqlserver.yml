@@ -38,8 +38,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install dependencies
-        run: pip install -r dev_requirements.txt
+        run: uv pip install --system -r dev_requirements.txt
 
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"
