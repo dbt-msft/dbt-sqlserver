@@ -4,7 +4,7 @@ THREADS ?= auto
 .PHONY: dev
 dev: ## Installs adapter in develop mode along with development dependencies
 	@\
-	pip install -r dev_requirements.txt && pre-commit install
+	uv pip install -r dev_requirements.txt && pre-commit install
 
 .PHONY: mypy
 mypy: ## Runs mypy against staged changes for static type checking.

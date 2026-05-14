@@ -17,8 +17,11 @@ jobs:
         with:
           python-version: '3.9'
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install dependencies
-        run: pip install -r dev_requirements.txt
+        run: uv pip install --system -r dev_requirements.txt
 
       - name: Verify version match
         run: python setup.py verify
