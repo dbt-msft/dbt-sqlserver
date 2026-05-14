@@ -1,0 +1,38 @@
+---
+name: Close stale issues and PRs
+on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
+  schedule:
+    - cron: 30 1 * * 1  # Every Monday at 1:30 AM UTC
+permissions:
+  issues: write
+  pull-requests: write
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v10
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-issue-stale: 365
+          days-before-pr-stale: 365
+          days-before-issue-close: 30
+          days-before-pr-close: 30
+          stale-issue-message: >-
+            This issue is stale because it has had no activity for 365 days.
+            Please confirm whether it is still relevant. If there is no response,
+            it will be closed in 30 days.
+          stale-pr-message: >-
+            This pull request is stale because it has had no activity for 365 days.
+            Please confirm whether it is still relevant. If there is no response,
+            it will be closed in 30 days.
+          close-issue-message: >-
+            Closing this issue due to inactivity. Please reopen or create a new issue
+            if this is still needed.
+          close-pr-message: >-
+            Closing this pull request due to inactivity. Please reopen or create a
+            new
+            pull request if this is still needed.
+          stale-issue-label: stale
+          stale-pr-label: stale
+          close-issue-reason: not_planned
