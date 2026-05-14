@@ -18,7 +18,7 @@ jobs:
     name: Regular
     strategy:
       matrix:
-        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python_version: ["3.10", "3.11", "3.12", "3.13"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
         collation: ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: pip install -r dev_requirements.txt
+        run: pip install -e ".[dev]"
 
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"
