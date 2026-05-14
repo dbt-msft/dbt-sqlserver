@@ -1,4 +1,5 @@
 .DEFAULT_GOAL:=help
+THREADS ?= auto
 
 .PHONY: dev
 dev: ## Installs adapter in develop mode along with development dependencies
@@ -44,7 +45,7 @@ unit: ## Runs unit tests.
 .PHONY: functional
 functional: ## Runs functional tests.
 	@\
-	pytest -n auto -ra -v tests/functional
+	pytest -n $(THREADS) -ra -v tests/functional
 
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
