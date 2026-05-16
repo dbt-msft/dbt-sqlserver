@@ -110,6 +110,44 @@ class TestTabletoViewPreservesGrants(BaseTableView):
         assert ("PUBLIC", "SELECT") in [(row[0].upper(), row[1].upper()) for row in grants]
 
 
+class TestViewMaterializationNoOp(BaseTableView):
+    """Test that rerunning an unchanged view avoids altering the view."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"mat_object.sql": view_mat, "schema.yml": schema}
+
+    def test_unchanged_view_does_not_alter(self, project):
+        self.create_object(project, f"CREATE VIEW {project.test_schema}.mat_object AS {model_sql}")
+
+        before_modify_date = project.run_sql(
+            f"""
+            select modify_date
+            from sys.objects o
+            join sys.schemas s on o.schema_id = s.schema_id
+            where upper(s.name) = upper('{project.test_schema}')
+              and upper(o.name) = upper('mat_object')
+            """,
+            fetch="one",
+        )[0]
+
+        results = run_dbt(["run"])
+        assert len(results) == 1
+
+        after_modify_date = project.run_sql(
+            f"""
+            select modify_date
+            from sys.objects o
+            join sys.schemas s on o.schema_id = s.schema_id
+            where upper(s.name) = upper('{project.test_schema}')
+              and upper(o.name) = upper('mat_object')
+            """,
+            fetch="one",
+        )[0]
+
+        assert after_modify_date == before_modify_date
+
+
 class TestViewtoTable(BaseTableView):
     """Test if changing from a view object to a table object correctly replaces"""
 

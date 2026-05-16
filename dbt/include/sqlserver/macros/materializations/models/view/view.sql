@@ -27,11 +27,29 @@
   -- grab current tables grants config for comparision later on
   {% set grant_config = config.get('grants') %}
   {% set preserved_grants = {} %}
+  {% set should_skip_view_update = false %}
+  {% set build_sql = none %}
 
   {% if existing_relation is not none and existing_relation.type != 'view' %}
     {% set current_grants_table = run_query(get_show_grant_sql(existing_relation)) %}
     {% set current_grants_dict = adapter.standardize_grants_dict(current_grants_table) %}
     {% set preserved_grants = diff_of_two_dicts(current_grants_dict, grant_config) %}
+    {% set build_sql = get_create_view_as_sql(intermediate_relation, sql) %}
+  {% elif existing_relation is not none and existing_relation.type == 'view' %}
+    {% set current_view_definition_table = run_query(get_view_definition_sql(existing_relation)) %}
+    {% if current_view_definition_table is not none and current_view_definition_table.rows | length > 0 %}
+      {% set normalized_relation = target_relation.include(database=False) | lower | replace('\n', '') | replace('\r', '') | replace('\t', '') | replace(' ', '') | replace(';', '') %}
+      {% set normalized_sql = sql | lower | replace('\n', '') | replace('\r', '') | replace('\t', '') | replace(' ', '') | replace(';', '') %}
+      {% set normalized_definition = current_view_definition_table.rows[0][0] | lower | replace('\n', '') | replace('\r', '') | replace('\t', '') | replace(' ', '') | replace(';', '') %}
+      {% set should_skip_view_update = normalized_definition.endswith(normalized_sql) %}
+    {% endif %}
+    {% if should_skip_view_update %}
+      {% set build_sql = 'declare @dbt_sqlserver_noop int;' %}
+    {% else %}
+      {% set build_sql = get_create_view_as_sql(target_relation, sql) %}
+    {% endif %}
+  {% else %}
+    {% set build_sql = get_create_view_as_sql(target_relation, sql) %}
   {% endif %}
 
   {{ run_hooks(pre_hooks, inside_transaction=False) }}
@@ -46,7 +64,7 @@
   {% if existing_relation is not none and existing_relation.type != 'view' %}
     -- build model
     {% call statement('main') -%}
-      {{ get_create_view_as_sql(intermediate_relation, sql) }}
+      {{ build_sql }}
     {%- endcall %}
 
     -- cleanup
@@ -60,7 +78,7 @@
   {% else %}
     -- build model
     {% call statement('main') -%}
-      {{ get_create_view_as_sql(target_relation, sql) }}
+      {{ build_sql }}
     {%- endcall %}
   {% endif %}
 
