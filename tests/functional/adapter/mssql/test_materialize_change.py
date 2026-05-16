@@ -23,6 +23,15 @@ view_mat = """
 SELECT 1 AS data
 """
 
+invalid_view_mat = """
+{{
+    config({
+    "materialized": 'view'
+    })
+}}
+SELECT * FROM missing_relation
+"""
+
 schema = """
 version: 2
 models:
@@ -48,6 +57,57 @@ class TestTabletoView(BaseTableView):
             project, f"SELECT * INTO {project.test_schema}.mat_object FROM ({model_sql}) t"
         )
         run_dbt(["run"])
+
+
+class TestTabletoViewRollback(BaseTableView):
+    """Test that a failed table to view replacement leaves the original table intact."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"mat_object.sql": invalid_view_mat, "schema.yml": schema}
+
+    def test_existing_table_is_preserved(self, project):
+        self.create_object(
+            project, f"SELECT * INTO {project.test_schema}.mat_object FROM ({model_sql}) t"
+        )
+
+        failing_results = run_dbt(["run"], expect_pass=False)
+        assert len(failing_results) == 1
+
+        rows = project.run_sql(f"select * from {project.test_schema}.mat_object", fetch="all")
+        assert len(rows) == 1
+        assert rows[0][0] == 1
+
+
+class TestTabletoViewPreservesGrants(BaseTableView):
+    """Test that grants on the existing table are preserved on the replaced view."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"mat_object.sql": view_mat, "schema.yml": schema}
+
+    def test_public_select_grant_survives_swap(self, project):
+        self.create_object(
+            project, f"SELECT * INTO {project.test_schema}.mat_object FROM ({model_sql}) t"
+        )
+        project.run_sql(f"grant select on object::{project.test_schema}.mat_object to public")
+
+        run_dbt(["run"])
+
+        grants = project.run_sql(
+            f"""
+                        select pr.name as grantee, pe.permission_name
+                        from sys.database_permissions pe
+                        join sys.objects o on pe.major_id = o.object_id
+                        join sys.schemas s on o.schema_id = s.schema_id
+                        join sys.database_principals pr
+                            on pe.grantee_principal_id = pr.principal_id
+                        where s.name = '{project.test_schema}'
+                            and o.name = 'mat_object'
+            """,
+            fetch="all",
+        )
+        assert ("PUBLIC", "SELECT") in [(row[0].upper(), row[1].upper()) for row in grants]
 
 
 class TestViewtoTable(BaseTableView):

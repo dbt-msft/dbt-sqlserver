@@ -26,6 +26,13 @@
   {%- set preexisting_backup_relation = load_cached_relation(backup_relation) -%}
   -- grab current tables grants config for comparision later on
   {% set grant_config = config.get('grants') %}
+  {% set preserved_grants = {} %}
+
+  {% if existing_relation is not none and existing_relation.type != 'view' %}
+    {% set current_grants_table = run_query(get_show_grant_sql(existing_relation)) %}
+    {% set current_grants_dict = adapter.standardize_grants_dict(current_grants_table) %}
+    {% set preserved_grants = diff_of_two_dicts(current_grants_dict, grant_config) %}
+  {% endif %}
 
   {{ run_hooks(pre_hooks, inside_transaction=False) }}
 
@@ -36,25 +43,33 @@
   -- `BEGIN` happens here:
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
-  -- build model
-  {% call statement('main') -%}
-    {{ get_create_view_as_sql(intermediate_relation, sql) }}
-  {%- endcall %}
+  {% if existing_relation is not none and existing_relation.type != 'view' %}
+    -- build model
+    {% call statement('main') -%}
+      {{ get_create_view_as_sql(intermediate_relation, sql) }}
+    {%- endcall %}
 
-  -- cleanup
-  -- move the existing view out of the way
-  {% if existing_relation is not none %}
-     /* Do the equivalent of rename_if_exists. 'existing_relation' could have been dropped
-        since the variable was first set. */
+    -- cleanup
+    -- move the existing relation out of the way
     {% set existing_relation = load_cached_relation(existing_relation) %}
     {% if existing_relation is not none %}
         {{ adapter.rename_relation(existing_relation, backup_relation) }}
     {% endif %}
+
+    {{ adapter.rename_relation(intermediate_relation, target_relation) }}
+  {% else %}
+    -- build model
+    {% call statement('main') -%}
+      {{ get_create_view_as_sql(target_relation, sql) }}
+    {%- endcall %}
   {% endif %}
-  {{ adapter.rename_relation(intermediate_relation, target_relation) }}
 
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
+
+  {% if preserved_grants %}
+    {% do apply_grants(target_relation, preserved_grants, should_revoke=False) %}
+  {% endif %}
 
   {% do persist_docs(target_relation, model) %}
 

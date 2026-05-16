@@ -7,7 +7,7 @@
     {%- endif %}
 
     {% set query %}
-        create view {{ relation.include(database=False) }} as {{ sql }};
+        CREATE OR ALTER VIEW {{ relation.include(database=False) }} AS {{ sql }};
     {% endset %}
 
     {% set tst %}
