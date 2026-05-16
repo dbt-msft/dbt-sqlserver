@@ -90,13 +90,16 @@ class TestTabletoViewPreservesGrants(BaseTableView):
         self.create_object(
             project, f"SELECT * INTO {project.test_schema}.mat_object FROM ({model_sql}) t"
         )
-        project.run_sql(f"grant select on object::{project.test_schema}.mat_object to public")
+        project.run_sql(
+            f"""grant select, insert, update, delete
+                on object::{project.test_schema}.mat_object to public"""
+        )
 
         run_dbt(["run"])
 
-        grants = project.run_sql(
+        grant_count = project.run_sql(
             f"""
-                        select pr.name as grantee, pe.permission_name
+                        select count(*)
                         from sys.database_permissions pe
                         join sys.objects o on pe.major_id = o.object_id
                         join sys.schemas s on o.schema_id = s.schema_id
@@ -104,10 +107,11 @@ class TestTabletoViewPreservesGrants(BaseTableView):
                             on pe.grantee_principal_id = pr.principal_id
                         where s.name = '{project.test_schema}'
                             and o.name = 'mat_object'
+                            and pe.permission_name in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
             """,
-            fetch="all",
+            fetch="one",
         )
-        assert ("PUBLIC", "SELECT") in [(row[0].upper(), row[1].upper()) for row in grants]
+        assert grant_count[0] == 4
 
 
 class TestViewMaterializationNoOp(BaseTableView):

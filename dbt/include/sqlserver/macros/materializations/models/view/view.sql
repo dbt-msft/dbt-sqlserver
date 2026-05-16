@@ -33,7 +33,12 @@
   {% if existing_relation is not none and existing_relation.type != 'view' %}
     {% set current_grants_table = run_query(get_show_grant_sql(existing_relation)) %}
     {% set current_grants_dict = adapter.standardize_grants_dict(current_grants_table) %}
-    {% set preserved_grants = diff_of_two_dicts(current_grants_dict, grant_config) %}
+    {% set preserved_grants = {} %}
+    {% for privilege, grantees in diff_of_two_dicts(current_grants_dict, grant_config).items() %}
+      {% if privilege | lower in ['select', 'insert', 'update', 'delete'] %}
+        {% do preserved_grants.update({privilege: grantees}) %}
+      {% endif %}
+    {% endfor %}
     {% set build_sql = get_create_view_as_sql(intermediate_relation, sql) %}
   {% elif existing_relation is not none and existing_relation.type == 'view' %}
     {% set current_view_definition_table = run_query(get_view_definition_sql(existing_relation)) %}
