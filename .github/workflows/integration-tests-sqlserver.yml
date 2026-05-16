@@ -6,10 +6,38 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
+    paths:
+      - 'dbt/**'
+      - 'tests/functional/**'
+      - 'devops/**'
+      - 'docker-compose.yml'
+      - 'dev_requirements.txt'
+      - '**/*.lock'
+      - '.locks/**'
+      - 'pyproject.toml'
+      - 'setup.cfg'
+      - 'setup.py'
+      - 'MANIFEST.in'
+      - 'pytest.ini'
+      - '.github/workflows/integration-tests-sqlserver.yml'
   pull_request:
     branches:
       - master
       - v*
+    paths:
+      - 'dbt/**'
+      - 'tests/functional/**'
+      - 'devops/**'
+      - 'docker-compose.yml'
+      - 'dev_requirements.txt'
+      - '**/*.lock'
+      - '.locks/**'
+      - 'pyproject.toml'
+      - 'setup.cfg'
+      - 'setup.py'
+      - 'MANIFEST.in'
+      - 'pytest.ini'
+      - '.github/workflows/integration-tests-sqlserver.yml'
   schedule:
     - cron: '0 22 * * 0'
 
