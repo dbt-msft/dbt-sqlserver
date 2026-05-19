@@ -35,8 +35,7 @@ def main(argv: list[str]) -> int:
     pkg_version = read_package_version()
     if tag_version != pkg_version:
         print(
-            f"Git tag {tag_version!r} does not match "
-            f"package version {pkg_version!r}",
+            f"Git tag {tag_version!r} does not match " f"package version {pkg_version!r}",
             file=sys.stderr,
         )
         return 1
