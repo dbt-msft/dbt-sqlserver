@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.hooks import fixtures
 from dbt.tests.util import run_dbt
 

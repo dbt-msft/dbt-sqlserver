@@ -2,14 +2,6 @@ from typing import List, Optional
 
 import agate
 import dbt_common.exceptions
-from dbt.adapters.base.column import Column as BaseColumn
-from dbt.adapters.base.impl import ConstraintSupport
-from dbt.adapters.base.meta import available
-from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
-from dbt.adapters.events.types import SchemaCreation
-from dbt.adapters.reference_keys import _make_ref_key_dict
-from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
@@ -18,6 +10,14 @@ from dbt_common.contracts.constraints import (
 )
 from dbt_common.events.functions import fire_event
 
+from dbt.adapters.base.column import Column as BaseColumn
+from dbt.adapters.base.impl import ConstraintSupport
+from dbt.adapters.base.meta import available
+from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
+from dbt.adapters.events.types import SchemaCreation
+from dbt.adapters.reference_keys import _make_ref_key_dict
+from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager

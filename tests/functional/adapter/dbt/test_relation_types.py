@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.artifacts.schemas.catalog import CatalogArtifact
 from dbt.tests.util import run_dbt
 
