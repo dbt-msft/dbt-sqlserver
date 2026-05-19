@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.basic.files import config_materialized_table, config_materialized_view
 from dbt.tests.util import run_dbt
 

@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.utils import (
     fixture_cast_bool_to_text,
     fixture_dateadd,

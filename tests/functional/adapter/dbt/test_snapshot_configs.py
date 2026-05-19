@@ -2,6 +2,7 @@
 import datetime
 
 import pytest
+
 from dbt.tests.util import (
     check_relations_equal,
     get_manifest,

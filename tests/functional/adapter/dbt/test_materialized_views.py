@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 
 

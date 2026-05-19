@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.util import get_connection, run_dbt
 
 # flake8: noqa: E501
