@@ -6,10 +6,30 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
+    paths:
+      - 'dbt/**'
+      - 'tests/functional/**'
+      - 'devops/**'
+      - 'docker-compose.yml'
+      - '**/*.lock'
+      - '.locks/**'
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - '.github/workflows/integration-tests-sqlserver.yml'
   pull_request:
     branches:
       - master
       - v*
+    paths:
+      - 'dbt/**'
+      - 'tests/functional/**'
+      - 'devops/**'
+      - 'docker-compose.yml'
+      - '**/*.lock'
+      - '.locks/**'
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - '.github/workflows/integration-tests-sqlserver.yml'
   schedule:
     - cron: '0 22 * * 0'
 
@@ -36,10 +56,13 @@ jobs:
           DBT_TEST_USER_3: DBT_TEST_USER_3
           COLLATION: ${{ matrix.collation }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        run: pip install uv
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv pip install --system -e . --group dev
 
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"

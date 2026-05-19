@@ -11,7 +11,7 @@ jobs:
     name: Release new version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v5
         with:
@@ -21,23 +21,7 @@ jobs:
         run: pip install build twine
 
       - name: Verify version matches tag
-        env:
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: |
-          python - <<'PY'
-          import os, re, sys
-          tag = os.environ["GITHUB_REF_NAME"]
-          tag_version = tag.lstrip("v")
-          with open("dbt/adapters/sqlserver/__version__.py") as f:
-              match = re.search(r"""version\s*=\s*["'](.+)["']""", f.read())
-          if not match:
-              sys.exit("could not find version in __version__.py")
-          pkg_version = match.group(1)
-          if tag_version != pkg_version:
-              sys.exit(
-                  f"Git tag {tag_version!r} does not match package version {pkg_version!r}"
-              )
-          PY
+        run: python .github/scripts/verify_version.py "${{ github.ref_name }}"
 
       - name: Initialize .pypirc
         run: |
