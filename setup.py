@@ -69,6 +69,7 @@ setup(
         "dbt-core>=1.9.0,<2.0",
         "dbt-common>=1.0,<2.0",
         "dbt-adapters>=1.11.0,<2.0",
+        "pyodbc>=5.2.0",
     ],
     cmdclass={
         "verify": VerifyVersionCommand,
