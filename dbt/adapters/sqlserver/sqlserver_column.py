@@ -1,7 +1,8 @@
 from typing import Any, ClassVar, Dict
 
-from dbt.adapters.base.column import Column
 from dbt_common.exceptions import DbtRuntimeError
+
+from dbt.adapters.base.column import Column
 
 
 class SQLServerColumn(Column):

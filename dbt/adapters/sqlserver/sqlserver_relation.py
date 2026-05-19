@@ -1,16 +1,16 @@
 from dataclasses import dataclass, field
 from typing import Optional, Type
 
-from dbt.adapters.base.relation import BaseRelation, EventTimeFilter
-from dbt.adapters.utils import classproperty
 from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.base.relation import BaseRelation, EventTimeFilter
 from dbt.adapters.sqlserver.relation_configs import (
     MAX_CHARACTERS_IN_IDENTIFIER,
     SQLServerIncludePolicy,
     SQLServerQuotePolicy,
     SQLServerRelationType,
 )
+from dbt.adapters.utils import classproperty
 
 
 @dataclass(frozen=True, eq=False, repr=False)

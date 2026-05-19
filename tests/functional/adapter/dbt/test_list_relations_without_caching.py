@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from dbt.tests.util import run_dbt, run_dbt_and_capture
 
 NUM_VIEWS = 10
