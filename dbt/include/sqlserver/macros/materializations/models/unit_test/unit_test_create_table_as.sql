@@ -13,7 +13,7 @@
 {% endmacro %}
 
 {% macro sqlserver__unit_test_create_table_as(temporary, relation, sql) -%}
-    {% set query_label = apply_label() %}
+    {% set query_label = get_query_options(parse_options=True) %}
     {% set contract_config = config.get('contract') %}
     {% set is_nested_cte = check_for_nested_cte(sql) %}
 

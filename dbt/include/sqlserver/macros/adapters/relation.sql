@@ -22,7 +22,7 @@
         and refs.referenced_schema_name = '{{ relation.schema }}'
         and refs.referenced_entity_name = '{{ relation.identifier }}'
         and obj.type = 'V'
-        {{ apply_label() }}
+        {{ get_query_options() }}
       {% endcall %}
       {% set references = load_result('find_references')['data'] %}
       {% for reference in references -%}

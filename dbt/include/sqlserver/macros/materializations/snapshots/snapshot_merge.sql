@@ -21,10 +21,10 @@
   {% else %}
     and DBT_INTERNAL_DEST.{{ columns.dbt_valid_to }} is null
   {% endif %}
-  {{ apply_label() }}
+  {{ get_query_options(parse_options=True) }}
 
   insert into {{ target_table }} ({{ insert_cols_csv }})
   select {{target_columns}} from {{ source_table }} as DBT_INTERNAL_SOURCE
   where  DBT_INTERNAL_SOURCE.dbt_change_type = 'insert'
-  {{ apply_label() }}
+  {{ get_query_options(parse_options=True) }}
 {% endmacro %}

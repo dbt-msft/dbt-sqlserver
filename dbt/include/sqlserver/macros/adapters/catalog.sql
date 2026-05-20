@@ -1,5 +1,5 @@
 {% macro sqlserver__get_catalog(information_schemas, schemas) -%}
-    {% set query_label = apply_label() %}
+    {% set query_label = get_query_options() %}
     {%- call statement('catalog', fetch_result=True) -%}
 
         with
@@ -126,7 +126,7 @@
 {%- endmacro %}
 
 {% macro sqlserver__get_catalog_relations(information_schema, relations) -%}
-    {% set query_label = apply_label() %}
+    {% set query_label = get_query_options() %}
     {%- call statement('catalog', fetch_result=True) -%}
 
     with
