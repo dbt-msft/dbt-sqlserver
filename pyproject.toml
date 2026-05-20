@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbt-sqlserver"
+description = "A Microsoft SQL Server adapter plugin for dbt"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Mikael Ene" },
+    { name = "Anders Swanson" },
+    { name = "Sam Debruyn" },
+    { name = "Cor Zuurmond" },
+    { name = "Cody Scott" },
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "dbt-core>=1.9.0,<2.0",
+    "dbt-common>=1.0,<2.0",
+    "dbt-adapters>=1.11.0,<2.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+azure = [
+    "azure-identity>=1.12.0",
+]
+pyodbc = [
+    "pyodbc>=5.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "dbt-tests-adapter>=1.9.0,<2.0",
+    "azure-identity>=1.12.0",
+    "build",
+    "bumpversion",
+    "flaky",
+    "freezegun==1.4.0",
+    "ipdb",
+    "mypy==1.11.2",
+    "pre-commit",
+    "pytest",
+    "pytest-csv",
+    "pytest-dotenv",
+    "pytest-xdist",
+    "pytz",
+    "ruff",
+    "tox>=3.13",
+    "twine",
+]
+
+[project.urls]
+"Setup & configuration" = "https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile"
+"Documentation & usage" = "https://docs.getdbt.com/reference/resource-configs/mssql-configs"
+"Changelog" = "https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/dbt-msft/dbt-sqlserver/issues"
+"Source" = "https://github.com/dbt-msft/dbt-sqlserver"
+
+[tool.setuptools.dynamic]
+version = { attr = "dbt.adapters.sqlserver.__version__.version" }
+
+[tool.setuptools.packages.find]
+include = ["dbt", "dbt.*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"dbt" = ["include/**/*.sql", "include/**/*.yml", "include/**/*.md"]
+"dbt.adapters.sqlserver" = ["py.typed"]
