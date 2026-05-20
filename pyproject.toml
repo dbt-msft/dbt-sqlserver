@@ -79,3 +79,6 @@ namespaces = true
 [tool.setuptools.package-data]
 "dbt" = ["include/**/*.sql", "include/**/*.yml", "include/**/*.md"]
 "dbt.adapters.sqlserver" = ["py.typed"]
+
+[tool.uv]
+link-mode = "copy"
