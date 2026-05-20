@@ -36,7 +36,7 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: uv pip install --system -e . --group dev
+        run: uv pip install --system -e ".[pyodbc]" --group dev
 
       - name: Run unit tests
         run: pytest -n auto -ra -v tests/unit
