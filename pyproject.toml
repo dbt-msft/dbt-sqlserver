@@ -48,7 +48,7 @@ dev = [
     "build",
     "bumpversion",
     "flaky",
-    "freezegun==1.4.0",
+    "freezegun==1.5.5",
     "ipdb",
     "mypy==1.11.2",
     "pre-commit",
