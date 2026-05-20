@@ -50,7 +50,7 @@ dev = [
     "flaky",
     "freezegun==1.4.0",
     "ipdb",
-    "mypy==1.11.2",
+    "mypy==2.1.0",
     "pre-commit",
     "pytest",
     "pytest-csv",
