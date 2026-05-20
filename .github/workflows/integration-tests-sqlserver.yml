@@ -36,6 +36,7 @@ on:  # yamllint disable-line rule:truthy
 jobs:
   integration-tests-sql-server:
     name: Regular
+    if: github.actor != 'dependabot[bot]'
     strategy:
       matrix:
         python_version: ["3.10", "3.11", "3.12", "3.13"]
