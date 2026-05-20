@@ -22,7 +22,7 @@
                     {{ "["~column~"]" }}{{ ", " if not loop.last }}
                 {% endfor %}
             {%endset%}
-            INSERT INTO {{relation}} ({{listColumns}})
+            INSERT INTO {{relation}} WITH (TABLOCK) ({{listColumns}})
             SELECT {{listColumns}} FROM {{tmp_relation}} {{ query_label }}
 
         {% else %}
