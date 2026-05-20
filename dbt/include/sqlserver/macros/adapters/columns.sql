@@ -11,7 +11,7 @@
 {% endmacro %}
 
 {% macro sqlserver__get_columns_in_query(select_sql) %}
-    {% set query_label = apply_label() %}
+    {% set query_label = get_query_options() %}
     {% call statement('get_columns_in_query', fetch_result=True, auto_begin=False) -%}
         select TOP 0 * from (
             {{ select_sql }}
@@ -65,7 +65,7 @@
 {% endmacro %}
 
 {% macro sqlserver__get_columns_in_relation(relation) -%}
-    {% set query_label = apply_label() %}
+    {% set query_label = get_query_options() %}
     {% call statement('get_columns_in_relation', fetch_result=True) %}
         {{ get_use_database_sql(relation.database) }}
         with mapping as (

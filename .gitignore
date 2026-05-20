@@ -52,6 +52,9 @@ coverage.xml
 # Django stuff:
 *.log
 
+# dbt test logs (one subdir per test schema; accumulates indefinitely)
+logs/
+
 # Sphinx documentation
 docs/_build/
 
