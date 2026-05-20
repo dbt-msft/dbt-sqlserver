@@ -62,7 +62,7 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: uv pip install --system -e . --group dev
+        run: uv pip install --system -e ".[pyodbc]" --group dev
 
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"
