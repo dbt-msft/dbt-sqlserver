@@ -33,7 +33,7 @@
     EXEC('{{- escape_single_quotes(query) -}}')
 
     {# For some reason drop_relation is not firing. This solves the issue for now. #}
-    EXEC('DROP VIEW IF EXISTS {{tmp_relation.schema}}.{{tmp_relation.identifier}}')
+    EXEC('DROP VIEW IF EXISTS {{ tmp_relation.include(database=False) }}')
 
 
 
