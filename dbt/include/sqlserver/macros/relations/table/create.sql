@@ -22,7 +22,7 @@
                     {{ "["~column~"]" }}{{ ", " if not loop.last }}
                 {% endfor %}
             {%endset%}
-            INSERT INTO {{relation}} ({{listColumns}})
+            INSERT INTO {{relation}} WITH (TABLOCK) ({{listColumns}})
             SELECT {{listColumns}} FROM {{tmp_relation}} {{ query_label }}
 
         {% else %}
@@ -33,7 +33,7 @@
     EXEC('{{- escape_single_quotes(query) -}}')
 
     {# For some reason drop_relation is not firing. This solves the issue for now. #}
-    EXEC('DROP VIEW IF EXISTS {{tmp_relation.schema}}.{{tmp_relation.identifier}}')
+    EXEC('DROP VIEW IF EXISTS {{ tmp_relation.include(database=False) }}')
 
 
 

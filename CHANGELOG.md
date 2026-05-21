@@ -1,5 +1,26 @@
 # Changelog
 
+### v1.9.1
+
+- Removes the dependency on `dbt-fabric`.
+
+### v1.9.0
+
+- Update to support `dbt-core` 1.9.
+- Remove Python 3.8 from official support.
+
+### v1.8.7
+
+- Bump version for release 1.8.7.
+
+### v1.8.6
+
+- Bump version for release 1.8.6.
+
+### v1.8.5
+
+- Fix broken imports from Fabric.
+
 ### v1.8.4
 
 - Minor fix to tests with CTEs which do not start on first line. https://github.com/dbt-msft/dbt-sqlserver/issues/560

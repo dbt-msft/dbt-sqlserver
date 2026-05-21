@@ -49,6 +49,33 @@ pip install -U --pre dbt-sqlserver
 
 See [the changelog](CHANGELOG.md)
 
+## Configuration
+
+### Flags
+
+- `dbt_sqlserver_use_default_schema_concat`: *(default: `false`)* Controls schema name generation when a [custom schema](https://docs.getdbt.com/docs/build/custom-schemas) is set on a model.
+
+  | Flag value | `custom_schema_name` | Result |
+  |---|---|---|
+  | `false` (default, legacy) | *(none)* | `target.schema` |
+  | `false` (default, legacy) | `"reporting"` | `reporting` |
+  | `true` (dbt-core standard) | *(none)* | `target.schema` |
+  | `true` (dbt-core standard) | `"reporting"` | `target.schema_reporting` |
+
+  When `false` (the default), the adapter uses its legacy behaviour: `custom_schema_name` is used **as-is** without being prefixed by `target.schema`.  
+  When `true`, the adapter delegates to dbt-core's `default__generate_schema_name`, which concatenates `target.schema` + `_` + `custom_schema_name`.
+
+  **Example usage in `dbt_project.yml`:**
+
+  ```yaml
+  vars:
+    dbt_sqlserver_use_default_schema_concat: true  # Enable standard schema concatenation
+  ```
+
+  > **Note:** If you want to permanently customise schema generation and avoid any future deprecation of this flag, override the `sqlserver__generate_schema_name` macro directly in your project.
+
+
+
 ## Contributing
 
 [![Unit tests](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/unit-tests.yml)

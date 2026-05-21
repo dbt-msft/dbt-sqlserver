@@ -11,17 +11,17 @@ jobs:
     name: Release new version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r dev_requirements.txt
+      - name: Install build tooling
+        run: pip install build twine
 
-      - name: Verify version match
-        run: python setup.py verify
+      - name: Verify version matches tag
+        run: python .github/scripts/verify_version.py "${{ github.ref_name }}"
 
       - name: Initialize .pypirc
         run: |
@@ -31,5 +31,5 @@ jobs:
 
       - name: Build and publish package
         run: |
-          python setup.py sdist bdist_wheel
+          python -m build
           twine upload dist/*

@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.util import get_connection, run_dbt
 
 snapshot_sql = """
@@ -55,7 +56,15 @@ class TestCrossDB:
             )
 
     def cleanup_secondary_database(self, project):
-        drop_sql = "DROP DATABASE IF EXISTS secondary_db"
+        drop_sql = """
+        USE [master]
+
+        IF EXISTS (SELECT * FROM sys.databases WHERE name = 'secondary_db')
+        BEGIN
+            ALTER DATABASE [secondary_db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
+            DROP DATABASE [secondary_db]
+        END
+        """
         with get_connection(project.adapter):
             project.adapter.execute(
                 drop_sql.format(database=project.database),

@@ -1,4 +1,6 @@
-curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+curl https://packages.microsoft.com/keys/microsoft.asc \
+  | gpg --dearmor \
+  | sudo tee /usr/share/keyrings/microsoft-prod.gpg >/dev/null
 
 #Download appropriate package for the OS version
 #Choose only ONE of the following, corresponding to your OS version
