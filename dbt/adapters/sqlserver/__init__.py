@@ -1,5 +1,4 @@
 from dbt.adapters.base import AdapterPlugin
-
 from dbt.adapters.sqlserver.sqlserver_adapter import SQLServerAdapter
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs

@@ -1,15 +1,46 @@
----
 version: 2
+
 updates:
-  - package-ecosystem: pip
+  - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: daily
-  - package-ecosystem: github-actions
+      interval: "weekly"
+    groups:
+      pip-updates:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+      pip-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: daily
-  - package-ecosystem: docker
-    directory: "/"
+      interval: "weekly"
+    groups:
+      github-actions-updates:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+      github-actions-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/devops"
     schedule:
-      interval: daily
+      interval: "weekly"
+    groups:
+      docker-updates:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+      docker-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"

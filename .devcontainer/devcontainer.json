@@ -2,10 +2,23 @@
     "name": "Python 3",
     "image": "mcr.microsoft.com/devcontainers/python:3.10-bookworm",
     "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2.17.0": {}
+        "ghcr.io/devcontainers/features/docker-in-docker:2.17.0": {
+            "moby": false
+        }
     },
-    "forwardPorts": [1433],
-    "postStartCommand": "/bin/bash ./.devcontainer/setup_odbc.sh & /bin/bash ./.devcontainer/setup_env.sh",
+    "forwardPorts": [
+        1433
+    ],
+    "postStartCommand": "/bin/bash ./.devcontainer/setup_odbc.sh && /bin/bash ./.devcontainer/setup_env.sh",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python-envs.alwaysUseUv": true,
+                "python-envs.terminal.autoActivationType": "shellStartup",
+                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python"
+            }
+        }
+    },
     "containerEnv": {
         "SQLSERVER_TEST_DRIVER": "ODBC Driver 18 for SQL Server",
         "SQLSERVER_TEST_HOST": "127.0.0.1",

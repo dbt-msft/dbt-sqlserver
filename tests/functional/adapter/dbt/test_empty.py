@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.empty._models import model_input_sql, schema_sources_yml
 
 # switch for 1.9

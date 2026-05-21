@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.aliases import fixtures
 from dbt.tests.adapter.aliases.test_aliases import (
     BaseAliasErrors,

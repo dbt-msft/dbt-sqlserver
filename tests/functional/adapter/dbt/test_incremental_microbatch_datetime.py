@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.incremental.test_incremental_microbatch import BaseMicrobatch
 
 _microbatch_model_no_unique_id_sql_datetime = """

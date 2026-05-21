@@ -46,15 +46,15 @@ except ModuleNotFoundError as exc:
     ManagedIdentityCredential = None
     _AZURE_IDENTITY_IMPORT_ERROR = exc
 
-from dbt.adapters.contracts.connection import AdapterResponse, Connection, ConnectionState
-from dbt.adapters.events.logging import AdapterLogger
-from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
-from dbt.adapters.sql.connections import SQLConnectionManager
 from dbt_common.clients.agate_helper import empty_table
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
 from dbt_common.utils.casting import cast_to_str
 
+from dbt.adapters.contracts.connection import AdapterResponse, Connection, ConnectionState
+from dbt.adapters.events.logging import AdapterLogger
+from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
+from dbt.adapters.sql.connections import SQLConnectionManager
 from dbt.adapters.sqlserver import __version__
 from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
 

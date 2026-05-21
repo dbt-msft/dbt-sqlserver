@@ -6,19 +6,40 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
+    paths:
+      - 'dbt/**'
+      - 'tests/functional/**'
+      - 'devops/**'
+      - 'docker-compose.yml'
+      - '**/*.lock'
+      - '.locks/**'
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - '.github/workflows/integration-tests-sqlserver.yml'
   pull_request:
     branches:
       - master
       - v*
+    paths:
+      - 'dbt/**'
+      - 'tests/functional/**'
+      - 'devops/**'
+      - 'docker-compose.yml'
+      - '**/*.lock'
+      - '.locks/**'
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - '.github/workflows/integration-tests-sqlserver.yml'
   schedule:
     - cron: "0 22 * * 0"
 
 jobs:
   integration-tests-sql-server:
     name: Regular
+    if: github.actor != 'dependabot[bot]'
     strategy:
       matrix:
-        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python_version: ["3.10", "3.11", "3.12", "3.13"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
         collation:
@@ -37,13 +58,13 @@ jobs:
           DBT_TEST_USER_3: DBT_TEST_USER_3
           COLLATION: ${{ matrix.collation }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install uv
         run: pip install uv
 
       - name: Install dependencies
-        run: uv pip install --system -r dev_requirements.txt
+        run: uv pip install --system -e ".[pyodbc]" --group dev
 
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"
