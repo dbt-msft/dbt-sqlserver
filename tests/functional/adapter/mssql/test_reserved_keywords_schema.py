@@ -31,8 +31,7 @@ class TestReservedKeywordsSchema:
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {
-            "generate_schema_name.sql": """
+        return {"generate_schema_name.sql": """
 {% macro generate_schema_name(custom_schema_name, node) -%}
     {%- if custom_schema_name -%}
         {{ custom_schema_name | trim }}
@@ -40,8 +39,7 @@ class TestReservedKeywordsSchema:
         {{ target.schema }}
     {%- endif -%}
 {%- endmacro %}
-"""
-        }
+"""}
 
     @pytest.fixture(autouse=True, scope="class")
     def cleanup_schema(self, project):
