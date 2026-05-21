@@ -31,27 +31,48 @@ on:  # yamllint disable-line rule:truthy
       - 'pytest.ini'
       - '.github/workflows/integration-tests-sqlserver.yml'
   schedule:
-    - cron: "0 22 * * 0"
+    - cron: '0 22 * * 0'
 
 jobs:
   integration-tests-sql-server:
-    name: Regular
+    name: Regular ${{ matrix.backend }}
     if: github.actor != 'dependabot[bot]'
     strategy:
       matrix:
         python_version: ["3.10", "3.11", "3.12", "3.13"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
-        collation:
-          ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
+        collation: ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
+        backend:
+          - pyodbc
+          - mssql-python
+        exclude:
+          - backend: pyodbc
+            python_version: "3.12"
+          - backend: pyodbc
+            python_version: "3.13"
+          - backend: mssql-python
+            python_version: "3.10"
+          - backend: mssql-python
+            python_version: "3.11"
+        include:
+          - backend: pyodbc
+            install_extra: pyodbc
+            use_mssql_python: "False"
+          - backend: mssql-python
+            install_extra: mssql
+            use_mssql_python: "True"
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     services:
       sqlserver:
         image: ghcr.io/${{ github.repository }}:server-${{ matrix.sqlserver_version }}
         env:
-          ACCEPT_EULA: "Y"
+          ACCEPT_EULA: 'Y'
           SA_PASSWORD: 5atyaNadella
           DBT_TEST_USER_1: DBT_TEST_USER_1
           DBT_TEST_USER_2: DBT_TEST_USER_2
@@ -64,7 +85,9 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: uv pip install --system -e ".[pyodbc]" --group dev
+        env:
+          INSTALL_EXTRA: ${{ matrix.install_extra }}
+        run: uv pip install --system -e ".[$INSTALL_EXTRA]" --group dev
 
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"
@@ -73,39 +96,4 @@ jobs:
           DBT_TEST_USER_2: DBT_TEST_USER_2
           DBT_TEST_USER_3: DBT_TEST_USER_3
           SQLSERVER_TEST_DRIVER: "ODBC Driver ${{ matrix.msodbc_version }} for SQL Server"
-
-  integration-tests-sql-server-mssql-python:
-    name: mssql-python
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    container:
-      image: ghcr.io/${{ github.repository }}:CI-3.13-msodbc18
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    services:
-      sqlserver:
-        image: ghcr.io/${{ github.repository }}:server-2022
-        env:
-          ACCEPT_EULA: "Y"
-          SA_PASSWORD: 5atyaNadella
-          DBT_TEST_USER_1: DBT_TEST_USER_1
-          DBT_TEST_USER_2: DBT_TEST_USER_2
-          DBT_TEST_USER_3: DBT_TEST_USER_3
-          COLLATION: SQL_Latin1_General_CP1_CS_AS
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: pip install -r dev_requirements.txt
-
-      - name: Run functional tests with mssql-python
-        run: pytest -ra -v tests/functional --profile "ci_sql_server"
-        env:
-          DBT_TEST_USER_1: DBT_TEST_USER_1
-          DBT_TEST_USER_2: DBT_TEST_USER_2
-          DBT_TEST_USER_3: DBT_TEST_USER_3
-          SQLSERVER_TEST_DRIVER: "ODBC Driver 18 for SQL Server"
-          SQLSERVER_TEST_USE_MSSQL_PYTHON: "True"
+          SQLSERVER_TEST_USE_MSSQL_PYTHON: ${{ matrix.use_mssql_python }}
