@@ -32,10 +32,20 @@ The functional tests require a running SQL Server instance. You can easily spin 
 make server
 ```
 
-The default development flow uses the existing ODBC-based path. If you want to develop or test the optional `mssql-python` backend instead, make sure the package is installed in your environment before running tests.
+The default development flow uses the ODBC-based path, but the ODBC driver itself is now an optional dependency. If you want to develop or test that backend, install either the adapter extra or the driver itself before running tests.
 
 ```shell
-pip install mssql-python
+pip install -U "dbt-sqlserver[pyodbc]"
+# or
+pip install -U pyodbc
+```
+
+If you want to develop or test the optional `mssql-python` backend instead, install either the adapter extra or the driver itself before running tests.
+
+```shell
+pip install -U "dbt-sqlserver[mssql]"
+# or
+pip install -U mssql-python
 ```
 
 On Debian/Ubuntu-based environments, `mssql-python` may also require these system libraries:
@@ -77,7 +87,7 @@ make unit
 make functional
 ```
 
-This remains the documented test procedure for both connection backends. When the `mssql-python` flag is enabled, run the same commands after installing `mssql-python` and setting `SQLSERVER_TEST_USE_MSSQL_PYTHON=True` in `test.env`.
+This remains the documented test procedure for both connection backends. When the `pyodbc` path is enabled, run the same commands after installing `dbt-sqlserver[pyodbc]` or `pyodbc`. When the `mssql-python` flag is enabled, run the same commands after installing `dbt-sqlserver[mssql]` or `mssql-python` and setting `SQLSERVER_TEST_USE_MSSQL_PYTHON=True` in `test.env`.
 
 ## CI/CD
 
