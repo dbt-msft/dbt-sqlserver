@@ -8,15 +8,23 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type, Union
 
 import agate
 import dbt_common.exceptions
-import pyodbc
+from dbt_common.clients.agate_helper import empty_table
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.events.functions import fire_event
+from dbt_common.utils.casting import cast_to_str
 
-try:
-    import mssql_python as MSSQL_PYTHON
-except ModuleNotFoundError as exc:
-    MSSQL_PYTHON = None
-    _MSSQL_PYTHON_IMPORT_ERROR: Optional[ModuleNotFoundError] = exc
-else:
-    _MSSQL_PYTHON_IMPORT_ERROR = None
+from dbt.adapters.contracts.connection import AdapterResponse, Connection, ConnectionState
+from dbt.adapters.events.logging import AdapterLogger
+from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
+from dbt.adapters.sql.connections import SQLConnectionManager
+from dbt.adapters.sqlserver import __version__
+from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
+
+_PYODBC_MODULE: Optional[Any] = None
+_PYODBC_IMPORT_ERROR: Optional[ModuleNotFoundError] = None
+
+_MSSQL_PYTHON_MODULE: Optional[Any] = None
+_MSSQL_PYTHON_IMPORT_ERROR: Optional[ModuleNotFoundError] = None
 
 try:
     from azure.core.credentials import AccessToken
@@ -46,17 +54,6 @@ except ModuleNotFoundError as exc:
     ManagedIdentityCredential = None
     _AZURE_IDENTITY_IMPORT_ERROR = exc
 
-from dbt_common.clients.agate_helper import empty_table
-from dbt_common.events.contextvars import get_node_info
-from dbt_common.events.functions import fire_event
-from dbt_common.utils.casting import cast_to_str
-
-from dbt.adapters.contracts.connection import AdapterResponse, Connection, ConnectionState
-from dbt.adapters.events.logging import AdapterLogger
-from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
-from dbt.adapters.sql.connections import SQLConnectionManager
-from dbt.adapters.sqlserver import __version__
-from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
 
 _TOKEN: Optional[AccessToken] = None
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
@@ -89,6 +86,60 @@ MSSQL_PYTHON_UNSUPPORTED_AUTHENTICATIONS = {
 }
 
 
+def _get_pyodbc() -> Any:
+    global _PYODBC_MODULE, _PYODBC_IMPORT_ERROR
+
+    if _PYODBC_MODULE is not None:
+        return _PYODBC_MODULE
+
+    if _PYODBC_IMPORT_ERROR is not None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The legacy `pyodbc` backend was requested, but the optional dependency "
+            "`pyodbc` is not installed. Install it with `pip install pyodbc` "
+            "or enable `use_mssql_python` in the profile."
+        ) from _PYODBC_IMPORT_ERROR
+
+    try:
+        import pyodbc as imported_pyodbc
+    except ModuleNotFoundError as exc:
+        _PYODBC_IMPORT_ERROR = exc
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The legacy `pyodbc` backend was requested, but the optional dependency "
+            "`pyodbc` is not installed. Install it with `pip install pyodbc` "
+            "or enable `use_mssql_python` in the profile."
+        ) from exc
+
+    _PYODBC_MODULE = imported_pyodbc
+    return _PYODBC_MODULE
+
+
+def _get_mssql_python() -> Any:
+    global _MSSQL_PYTHON_MODULE, _MSSQL_PYTHON_IMPORT_ERROR
+
+    if _MSSQL_PYTHON_MODULE is not None:
+        return _MSSQL_PYTHON_MODULE
+
+    if _MSSQL_PYTHON_IMPORT_ERROR is not None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `mssql-python` backend was requested, but the optional dependency "
+            "`mssql-python` is not installed. Install it with `pip install mssql-python` "
+            "or disable `use_mssql_python` in the profile."
+        ) from _MSSQL_PYTHON_IMPORT_ERROR
+
+    try:
+        import mssql_python as imported_mssql_python
+    except ModuleNotFoundError as exc:
+        _MSSQL_PYTHON_IMPORT_ERROR = exc
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `mssql-python` backend was requested, but the optional dependency "
+            "`mssql-python` is not installed. Install it with `pip install mssql-python` "
+            "or disable `use_mssql_python` in the profile."
+        ) from exc
+
+    _MSSQL_PYTHON_MODULE = imported_mssql_python
+    return _MSSQL_PYTHON_MODULE
+
+
 def _require_azure_identity(authentication: str) -> None:
     if _AZURE_IDENTITY_IMPORT_ERROR is not None:
         raise dbt_common.exceptions.DbtRuntimeError(
@@ -98,15 +149,6 @@ def _require_azure_identity(authentication: str) -> None:
                 "azure-identity` or use a non-Azure authentication mode."
             ).format(authentication)
         ) from _AZURE_IDENTITY_IMPORT_ERROR
-
-
-def _require_mssql_python() -> None:
-    if _MSSQL_PYTHON_IMPORT_ERROR is not None:
-        raise dbt_common.exceptions.DbtRuntimeError(
-            "The `mssql-python` backend was requested, but the optional dependency "
-            "`mssql-python` is not installed. Install it with `pip install mssql-python` "
-            "or disable `use_mssql_python` in the profile."
-        ) from _MSSQL_PYTHON_IMPORT_ERROR
 
 
 def _requires_pyodbc_backend(credentials: SQLServerCredentials) -> bool:
@@ -509,18 +551,22 @@ def _get_backend_exceptions(
     credentials: SQLServerCredentials,
 ) -> Tuple[Type[Exception], ...]:
     if _use_mssql_python_backend(credentials):
-        _require_mssql_python()
-        retryable_exceptions = []
-        retryable_exceptions.append(getattr(MSSQL_PYTHON, "InternalError", Exception))
-        retryable_exceptions.append(getattr(MSSQL_PYTHON, "OperationalError", Exception))
+        mssql_python = _get_mssql_python()
+
+        retryable_exceptions = [
+            getattr(mssql_python, "InternalError", Exception),
+            getattr(mssql_python, "OperationalError", Exception),
+        ]
 
         if _requires_pyodbc_backend(credentials):
-            retryable_exceptions.append(getattr(MSSQL_PYTHON, "InterfaceError", Exception))
+            retryable_exceptions.append(getattr(mssql_python, "InterfaceError", Exception))
 
         return tuple(retryable_exceptions)
 
-    retryable_exceptions = [  # https://github.com/mkleehammer/pyodbc/wiki/Exceptions
-        pyodbc.InternalError,  # not used according to docs, but defined in PEP-249
+    pyodbc = _get_pyodbc()
+
+    retryable_exceptions = [
+        pyodbc.InternalError,
         pyodbc.OperationalError,
     ]
 
@@ -542,20 +588,25 @@ class SQLServerConnectionManager(SQLConnectionManager):
         try:
             yield
 
-        except pyodbc.DatabaseError as e:
-            logger.debug("Database error: {}".format(str(e)))
-
-            try:
-                self.release()
-            except pyodbc.Error:
-                logger.debug("Failed to release connection!")
-
-            raise dbt_common.exceptions.DbtDatabaseError(str(e).strip()) from e
-
         except Exception as e:
-            if _use_mssql_python_backend(self.get_thread_connection().credentials):
-                if MSSQL_PYTHON is not None and isinstance(
-                    e, getattr(MSSQL_PYTHON, "DatabaseError", tuple())
+            credentials = self.get_thread_connection().credentials
+
+            if not _use_mssql_python_backend(credentials):
+                pyodbc = _PYODBC_MODULE
+                if pyodbc is not None and isinstance(e, getattr(pyodbc, "DatabaseError", tuple())):
+                    logger.debug("Database error: {}".format(str(e)))
+
+                    try:
+                        self.release()
+                    except Exception:
+                        logger.debug("Failed to release connection!")
+
+                    raise dbt_common.exceptions.DbtDatabaseError(str(e).strip()) from e
+
+            if _use_mssql_python_backend(credentials):
+                mssql_python = _MSSQL_PYTHON_MODULE
+                if mssql_python is not None and isinstance(
+                    e, getattr(mssql_python, "DatabaseError", tuple())
                 ):
                     logger.debug("Database error: {}".format(str(e)))
 
@@ -583,12 +634,15 @@ class SQLServerConnectionManager(SQLConnectionManager):
         credentials = cls.get_credentials(connection.credentials)
 
         if _use_mssql_python_backend(credentials):
-            _require_mssql_python()
+            mssql_python = _get_mssql_python()
             _validate_mssql_python_requirements(credentials)
             con_str_concat = _build_mssql_python_connection_string(credentials)
+            pyodbc = None
         else:
+            pyodbc = _get_pyodbc()
             _validate_pyodbc_requirements(credentials)
             con_str_concat = _build_pyodbc_connection_string(credentials)
+            mssql_python = None
 
         con_str_display = _sanitize_connection_string_for_logging(con_str_concat)
         retryable_exceptions = _get_backend_exceptions(credentials)
@@ -597,8 +651,10 @@ class SQLServerConnectionManager(SQLConnectionManager):
             logger.debug(f"Using connection string: {con_str_display}")
 
             if _use_mssql_python_backend(credentials):
-                MSSQL_PYTHON.pooling(enabled=False)
-                handle = MSSQL_PYTHON.connect(
+                assert mssql_python is not None
+
+                mssql_python.pooling(enabled=False)
+                handle = mssql_python.connect(
                     con_str_concat,
                     autocommit=True,
                     timeout=credentials.login_timeout,
@@ -612,6 +668,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     )
                 logger.debug(f"Connected to db: {credentials.database}")
                 return handle
+
+            assert pyodbc is not None
 
             pyodbc.pooling = True
             attrs_before = get_pyodbc_attrs_before_credentials(credentials)

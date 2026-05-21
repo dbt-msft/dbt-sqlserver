@@ -1,11 +1,13 @@
+import builtins
+import importlib
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
 import pytest
 from azure.identity import AzureCliCredential
-from dbt.adapters.contracts.connection import Connection, ConnectionState
 from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.contracts.connection import Connection, ConnectionState
 from dbt.adapters.sqlserver import sqlserver_connections
 from dbt.adapters.sqlserver.sqlserver_connections import (
     SQLServerConnectionManager,
@@ -71,6 +73,85 @@ def test_bool_to_connection_string_arg(key: str, value: bool, expected: str) -> 
     assert bool_to_connection_string_arg(key, value) == expected
 
 
+def test_adapter_module_import_does_not_import_optional_backends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in {"pyodbc", "mssql_python"}:
+            raise AssertionError(f"unexpected import: {name}")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    importlib.reload(sqlserver_connections)
+
+    assert sqlserver_connections._PYODBC_MODULE is None
+    assert sqlserver_connections._MSSQL_PYTHON_MODULE is None
+
+
+def test_get_pyodbc_returns_cached_module(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_pyodbc = SimpleNamespace(name="cached-pyodbc")
+    monkeypatch.setattr(sqlserver_connections, "_PYODBC_MODULE", fake_pyodbc, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_PYODBC_IMPORT_ERROR", None, raising=False)
+
+    def fail_import(*args, **kwargs):
+        raise AssertionError("pyodbc import should not run when cached")
+
+    monkeypatch.setattr(builtins, "__import__", fail_import)
+
+    assert sqlserver_connections._get_pyodbc() is fake_pyodbc
+    assert sqlserver_connections._get_pyodbc() is fake_pyodbc
+
+
+def test_get_mssql_python_returns_cached_module(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_mssql_python = SimpleNamespace(name="cached-mssql-python")
+    monkeypatch.setattr(
+        sqlserver_connections, "_MSSQL_PYTHON_MODULE", fake_mssql_python, raising=False
+    )
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_IMPORT_ERROR", None, raising=False)
+
+    def fail_import(*args, **kwargs):
+        raise AssertionError("mssql_python import should not run when cached")
+
+    monkeypatch.setattr(builtins, "__import__", fail_import)
+
+    assert sqlserver_connections._get_mssql_python() is fake_mssql_python
+    assert sqlserver_connections._get_mssql_python() is fake_mssql_python
+
+
+def test_get_pyodbc_raises_only_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sqlserver_connections, "_PYODBC_MODULE", None, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_PYODBC_IMPORT_ERROR", None, raising=False)
+    original_import = builtins.__import__
+
+    def missing_pyodbc(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "pyodbc":
+            raise ModuleNotFoundError("No module named 'pyodbc'")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", missing_pyodbc)
+
+    with pytest.raises(DbtRuntimeError, match="pyodbc"):
+        sqlserver_connections._get_pyodbc()
+
+
+def test_get_mssql_python_raises_only_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_MODULE", None, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_IMPORT_ERROR", None, raising=False)
+    original_import = builtins.__import__
+
+    def missing_mssql_python(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "mssql_python":
+            raise ModuleNotFoundError("No module named 'mssql_python'")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", missing_mssql_python)
+
+    with pytest.raises(DbtRuntimeError, match="mssql-python"):
+        sqlserver_connections._get_mssql_python()
+
+
 def test_open_with_mssql_python_feature_flag_requires_optional_dependency(
     credentials: SQLServerCredentials, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -79,7 +160,7 @@ def test_open_with_mssql_python_feature_flag_requires_optional_dependency(
 
     connection = Connection(type="sqlserver", name="feature-flag-test", credentials=credentials)
 
-    monkeypatch.setattr(sqlserver_connections, "MSSQL_PYTHON", None, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_MODULE", None, raising=False)
     monkeypatch.setattr(
         sqlserver_connections,
         "_MSSQL_PYTHON_IMPORT_ERROR",
@@ -145,7 +226,7 @@ def test_open_with_mssql_python_feature_flag_builds_connection_without_odbc_driv
         connection.state = ConnectionState.OPEN
         return connection
 
-    monkeypatch.setattr(sqlserver_connections, "MSSQL_PYTHON", fake_module, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_MODULE", fake_module, raising=False)
     monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_IMPORT_ERROR", None, raising=False)
     monkeypatch.setattr(
         SQLServerConnectionManager,
@@ -193,7 +274,7 @@ def test_open_with_mssql_python_feature_flag_fails_fast_for_pyodbc_token_auth_al
         InternalError=type("InternalError", (Exception,), {}),
     )
 
-    monkeypatch.setattr(sqlserver_connections, "MSSQL_PYTHON", fake_module, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_MODULE", fake_module, raising=False)
     monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_IMPORT_ERROR", None, raising=False)
 
     connection = Connection(type="sqlserver", name="feature-flag-test", credentials=credentials)
@@ -204,11 +285,24 @@ def test_open_with_mssql_python_feature_flag_fails_fast_for_pyodbc_token_auth_al
 
 def test_open_with_pyodbc_path_still_requires_driver_when_feature_flag_disabled(
     credentials: SQLServerCredentials,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     credentials.driver = None
     credentials.use_mssql_python = False
 
+    fake_pyodbc = SimpleNamespace(
+        connect=lambda *args, **kwargs: None,
+        pooling=False,
+        OperationalError=type("OperationalError", (Exception,), {}),
+        InterfaceError=type("InterfaceError", (Exception,), {}),
+        InternalError=type("InternalError", (Exception,), {}),
+    )
+
+    monkeypatch.setattr(sqlserver_connections, "_PYODBC_MODULE", fake_pyodbc, raising=False)
+    monkeypatch.setattr(sqlserver_connections, "_PYODBC_IMPORT_ERROR", None, raising=False)
+
     connection = Connection(type="sqlserver", name="pyodbc-test", credentials=credentials)
 
+    monkeypatch.setattr(sqlserver_connections, "_MSSQL_PYTHON_MODULE", None, raising=False)
     with pytest.raises(DbtRuntimeError, match="driver"):
         SQLServerConnectionManager.open(connection)

@@ -117,6 +117,7 @@ your_profile:
 - When enabled, the adapter uses `mssql-python` instead of the legacy `pyodbc` connection path.
 - The legacy ODBC driver setting is only needed for profiles that continue to use the ODBC backend.
 - If you enable `use_mssql_python`, make sure the `mssql-python` package is installed in the environment running dbt.
+- On Debian/Ubuntu-based environments, `mssql-python` also requires `libltdl7`, `libkrb5-3`, and `libgssapi-krb5-2`.
 - This path is intended to fail fast when required dependencies or unsupported settings are missing.
 
 #### Testing
@@ -137,7 +138,7 @@ To exercise the `mssql-python` backend in tests, configure the profile or enviro
 use_mssql_python: true
 ```
 
-If you are testing in the devcontainer, ensure the `mssql-python` package is installed in that environment before running the unit or functional suite.
+If you are testing in the devcontainer, the backend prerequisites are installed automatically. Outside the devcontainer, install `mssql-python` and the system libraries above before running the unit or functional suite.
 
 
 

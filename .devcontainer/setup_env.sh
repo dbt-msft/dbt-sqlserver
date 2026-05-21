@@ -15,5 +15,6 @@ pip install uv
 [ -d .venv ] || uv venv
 source .venv/bin/activate
 
-uv sync --group dev --extra pyodbc
+# Install both backend extras so the devcontainer can exercise either connection path.
+uv sync --group dev --extra pyodbc --extra mssql
 pre-commit install

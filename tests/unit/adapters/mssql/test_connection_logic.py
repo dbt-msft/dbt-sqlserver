@@ -1,7 +1,9 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from dbt.adapters.sqlserver import sqlserver_connections
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
 
@@ -27,12 +29,22 @@ def test_connection_string_windows_login_with_port(base_credentials):
     connection.state = "closed"
     connection.credentials = base_credentials
 
-    with patch("dbt.adapters.sqlserver.sqlserver_connections.pyodbc") as mock_pyodbc:
-        mock_pyodbc.connect.return_value = MagicMock()
+    fake_pyodbc = SimpleNamespace(
+        connect=MagicMock(return_value=MagicMock()),
+        pooling=False,
+        InternalError=type("InternalError", (Exception,), {}),
+        OperationalError=type("OperationalError", (Exception,), {}),
+        InterfaceError=type("InterfaceError", (Exception,), {}),
+    )
+
+    with (
+        patch.object(sqlserver_connections, "_PYODBC_MODULE", fake_pyodbc),
+        patch.object(sqlserver_connections, "_PYODBC_IMPORT_ERROR", None),
+    ):
 
         SQLServerConnectionManager.open(connection)
 
-        args, _kwargs = mock_pyodbc.connect.call_args
+        args, _kwargs = fake_pyodbc.connect.call_args
         connection_string = args[0]
 
         assert "SERVER=servers.database.windows.net,1444" in connection_string
@@ -50,12 +62,22 @@ def test_connection_string_standard_login_with_port(base_credentials):
     connection.state = "closed"
     connection.credentials = base_credentials
 
-    with patch("dbt.adapters.sqlserver.sqlserver_connections.pyodbc") as mock_pyodbc:
-        mock_pyodbc.connect.return_value = MagicMock()
+    fake_pyodbc = SimpleNamespace(
+        connect=MagicMock(return_value=MagicMock()),
+        pooling=False,
+        InternalError=type("InternalError", (Exception,), {}),
+        OperationalError=type("OperationalError", (Exception,), {}),
+        InterfaceError=type("InterfaceError", (Exception,), {}),
+    )
+
+    with (
+        patch.object(sqlserver_connections, "_PYODBC_MODULE", fake_pyodbc),
+        patch.object(sqlserver_connections, "_PYODBC_IMPORT_ERROR", None),
+    ):
 
         SQLServerConnectionManager.open(connection)
 
-        args, _kwargs = mock_pyodbc.connect.call_args
+        args, _kwargs = fake_pyodbc.connect.call_args
         connection_string = args[0]
 
         assert "SERVER=servers.database.windows.net,1444" in connection_string
@@ -71,12 +93,22 @@ def test_connection_string_named_instance_no_port(base_credentials):
     connection.state = "closed"
     connection.credentials = base_credentials
 
-    with patch("dbt.adapters.sqlserver.sqlserver_connections.pyodbc") as mock_pyodbc:
-        mock_pyodbc.connect.return_value = MagicMock()
+    fake_pyodbc = SimpleNamespace(
+        connect=MagicMock(return_value=MagicMock()),
+        pooling=False,
+        InternalError=type("InternalError", (Exception,), {}),
+        OperationalError=type("OperationalError", (Exception,), {}),
+        InterfaceError=type("InterfaceError", (Exception,), {}),
+    )
+
+    with (
+        patch.object(sqlserver_connections, "_PYODBC_MODULE", fake_pyodbc),
+        patch.object(sqlserver_connections, "_PYODBC_IMPORT_ERROR", None),
+    ):
 
         SQLServerConnectionManager.open(connection)
 
-        args, _kwargs = mock_pyodbc.connect.call_args
+        args, _kwargs = fake_pyodbc.connect.call_args
         connection_string = args[0]
 
         assert "SERVER=myhost\\instance" in connection_string
