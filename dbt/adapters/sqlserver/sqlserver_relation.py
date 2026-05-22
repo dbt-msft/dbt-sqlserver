@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, Type
+from typing import ClassVar, Optional, Type
 
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -20,20 +20,26 @@ class SQLServerRelation(BaseRelation):
         default_factory=lambda: SQLServerIncludePolicy()
     )
     quote_policy: SQLServerQuotePolicy = field(default_factory=lambda: SQLServerQuotePolicy())
-    require_alias: bool = False
+    disable_empty_relation_aliases: ClassVar[bool] = True
 
     @classproperty
     def get_relation_type(cls) -> Type[SQLServerRelationType]:
         return SQLServerRelationType
+
+    def _render_limited_alias(self) -> str:
+        if self.disable_empty_relation_aliases:
+            return ""
+
+        return super()._render_limited_alias()
 
     def render_limited(self) -> str:
         rendered = self.render()
         if self.limit is None:
             return rendered
         elif self.limit == 0:
-            return f"(select * from {rendered} where 1=0) AS {self._render_limited_alias()}"
+            return f"(select * from {rendered} where 1=0){self._render_limited_alias()}"
         else:
-            return f"(select TOP {self.limit} * from {rendered}) AS {self._render_limited_alias()}"
+            return f"(select TOP {self.limit} * from {rendered}){self._render_limited_alias()}"
 
     def __post_init__(self):
         # Check for length of Redshift table/view names.
