@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.util import get_connection, run_dbt
 
 # flake8: noqa: E501
@@ -105,9 +106,7 @@ and index_id > 0
 )
 """
 
-index_count = (
-    base_validation
-    + """
+index_count = base_validation + """
 select
   index_type,
   count(*) index_count
@@ -117,11 +116,8 @@ WHERE
   schema_name='{schema_name}'
 group by index_type
 """
-)
 
-other_index_count = (
-    base_validation
-    + """
+other_index_count = base_validation + """
 SELECT
   *
 FROM
@@ -132,7 +128,6 @@ WHERE
   table_view='{schema_name}.{table_name}'
 
 """
-)
 
 
 class TestIndex:

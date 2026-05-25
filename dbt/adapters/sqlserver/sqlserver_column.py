@@ -1,7 +1,8 @@
 from typing import Any, ClassVar, Dict
 
-from dbt.adapters.base.column import Column
 from dbt_common.exceptions import DbtRuntimeError
+
+from dbt.adapters.base.column import Column
 
 
 class SQLServerColumn(Column):
@@ -96,3 +97,20 @@ class SQLServerColumn(Column):
         if not self.is_string() or not other_column.is_string():
             return False
         return other_column.string_size() > self.string_size()
+
+
+class SQLServerColumnNative(SQLServerColumn):
+    """STRING maps to VARCHAR(MAX) (matches dbt convention) and NCHAR / NVARCHAR
+    map to their unicode SQL Server types — fixing the legacy default where
+    they were silently aliased to non-unicode CHAR(1) / VARCHAR(8000).
+    NVARCHAR uses the maximum fixed-length form (4000 — the cap for fixed
+    NVARCHAR since unicode is two bytes per character), parallel to VARCHAR(8000).
+    Opt-in via the `dbt_sqlserver_use_native_string_types` behaviour flag;
+    intended to become the default in a future release."""
+
+    TYPE_LABELS: ClassVar[Dict[str, str]] = {
+        **SQLServerColumn.TYPE_LABELS,
+        "STRING": "VARCHAR(MAX)",
+        "NCHAR": "NCHAR(1)",
+        "NVARCHAR": "NVARCHAR(4000)",
+    }

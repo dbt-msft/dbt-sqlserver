@@ -1,5 +1,6 @@
 {% macro sqlserver__get_empty_subquery_sql(select_sql, select_sql_header=none) %}
-    {% if select_sql.strip().lower().startswith('with') %}
+    {%- set select_sql_stripped = modules.re.sub('(?s)/\\*.*?\\*/|--[^\n]*\n', '', select_sql) -%}
+    {% if select_sql_stripped.strip().lower().startswith('with') %}
         {{ select_sql }}
     {% else -%}
         select * from (

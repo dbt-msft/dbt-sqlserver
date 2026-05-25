@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests.adapter.utils import (
     fixture_cast_bool_to_text,
     fixture_dateadd,
@@ -363,12 +364,10 @@ class TestStringLiteral(BaseStringLiteral):
     pass
 
 
-@pytest.mark.skip(
-    reason="""
+@pytest.mark.skip(reason="""
                   comment here about why this is skipped.
                   https://github.com/dbt-labs/dbt-adapters/blob/f1987d4313cc94bac9906963dff1337ee0bffbc6/dbt/include/global_project/macros/adapters/timestamps.sql#L39
-                  """
-)
+                  """)
 class TestCurrentTimestamps(BaseCurrentTimestamps):
     pass
 

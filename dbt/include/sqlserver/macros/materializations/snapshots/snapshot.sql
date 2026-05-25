@@ -52,7 +52,15 @@
 
   {% else %}
 
-      {% set columns = config.get("snapshot_meta_column_names") or get_snapshot_table_column_names() %}
+      {% set columns = get_snapshot_table_column_names() %}
+      {% set meta = config.get("snapshot_meta_column_names") %}
+      {% if meta %}
+          {% if meta.dbt_valid_from %}{% do columns.update({"dbt_valid_from": meta.dbt_valid_from}) %}{% endif %}
+          {% if meta.dbt_valid_to %}{% do columns.update({"dbt_valid_to": meta.dbt_valid_to}) %}{% endif %}
+          {% if meta.dbt_scd_id %}{% do columns.update({"dbt_scd_id": meta.dbt_scd_id}) %}{% endif %}
+          {% if meta.dbt_updated_at %}{% do columns.update({"dbt_updated_at": meta.dbt_updated_at}) %}{% endif %}
+          {% if meta.dbt_is_deleted %}{% do columns.update({"dbt_is_deleted": meta.dbt_is_deleted}) %}{% endif %}
+      {% endif %}
       {{ adapter.valid_snapshot_target(target_relation, columns) }}
       {% set build_or_select_sql = snapshot_staging_table(strategy, temp_snapshot_relation, target_relation) %}
       {% set staging_table = build_snapshot_staging_table(strategy, temp_snapshot_relation, target_relation) %}

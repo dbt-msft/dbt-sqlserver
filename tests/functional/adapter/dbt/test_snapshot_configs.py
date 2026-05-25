@@ -2,6 +2,7 @@
 import datetime
 
 import pytest
+
 from dbt.tests.util import (
     check_relations_equal,
     get_manifest,
@@ -778,3 +779,41 @@ class BaseSnapshotMultiUniqueKey:
 
 class TestBaseSnapshotMultiUniqueKey(BaseSnapshotMultiUniqueKey):
     pass
+
+
+snapshot_partial_column_names_yml = """
+snapshots:
+  - name: snapshot_actual
+    config:
+      strategy: timestamp
+      updated_at: updated_at
+      snapshot_meta_column_names:
+          dbt_valid_to: EffectiveEndDate
+          dbt_valid_from: EffectiveStartDate
+"""
+
+
+class TestSnapshotPartialColumnNames:
+    """Regression test for #639: partial snapshot_meta_column_names fails on second run."""
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {"snapshot.sql": snapshot_actual_sql}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "snapshots.yml": snapshot_partial_column_names_yml,
+            "ref_snapshot.sql": ref_snapshot_sql,
+        }
+
+    def test_partial_column_names_second_run(self, project):
+        project.run_sql(create_seed_sql)
+        project.run_sql(seed_insert_sql)
+
+        results = run_dbt(["snapshot"])
+        assert len(results) == 1
+
+        # Second run should succeed — this is where #639 failed
+        results = run_dbt(["snapshot"])
+        assert len(results) == 1

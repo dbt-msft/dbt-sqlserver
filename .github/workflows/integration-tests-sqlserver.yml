@@ -11,13 +11,9 @@ on:  # yamllint disable-line rule:truthy
       - 'tests/functional/**'
       - 'devops/**'
       - 'docker-compose.yml'
-      - 'dev_requirements.txt'
       - '**/*.lock'
       - '.locks/**'
       - 'pyproject.toml'
-      - 'setup.cfg'
-      - 'setup.py'
-      - 'MANIFEST.in'
       - 'pytest.ini'
       - '.github/workflows/integration-tests-sqlserver.yml'
   pull_request:
@@ -29,13 +25,9 @@ on:  # yamllint disable-line rule:truthy
       - 'tests/functional/**'
       - 'devops/**'
       - 'docker-compose.yml'
-      - 'dev_requirements.txt'
       - '**/*.lock'
       - '.locks/**'
       - 'pyproject.toml'
-      - 'setup.cfg'
-      - 'setup.py'
-      - 'MANIFEST.in'
       - 'pytest.ini'
       - '.github/workflows/integration-tests-sqlserver.yml'
   schedule:
@@ -44,9 +36,10 @@ on:  # yamllint disable-line rule:truthy
 jobs:
   integration-tests-sql-server:
     name: Regular
+    if: github.actor != 'dependabot[bot]'
     strategy:
       matrix:
-        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python_version: ["3.10", "3.11", "3.12", "3.13"]
         msodbc_version: ["17", "18"]
         sqlserver_version: ["2017", "2019", "2022"]
         collation: ["SQL_Latin1_General_CP1_CS_AS", "SQL_Latin1_General_CP1_CI_AS"]
@@ -70,7 +63,7 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: uv pip install --system -r dev_requirements.txt
+        run: uv pip install --system -e ".[pyodbc]" --group dev
 
       - name: Run functional tests
         run: pytest -ra -v tests/functional --profile "ci_sql_server"

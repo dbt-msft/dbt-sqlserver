@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from dbt.cli.main import dbtRunner
 
 freshness_via_metadata_schema_yml = """version: 2

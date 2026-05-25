@@ -1,16 +1,16 @@
 from dataclasses import dataclass, field
 from typing import Optional, Type
 
-from dbt.adapters.base.relation import BaseRelation, EventTimeFilter
-from dbt.adapters.utils import classproperty
 from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.base.relation import BaseRelation, EventTimeFilter
 from dbt.adapters.sqlserver.relation_configs import (
     MAX_CHARACTERS_IN_IDENTIFIER,
     SQLServerIncludePolicy,
     SQLServerQuotePolicy,
     SQLServerRelationType,
 )
+from dbt.adapters.utils import classproperty
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -58,19 +58,19 @@ class SQLServerRelation(BaseRelation):
         if event_time_filter.start and event_time_filter.end:
             filter = (
                 f"{event_time_filter.field_name} >="
-                f" cast('{event_time_filter.start}' as datetimeoffset)"
+                f" cast('{event_time_filter.start}' as datetime2)"
                 f" and {event_time_filter.field_name} <"
-                f" cast('{event_time_filter.end}' as datetimeoffset)"
+                f" cast('{event_time_filter.end}' as datetime2)"
             )
         elif event_time_filter.start:
             filter = (
                 f"{event_time_filter.field_name} >="
-                f" cast('{event_time_filter.start}' as datetimeoffset)"
+                f" cast('{event_time_filter.start}' as datetime2)"
             )
         elif event_time_filter.end:
             filter = (
                 f"{event_time_filter.field_name} <"
-                f" cast('{event_time_filter.end}' as datetimeoffset)"
+                f" cast('{event_time_filter.end}' as datetime2)"
             )
 
         return filter

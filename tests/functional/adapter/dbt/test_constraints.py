@@ -1,6 +1,7 @@
 import re
 
 import pytest
+
 from dbt.tests.adapter.constraints.fixtures import (
     model_data_type_schema_yml,
     my_incremental_model_sql,
