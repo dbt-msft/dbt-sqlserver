@@ -24,16 +24,14 @@ class TestSimpleMaterializations(BaseSimpleMaterializations):
 
         # Write the initial model without the value column
         with open(model_path, "w") as f:
-            f.write(
-                """
+            f.write("""
                 {{ config(materialized='view') }}
                 select
                 1 as id
                 {% if var('include_value_column', false) %}
                 , 2 as value
                 {% endif %}
-            """
-            )
+            """)
 
         # First run to create the view without the extra column
         results = run_dbt(["run", "-m", "view_model_exists"])

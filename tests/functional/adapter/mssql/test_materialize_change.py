@@ -91,10 +91,8 @@ class TestTabletoViewPreservesGrants(BaseTableView):
         self.create_object(
             project, f"SELECT * INTO {project.test_schema}.mat_object FROM ({model_sql}) t"
         )
-        project.run_sql(
-            f"""grant select, insert, update, delete
-                on object::{project.test_schema}.mat_object to public"""
-        )
+        project.run_sql(f"""grant select, insert, update, delete
+                on object::{project.test_schema}.mat_object to public""")
 
         run_dbt(["run"])
 
