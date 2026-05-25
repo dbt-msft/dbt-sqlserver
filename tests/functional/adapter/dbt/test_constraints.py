@@ -472,7 +472,7 @@ class BaseConstraintsRuntimeDdlEnforcement:
     @pytest.fixture(scope="class")
     def expected_sql(self):
         return """
-      EXEC(' CREATE OR ALTER VIEW <model_identifier> AS -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day; ') EXEC(' CREATE TABLE <model_identifier> ( id int not null , color varchar(100), date_day varchar(100) ) INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier>  ') EXEC('DROP VIEW IF EXISTS <model_identifier>
+      EXEC(' CREATE OR ALTER VIEW <model_identifier> AS -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day; ') EXEC(' CREATE TABLE <model_identifier> ( id int not null , color varchar(100), date_day varchar(100) ) INSERT INTO <model_identifier> WITH (TABLOCK) ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier>  ') EXEC('DROP VIEW IF EXISTS <model_identifier>
         """
 
     # EXEC('DROP view IF EXISTS <model_identifier>
@@ -592,7 +592,7 @@ class BaseModelConstraintsRuntimeEnforcement:
     @pytest.fixture(scope="class")
     def expected_sql(self):
         return """
-      EXEC(' CREATE OR ALTER VIEW <model_identifier> AS -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day; ') EXEC(' CREATE TABLE <model_identifier> ( id int not null , color varchar(100), date_day varchar(100) ) INSERT INTO <model_identifier> ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier>  ') EXEC('DROP VIEW IF EXISTS <model_identifier>
+      EXEC(' CREATE OR ALTER VIEW <model_identifier> AS -- depends_on: <foreign_key_model_identifier> select ''blue'' as color, 1 as id, ''2019-01-01'' as date_day; ') EXEC(' CREATE TABLE <model_identifier> ( id int not null , color varchar(100), date_day varchar(100) ) INSERT INTO <model_identifier> WITH (TABLOCK) ( [id], [color], [date_day] ) SELECT [id], [color], [date_day] FROM <model_identifier>  ') EXEC('DROP VIEW IF EXISTS <model_identifier>
         """
 
     def test__model_constraints_ddl(self, project, expected_sql):
