@@ -27,7 +27,9 @@ _DEFAULT_GENERATE_SCHEMA_NAME = """
 
 _SQLSERVER_GENERATE_SCHEMA_NAME = """
 {% macro sqlserver__generate_schema_name(custom_schema_name, node) -%}
-    {%- if var('dbt_sqlserver_use_default_schema_concat', false) -%}
+    {%- if adapter.behavior.dbt_sqlserver_use_default_schema_concat -%}
+        {{ default__generate_schema_name(custom_schema_name, node) }}
+    {%- elif var('dbt_sqlserver_use_default_schema_concat', false) -%}
         {{ default__generate_schema_name(custom_schema_name, node) }}
     {%- else -%}
         {%- set default_schema = target.schema -%}
@@ -41,8 +43,29 @@ _SQLSERVER_GENERATE_SCHEMA_NAME = """
 """
 
 
-def _render(custom_schema_name, target_schema="my_target_schema", use_default_concat=False):
+def _render(
+    custom_schema_name,
+    target_schema="my_target_schema",
+    use_default_concat=False,
+    use_legacy_var=False,
+):
     """Render sqlserver__generate_schema_name with a minimal Jinja2 env."""
+
+    class BehaviorFlag:
+        def __init__(self, enabled):
+            self.enabled = enabled
+
+        def __bool__(self):
+            return self.enabled
+
+        @property
+        def no_warn(self):
+            return self.enabled
+
+    class Behavior:
+        def __init__(self, enabled):
+            self.dbt_sqlserver_use_default_schema_concat = BehaviorFlag(enabled)
+
     env = jinja2.Environment(
         trim_blocks=True,
         lstrip_blocks=True,
@@ -61,10 +84,12 @@ def _render(custom_schema_name, target_schema="my_target_schema", use_default_co
         "node": None,
         "target": type("Target", (), {"schema": target_schema})(),
         "var": lambda key, default=None: (
-            use_default_concat if key == "dbt_sqlserver_use_default_schema_concat" else default
+            use_legacy_var if key == "dbt_sqlserver_use_default_schema_concat" else default
         ),
+        "adapter": type("Adapter", (), {"behavior": Behavior(use_default_concat)})(),
     }
-    return tmpl.render(**ctx).strip()
+    result = tmpl.render(**ctx).strip()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -96,23 +121,18 @@ class TestLegacyBehaviour:
 
     def test_flag_absent_defaults_to_legacy(self):
         """var() returning its default (False) gives the same legacy result."""
-        env = jinja2.Environment(
-            trim_blocks=True, lstrip_blocks=True, extensions=["jinja2.ext.do"]
+        assert _render("sales", target_schema="prod", use_default_concat=False) == "sales"
+
+    def test_vars_enable_default_concat_when_flag_absent(self):
+        assert (
+            _render(
+                "reporting",
+                target_schema="dbt_dev",
+                use_default_concat=False,
+                use_legacy_var=True,
+            )
+            == "dbt_dev_reporting"
         )
-        tmpl = env.from_string(
-            _DEFAULT_GENERATE_SCHEMA_NAME
-            + "\n"
-            + _SQLSERVER_GENERATE_SCHEMA_NAME
-            + "\n"
-            + "{{ sqlserver__generate_schema_name(custom_schema_name, node) }}"
-        )
-        result = tmpl.render(
-            custom_schema_name="sales",
-            node=None,
-            target=type("Target", (), {"schema": "prod"})(),
-            var=lambda key, default=None: default,  # always returns the default (False)
-        ).strip()
-        assert result == "sales"
 
 
 # ---------------------------------------------------------------------------
@@ -165,5 +185,4 @@ class TestDefaultConcatBehaviour:
     ],
 )
 def test_schema_name_generation(custom_schema_name, target_schema, use_default_concat, expected):
-    result = _render(custom_schema_name, target_schema, use_default_concat)
-    assert result == expected
+    assert _render(custom_schema_name, target_schema, use_default_concat) == expected
