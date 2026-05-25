@@ -68,11 +68,13 @@ See [the changelog](CHANGELOG.md)
   **Example usage in `dbt_project.yml`:**
 
   ```yaml
-  vars:
+  flags:
     dbt_sqlserver_use_default_schema_concat: true  # Enable standard schema concatenation
   ```
 
-  > **Note:** If you want to permanently customise schema generation and avoid any future deprecation of this flag, override the `sqlserver__generate_schema_name` macro directly in your project.
+  This adapter also supports the same setting via `vars:` for backwards compatibility, so either method works in the current release.
+
+  > **Note:** If you want to permanently customise schema generation and avoid any future changes, override the `sqlserver__generate_schema_name` macro directly in your project instead.
 
 
 
