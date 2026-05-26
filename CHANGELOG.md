@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.9.2
+
+- Fixes flag for custom schema changes.
+
 ### v1.9.1
 
 - Removes the dependency on `dbt-fabric`.
