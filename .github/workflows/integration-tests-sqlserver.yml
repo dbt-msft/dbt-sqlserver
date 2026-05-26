@@ -58,10 +58,8 @@ jobs:
         include:
           - backend: pyodbc
             install_extra: pyodbc
-            use_mssql_python: "False"
           - backend: mssql-python
             install_extra: mssql
-            use_mssql_python: "True"
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
@@ -96,4 +94,4 @@ jobs:
           DBT_TEST_USER_2: DBT_TEST_USER_2
           DBT_TEST_USER_3: DBT_TEST_USER_3
           SQLSERVER_TEST_DRIVER: "ODBC Driver ${{ matrix.msodbc_version }} for SQL Server"
-          SQLSERVER_TEST_USE_MSSQL_PYTHON: ${{ matrix.use_mssql_python }}
+          SQLSERVER_TEST_BACKEND: ${{ matrix.backend }}

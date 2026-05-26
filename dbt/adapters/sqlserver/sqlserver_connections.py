@@ -4,9 +4,9 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain, repeat
-from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Protocol, Tuple, Type, Union, cast
 
-import agate
+import agate  # type: ignore[import]
 import dbt_common.exceptions
 from dbt_common.clients.agate_helper import empty_table
 from dbt_common.events.contextvars import get_node_info
@@ -18,46 +18,113 @@ from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.events.types import AdapterEventDebug, ConnectionUsed, SQLQuery, SQLQueryStatus
 from dbt.adapters.sql.connections import SQLConnectionManager
 from dbt.adapters.sqlserver import __version__
-from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
+from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerBackend, SQLServerCredentials
 
-_PYODBC_MODULE: Optional[Any] = None
+
+class PyodbcModuleProtocol(Protocol):
+    InternalError: type[Exception]
+    OperationalError: type[Exception]
+    InterfaceError: type[Exception]
+    DatabaseError: type[Exception]
+    pooling: bool
+
+    def connect(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class MssqlPythonModuleProtocol(Protocol):
+    InternalError: type[Exception]
+    OperationalError: type[Exception]
+    InterfaceError: type[Exception]
+    DatabaseError: type[Exception]
+
+    def connect(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class AccessTokenProtocol(Protocol):
+    token: str
+    expires_on: int
+
+
+class TokenCredentialProtocol(Protocol):
+    def get_token(self, *scopes: Optional[str], **kwargs: Any) -> AccessTokenProtocol: ...
+
+
+class CredentialFactory(Protocol):
+    def __call__(self, *args: Any, **kwargs: Any) -> TokenCredentialProtocol: ...
+
+
+class AzureIdentityModuleProtocol(Protocol):
+    AzureCliCredential: CredentialFactory
+    DefaultAzureCredential: CredentialFactory
+    EnvironmentCredential: CredentialFactory
+    ManagedIdentityCredential: CredentialFactory
+    ClientSecretCredential: CredentialFactory
+
+
+class AzureCredentialsModuleProtocol(Protocol):
+    AccessToken: Type[AccessTokenProtocol]
+
+
+_PYODBC_MODULE: Optional[PyodbcModuleProtocol] = None
 _PYODBC_IMPORT_ERROR: Optional[ModuleNotFoundError] = None
 
-_MSSQL_PYTHON_MODULE: Optional[Any] = None
+_MSSQL_PYTHON_MODULE: Optional[MssqlPythonModuleProtocol] = None
 _MSSQL_PYTHON_IMPORT_ERROR: Optional[ModuleNotFoundError] = None
 
-try:
-    from azure.core.credentials import AccessToken
-except ModuleNotFoundError:
+_AZURE_CREDENTIALS_MODULE: Optional[AzureCredentialsModuleProtocol] = None
+_AZURE_CREDENTIALS_IMPORT_ERROR: Optional[ModuleNotFoundError] = None
 
-    @dataclass
-    class AccessToken:  # type: ignore[no-redef]
-        token: str
-        expires_on: int
+_AZURE_IDENTITY_MODULE: Optional[AzureIdentityModuleProtocol] = None
+_AZURE_IDENTITY_IMPORT_ERROR: Optional[ModuleNotFoundError] = None
 
 
-try:
-    from azure.identity import (
-        AzureCliCredential,
-        ClientSecretCredential,
-        DefaultAzureCredential,
-        EnvironmentCredential,
-        ManagedIdentityCredential,
-    )
-
-    _AZURE_IDENTITY_IMPORT_ERROR = None
-except ModuleNotFoundError as exc:
-    AzureCliCredential = None
-    ClientSecretCredential = None
-    DefaultAzureCredential = None
-    EnvironmentCredential = None
-    ManagedIdentityCredential = None
-    _AZURE_IDENTITY_IMPORT_ERROR = exc
+@dataclass
+class AccessToken:  # type: ignore[no-redef]
+    token: str
+    expires_on: int
 
 
-_TOKEN: Optional[AccessToken] = None
+def _get_azure_access_token_class() -> Type[Any]:
+    global _AZURE_CREDENTIALS_MODULE, _AZURE_CREDENTIALS_IMPORT_ERROR
+
+    if _AZURE_CREDENTIALS_MODULE is not None:
+        return _AZURE_CREDENTIALS_MODULE.AccessToken
+
+    if _AZURE_CREDENTIALS_IMPORT_ERROR is not None:
+        return AccessToken
+
+    try:
+        import azure.core.credentials as azure_credentials  # type: ignore[import]
+    except ModuleNotFoundError as exc:
+        _AZURE_CREDENTIALS_IMPORT_ERROR = exc
+        return AccessToken
+
+    _AZURE_CREDENTIALS_MODULE = cast(AzureCredentialsModuleProtocol, azure_credentials)
+    return azure_credentials.AccessToken
+
+
+def _get_azure_identity_module() -> AzureIdentityModuleProtocol:
+    global _AZURE_IDENTITY_MODULE, _AZURE_IDENTITY_IMPORT_ERROR
+
+    if _AZURE_IDENTITY_MODULE is not None:
+        return _AZURE_IDENTITY_MODULE
+
+    if _AZURE_IDENTITY_IMPORT_ERROR is not None:
+        raise _missing_azure_identity_error() from _AZURE_IDENTITY_IMPORT_ERROR
+
+    try:
+        import azure.identity as azure_identity  # type: ignore[import]
+    except ModuleNotFoundError as exc:
+        _AZURE_IDENTITY_IMPORT_ERROR = exc
+        raise _missing_azure_identity_error() from exc
+
+    _AZURE_IDENTITY_MODULE = cast(AzureIdentityModuleProtocol, azure_identity)
+    return _AZURE_IDENTITY_MODULE
+
+
+_TOKEN: Optional[AccessTokenProtocol] = None
 AZURE_CREDENTIAL_SCOPE = "https://database.windows.net//.default"
-AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials, Optional[str]], AccessToken]
+AZURE_AUTH_FUNCTION_TYPE = Callable[[SQLServerCredentials, Optional[str]], AccessTokenProtocol]
 
 logger = AdapterLogger("sqlserver")
 
@@ -79,85 +146,156 @@ datatypes = {
 
 MSSQL_PYTHON_UNSUPPORTED_AUTHENTICATIONS = {
     "cli",
-    "auto",
     "environment",
-    "serviceprincipal",
     "activedirectoryaccesstoken",
 }
 
 
-def _get_pyodbc() -> Any:
+def _auth_key(authentication: Optional[str]) -> str:
+    if authentication is None:
+        return ""
+    return authentication.replace("_", "").replace(" ", "").lower()
+
+
+def _normalize_mssql_python_authentication(authentication: Optional[str]) -> Optional[str]:
+    authentication = authentication or ""
+    key = _auth_key(authentication)
+    if not key:
+        return None
+
+    if key in {"msi", "activedirectorymsi"}:
+        return "ActiveDirectoryMSI"
+
+    if key in {"activedirectoryintegrated", "adintegrated"}:
+        return "ActiveDirectoryIntegrated"
+
+    if key in {"serviceprincipal", "activedirectoryserviceprincipal"}:
+        return "ActiveDirectoryServicePrincipal"
+
+    if key in {"auto", "default", "activedirectorydefault"}:
+        return "ActiveDirectoryDefault"
+
+    if key == "activedirectorypassword":
+        return "ActiveDirectoryPassword"
+
+    if key == "activedirectoryinteractive":
+        return "ActiveDirectoryInteractive"
+
+    if key == "activedirectorydevicecode":
+        return "ActiveDirectoryDeviceCode"
+
+    return authentication.strip()
+
+
+def _missing_pyodbc_error() -> dbt_common.exceptions.DbtRuntimeError:
+    return dbt_common.exceptions.DbtRuntimeError(
+        "The legacy `pyodbc` backend was requested, but the optional dependency "
+        "`pyodbc` is not installed. Install it with `pip install pyodbc` "
+        "or set `backend: mssql-python` in the profile."
+    )
+
+
+def _get_pyodbc() -> PyodbcModuleProtocol:
     global _PYODBC_MODULE, _PYODBC_IMPORT_ERROR
 
     if _PYODBC_MODULE is not None:
         return _PYODBC_MODULE
 
     if _PYODBC_IMPORT_ERROR is not None:
-        raise dbt_common.exceptions.DbtRuntimeError(
-            "The legacy `pyodbc` backend was requested, but the optional dependency "
-            "`pyodbc` is not installed. Install it with `pip install pyodbc` "
-            "or enable `use_mssql_python` in the profile."
-        ) from _PYODBC_IMPORT_ERROR
+        raise _missing_pyodbc_error() from _PYODBC_IMPORT_ERROR
 
     try:
-        import pyodbc as imported_pyodbc
+        import pyodbc as imported_pyodbc  # type: ignore[import]
     except ModuleNotFoundError as exc:
         _PYODBC_IMPORT_ERROR = exc
-        raise dbt_common.exceptions.DbtRuntimeError(
-            "The legacy `pyodbc` backend was requested, but the optional dependency "
-            "`pyodbc` is not installed. Install it with `pip install pyodbc` "
-            "or enable `use_mssql_python` in the profile."
-        ) from exc
+        raise _missing_pyodbc_error() from exc
 
-    _PYODBC_MODULE = imported_pyodbc
+    _PYODBC_MODULE = cast(PyodbcModuleProtocol, imported_pyodbc)
     return _PYODBC_MODULE
 
 
-def _get_mssql_python() -> Any:
+def _missing_mssql_python_error() -> dbt_common.exceptions.DbtRuntimeError:
+    return dbt_common.exceptions.DbtRuntimeError(
+        "The `mssql-python` backend was requested, but the optional dependency "
+        "`mssql-python` is not installed. Install it with `pip install mssql-python` "
+        "or set `backend: pyodbc` in the profile."
+    )
+
+
+def _missing_azure_identity_error() -> dbt_common.exceptions.DbtRuntimeError:
+    return dbt_common.exceptions.DbtRuntimeError(
+        "Azure authentication requires the optional dependency 'azure-identity'. "
+        "Install it with `pip install azure-identity` or use a non-Azure "
+        "authentication mode."
+    )
+
+
+def _get_mssql_python() -> MssqlPythonModuleProtocol:
     global _MSSQL_PYTHON_MODULE, _MSSQL_PYTHON_IMPORT_ERROR
 
     if _MSSQL_PYTHON_MODULE is not None:
         return _MSSQL_PYTHON_MODULE
 
     if _MSSQL_PYTHON_IMPORT_ERROR is not None:
-        raise dbt_common.exceptions.DbtRuntimeError(
-            "The `mssql-python` backend was requested, but the optional dependency "
-            "`mssql-python` is not installed. Install it with `pip install mssql-python` "
-            "or disable `use_mssql_python` in the profile."
-        ) from _MSSQL_PYTHON_IMPORT_ERROR
+        raise _missing_mssql_python_error() from _MSSQL_PYTHON_IMPORT_ERROR
 
     try:
-        import mssql_python as imported_mssql_python
+        import mssql_python as imported_mssql_python  # type: ignore[import]
     except ModuleNotFoundError as exc:
         _MSSQL_PYTHON_IMPORT_ERROR = exc
-        raise dbt_common.exceptions.DbtRuntimeError(
-            "The `mssql-python` backend was requested, but the optional dependency "
-            "`mssql-python` is not installed. Install it with `pip install mssql-python` "
-            "or disable `use_mssql_python` in the profile."
-        ) from exc
+        raise _missing_mssql_python_error() from exc
 
-    _MSSQL_PYTHON_MODULE = imported_mssql_python
+    _MSSQL_PYTHON_MODULE = cast(MssqlPythonModuleProtocol, imported_mssql_python)
     return _MSSQL_PYTHON_MODULE
 
 
-def _require_azure_identity(authentication: str) -> None:
-    if _AZURE_IDENTITY_IMPORT_ERROR is not None:
-        raise dbt_common.exceptions.DbtRuntimeError(
-            (
-                "Azure authentication '{}' requires the optional "
-                "dependency 'azure-identity'. Install it with `pip install "
-                "azure-identity` or use a non-Azure authentication mode."
-            ).format(authentication)
-        ) from _AZURE_IDENTITY_IMPORT_ERROR
+def _normalize_authentication(authentication: Optional[str]) -> str:
+    if authentication is None:
+        return "sql"
+
+    normalized = authentication.strip().lower()
+    if normalized == "activedirectorymsi":
+        return "msi"
+    return normalized
 
 
-def _requires_pyodbc_backend(credentials: SQLServerCredentials) -> bool:
-    authentication = str(credentials.authentication or "sql").lower().strip()
+def _uses_pyodbc_token_authentication(credentials: SQLServerCredentials) -> bool:
+    authentication = _normalize_authentication(credentials.authentication)
     return authentication in AZURE_AUTH_FUNCTIONS or authentication == "activedirectoryaccesstoken"
 
 
-def _use_mssql_python_backend(credentials: SQLServerCredentials) -> bool:
-    return bool(getattr(credentials, "use_mssql_python", False))
+def _is_mssql_python_backend(credentials: SQLServerCredentials) -> bool:
+    return credentials.backend == SQLServerBackend.mssql_python
+
+
+def _validate_connection_requirements(credentials: SQLServerCredentials) -> None:
+    for name in ("host", "database", "schema"):
+        value = getattr(credentials, name)
+        if value is None or not str(value).strip():
+            raise dbt_common.exceptions.DbtRuntimeError(
+                f"The `{name}` profile field is required for SQL Server connections."
+            )
+
+    if credentials.windows_login:
+        normalized = _normalize_mssql_python_authentication(credentials.authentication)
+        if normalized is not None and _auth_key(normalized).startswith("activedirectory"):
+            raise dbt_common.exceptions.DbtRuntimeError(
+                "windows_login/trusted_connection cannot be combined with ActiveDirectory "
+                "authentication. Remove `authentication` or disable `windows_login`."
+            )
+    elif credentials.authentication is None or not str(credentials.authentication).strip():
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `authentication` profile field is required for SQL Server connections."
+        )
+
+    if credentials.encrypt is None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `encrypt` profile field is required for SQL Server connections."
+        )
+    if credentials.trust_cert is None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `trust_cert` profile field is required for SQL Server connections."
+        )
 
 
 def _validate_pyodbc_requirements(credentials: SQLServerCredentials) -> None:
@@ -169,14 +307,14 @@ def _validate_pyodbc_requirements(credentials: SQLServerCredentials) -> None:
 
 
 def _validate_mssql_python_requirements(credentials: SQLServerCredentials) -> None:
-    authentication = str(credentials.authentication or "sql").strip()
-    authentication_lower = authentication.lower()
+    authentication = _normalize_mssql_python_authentication(credentials.authentication)
+    authentication_key = _auth_key(authentication)
 
-    if authentication_lower in MSSQL_PYTHON_UNSUPPORTED_AUTHENTICATIONS:
+    if authentication_key in MSSQL_PYTHON_UNSUPPORTED_AUTHENTICATIONS:
         raise dbt_common.exceptions.DbtRuntimeError(
             "Authentication '{}' is currently only supported by the pyodbc backend "
             "in this adapter. "
-            "Disable `use_mssql_python` or use a connection-string-supported "
+            "Use `backend: pyodbc` or use a connection-string-supported "
             "authentication mode such as "
             "`sql`, `ActiveDirectoryPassword`, `ActiveDirectoryInteractive`, "
             "`ActiveDirectoryIntegrated`, "
@@ -203,13 +341,13 @@ def convert_bytes_to_mswindows_byte_string(value: bytes) -> bytes:
     return struct.pack("<i", len(encoded_bytes)) + encoded_bytes
 
 
-def convert_access_token_to_mswindows_byte_string(token: AccessToken) -> bytes:
+def convert_access_token_to_mswindows_byte_string(token: AccessTokenProtocol) -> bytes:
     """
     Convert an access token to a Microsoft windows byte string.
 
     Parameters
     ----------
-    token : AccessToken
+    token : AccessTokenProtocol
         The token.
 
     Returns
@@ -223,7 +361,7 @@ def convert_access_token_to_mswindows_byte_string(token: AccessToken) -> bytes:
 
 def get_cli_access_token(
     credentials: SQLServerCredentials, scope: Optional[str] = AZURE_CREDENTIAL_SCOPE
-) -> AccessToken:
+) -> AccessTokenProtocol:
     """
     Get an Azure access token using the CLI credentials
 
@@ -244,8 +382,8 @@ def get_cli_access_token(
         Access token.
     """
     _ = credentials
-    _require_azure_identity("cli")
-    token = AzureCliCredential().get_token(
+    azure_identity = _get_azure_identity_module()
+    token = azure_identity.AzureCliCredential().get_token(
         scope, timeout=getattr(credentials, "login_timeout", None)
     )
     return token
@@ -253,7 +391,7 @@ def get_cli_access_token(
 
 def get_auto_access_token(
     credentials: SQLServerCredentials, scope: Optional[str] = AZURE_CREDENTIAL_SCOPE
-) -> AccessToken:
+) -> AccessTokenProtocol:
     """
     Get an Azure access token automatically through azure-identity
 
@@ -267,8 +405,8 @@ def get_auto_access_token(
     out : AccessToken
         The access token.
     """
-    _require_azure_identity("auto")
-    token = DefaultAzureCredential().get_token(
+    azure_identity = _get_azure_identity_module()
+    token = azure_identity.DefaultAzureCredential().get_token(
         scope, timeout=getattr(credentials, "login_timeout", None)
     )
     return token
@@ -276,7 +414,7 @@ def get_auto_access_token(
 
 def get_environment_access_token(
     credentials: SQLServerCredentials, scope: Optional[str] = AZURE_CREDENTIAL_SCOPE
-) -> AccessToken:
+) -> AccessTokenProtocol:
     """
     Get an Azure access token by reading environment variables
 
@@ -290,8 +428,8 @@ def get_environment_access_token(
     out : AccessToken
         The access token.
     """
-    _require_azure_identity("environment")
-    token = EnvironmentCredential().get_token(
+    azure_identity = _get_azure_identity_module()
+    token = azure_identity.EnvironmentCredential().get_token(
         scope, timeout=getattr(credentials, "login_timeout", None)
     )
     return token
@@ -299,7 +437,7 @@ def get_environment_access_token(
 
 def get_msi_access_token(
     credentials: SQLServerCredentials, scope: Optional[str] = AZURE_CREDENTIAL_SCOPE
-) -> AccessToken:
+) -> AccessTokenProtocol:
     """
     Get an Azure access token from the system's managed identity
 
@@ -314,14 +452,14 @@ def get_msi_access_token(
         The access token.
     """
     _ = credentials
-    _require_azure_identity("msi")
-    token = ManagedIdentityCredential().get_token(scope)
+    azure_identity = _get_azure_identity_module()
+    token = azure_identity.ManagedIdentityCredential().get_token(scope)
     return token
 
 
 def get_sp_access_token(
     credentials: SQLServerCredentials, scope: Optional[str] = AZURE_CREDENTIAL_SCOPE
-) -> AccessToken:
+) -> AccessTokenProtocol:
     """
     Get an Azure access token using the SP credentials.
 
@@ -336,8 +474,8 @@ def get_sp_access_token(
         The access token.
     """
     _ = scope
-    _require_azure_identity("serviceprincipal")
-    token = ClientSecretCredential(
+    azure_identity = _get_azure_identity_module()
+    token = azure_identity.ClientSecretCredential(
         str(credentials.tenant_id),
         str(credentials.client_id),
         str(credentials.client_secret),
@@ -372,15 +510,16 @@ def get_pyodbc_attrs_before_credentials(credentials: SQLServerCredentials) -> Di
     sql_copt_ss_access_token = 1256  # ODBC constant for access token
     MAX_REMAINING_TIME = 300
 
-    if credentials.authentication.lower() in AZURE_AUTH_FUNCTIONS:
+    authentication = _normalize_authentication(credentials.authentication)
+
+    if authentication in AZURE_AUTH_FUNCTIONS:
         if not _TOKEN or (_TOKEN.expires_on - time.time() < MAX_REMAINING_TIME):
-            _TOKEN = AZURE_AUTH_FUNCTIONS[credentials.authentication.lower()](
-                credentials, AZURE_CREDENTIAL_SCOPE
-            )
+            _TOKEN = AZURE_AUTH_FUNCTIONS[authentication](credentials, AZURE_CREDENTIAL_SCOPE)
+        assert _TOKEN is not None
         token_bytes = convert_access_token_to_mswindows_byte_string(_TOKEN)
         return {sql_copt_ss_access_token: token_bytes}
 
-    if credentials.authentication.lower() == "activedirectoryaccesstoken":
+    if authentication == "activedirectoryaccesstoken":
         if credentials.access_token is None or credentials.access_token_expires_on is None:
             raise ValueError(
                 (
@@ -388,7 +527,7 @@ def get_pyodbc_attrs_before_credentials(credentials: SQLServerCredentials) -> Di
                     "required for ActiveDirectoryAccessToken authentication."
                 )
             )
-        _TOKEN = AccessToken(
+        _TOKEN = _get_azure_access_token_class()(
             token=credentials.access_token,
             expires_on=int(
                 time.time() + 4500.0
@@ -396,6 +535,7 @@ def get_pyodbc_attrs_before_credentials(credentials: SQLServerCredentials) -> Di
                 else credentials.access_token_expires_on
             ),
         )
+        assert _TOKEN is not None
         return {sql_copt_ss_access_token: convert_access_token_to_mswindows_byte_string(_TOKEN)}
 
     return {}
@@ -418,6 +558,13 @@ def bool_to_connection_string_arg(key: str, value: bool) -> str:
         The connection string argument.
     """
     return f"{key}={'Yes' if value else 'No'}"
+
+
+def _escape_connection_string_value(value: Optional[str]) -> str:
+    text = "" if value is None else str(value)
+    if text.startswith(" ") or text.endswith(" ") or any(ch in text for ch in ";{}"):
+        return "{" + text.replace("}", "}}") + "}"
+    return text
 
 
 def byte_array_to_datetime(value: bytes) -> dt.datetime:
@@ -455,54 +602,123 @@ def byte_array_to_datetime(value: bytes) -> dt.datetime:
 
 
 def _build_server_arg(credentials: SQLServerCredentials) -> str:
-    if "\\" in credentials.host:
+    host = credentials.host or ""
+    if "\\" in host:
         # If there is a backslash \ in the host name, the host is a
         # SQL Server named instance. In this case then port number has to be omitted.
-        return credentials.host
-    return f"{credentials.host},{credentials.port}"
+        return host
+    return f"{host},{credentials.port}"
+
+
+def _format_connection_string_value(value: Optional[str], mssql_python_backend: bool) -> str:
+    if mssql_python_backend:
+        return _escape_connection_string_value(value)
+    return "{" + ("" if value is None else value) + "}"
 
 
 def _build_common_connection_string_parts(
     credentials: SQLServerCredentials,
+    mssql_python_backend: bool,
 ) -> list[str]:
     con_str = [f"SERVER={_build_server_arg(credentials)}"]
     con_str.append(f"Database={credentials.database}")
 
-    assert credentials.authentication is not None
+    authentication = credentials.authentication or ""
+    if mssql_python_backend:
+        authentication = _normalize_mssql_python_authentication(authentication) or ""
 
-    if (
-        "ActiveDirectory" in credentials.authentication
-        and credentials.authentication != "ActiveDirectoryAccessToken"
-    ):
-        con_str.append(f"Authentication={credentials.authentication}")
+    if not authentication.strip() and not credentials.windows_login:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `authentication` profile field is required for SQL Server connections."
+        )
 
-        if credentials.authentication == "ActiveDirectoryPassword":
-            con_str.append(f"UID={{{credentials.UID}}}")
-            con_str.append(f"PWD={{{credentials.PWD}}}")
-        if credentials.authentication == "ActiveDirectoryServicePrincipal":
-            con_str.append(f"UID={{{credentials.client_id}}}")
-            con_str.append(f"PWD={{{credentials.client_secret}}}")
-        elif credentials.authentication == "ActiveDirectoryInteractive":
-            con_str.append(f"UID={{{credentials.UID}}}")
+    if "ActiveDirectory" in authentication and authentication != "ActiveDirectoryAccessToken":
+        con_str.append(f"Authentication={authentication}")
+
+        if authentication == "ActiveDirectoryPassword":
+            con_str.append(
+                f"UID={_format_connection_string_value(credentials.UID, mssql_python_backend)}"
+            )
+            con_str.append(
+                f"PWD={_format_connection_string_value(credentials.PWD, mssql_python_backend)}"
+            )
+        elif authentication == "ActiveDirectoryServicePrincipal":
+            con_str.append(
+                "UID="
+                + _format_connection_string_value(
+                    credentials.client_id,
+                    mssql_python_backend,
+                )
+            )
+            con_str.append(
+                "PWD="
+                + _format_connection_string_value(
+                    credentials.client_secret,
+                    mssql_python_backend,
+                )
+            )
+        elif authentication == "ActiveDirectoryInteractive":
+            con_str.append(
+                "UID=%s"
+                % _format_connection_string_value(
+                    credentials.UID,
+                    mssql_python_backend,
+                )
+            )
+        elif authentication == "ActiveDirectoryMSI":
+            if credentials.PWD:
+                raise dbt_common.exceptions.DbtRuntimeError(
+                    "password is not valid with ActiveDirectoryMSI for the mssql-python backend."
+                )
+            if credentials.UID:
+                con_str.append(
+                    f"UID={_format_connection_string_value(credentials.UID, mssql_python_backend)}"
+                )
+        elif authentication == "ActiveDirectoryIntegrated":
+            if credentials.PWD:
+                raise dbt_common.exceptions.DbtRuntimeError(
+                    "password is not valid with ActiveDirectoryIntegrated"
+                    " for the mssql-python backend."
+                )
 
     elif credentials.windows_login:
-        con_str.append("trusted_connection=Yes")
-    elif credentials.authentication == "sql":
-        con_str.append(f"UID={{{credentials.UID}}}")
-        con_str.append(f"PWD={{{credentials.PWD}}}")
+        if mssql_python_backend and (credentials.UID or credentials.PWD):
+            raise dbt_common.exceptions.DbtRuntimeError(
+                "user/password are not valid with windows_login/trusted_connection "
+                "for the mssql-python backend."
+            )
+        con_str.append("Trusted_Connection=yes")
+    elif authentication == "sql":
+        con_str.append(
+            f"UID={_format_connection_string_value(credentials.UID, mssql_python_backend)}"
+        )
+        con_str.append(
+            f"PWD={_format_connection_string_value(credentials.PWD, mssql_python_backend)}"
+        )
 
-    assert credentials.encrypt is not None
-    assert credentials.trust_cert is not None
+    if credentials.encrypt is None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `encrypt` profile field is required for SQL Server connections."
+        )
+    if credentials.trust_cert is None:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The `trust_cert` profile field is required for SQL Server connections."
+        )
 
     con_str.append(bool_to_connection_string_arg("encrypt", credentials.encrypt))
     con_str.append(bool_to_connection_string_arg("TrustServerCertificate", credentials.trust_cert))
+
+    if not mssql_python_backend:
+        # Reserved keyword 'app' is controlled by the driver and cannot be specified by the user.
+        application_name = f"dbt-{credentials.type}/{__version__.version}"
+        con_str.append(f"APP={application_name}")
 
     return con_str
 
 
 def _build_pyodbc_connection_string(credentials: SQLServerCredentials) -> str:
     con_str = [f"DRIVER={{{credentials.driver}}}"]
-    con_str.extend(_build_common_connection_string_parts(credentials))
+    con_str.extend(_build_common_connection_string_parts(credentials, mssql_python_backend=False))
     con_str.append("Pooling=true")
 
     if credentials.trace_flag:
@@ -510,27 +726,14 @@ def _build_pyodbc_connection_string(credentials: SQLServerCredentials) -> str:
     else:
         con_str.append("SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF")
 
-    plugin_version = __version__.version
-    application_name = f"dbt-{credentials.type}/{plugin_version}"
-    con_str.append(f"APP={application_name}")
-
-    try:
-        con_str.append("ConnectRetryCount=3")
-        con_str.append("ConnectRetryInterval=10")
-    except Exception as e:
-        logger.debug(
-            (
-                "Retry count should be a integer value. "
-                "Skipping retries in the connection string."
-            ),
-            str(e),
-        )
+    con_str.append("ConnectRetryCount=3")
+    con_str.append("ConnectRetryInterval=10")
 
     return ";".join(con_str)
 
 
 def _build_mssql_python_connection_string(credentials: SQLServerCredentials) -> str:
-    con_str = _build_common_connection_string_parts(credentials)
+    con_str = _build_common_connection_string_parts(credentials, mssql_python_backend=True)
     con_str.append("ConnectRetryCount=3")
     con_str.append("ConnectRetryInterval=10")
     return ";".join(con_str)
@@ -547,10 +750,50 @@ def _sanitize_connection_string_for_logging(connection_string: str) -> str:
     return ";".join(sanitized)
 
 
+def _connect_mssql_python(
+    mssql_python: MssqlPythonModuleProtocol,
+    credentials: SQLServerCredentials,
+    connection_string: str,
+) -> Any:
+    handle = mssql_python.connect(
+        connection_string,
+        autocommit=True,
+        timeout=credentials.login_timeout,
+    )
+    try:
+        handle.timeout = credentials.query_timeout
+    except Exception:
+        logger.debug(
+            "The mssql-python connection object does not expose a mutable `timeout` "
+            "attribute; continuing without setting query timeout on the handle."
+        )
+    logger.debug(f"Connected to db: {credentials.database}")
+    return handle
+
+
+def _connect_pyodbc(
+    pyodbc: PyodbcModuleProtocol,
+    credentials: SQLServerCredentials,
+    connection_string: str,
+) -> Any:
+    pyodbc.pooling = True
+    attrs_before = get_pyodbc_attrs_before_credentials(credentials)
+
+    handle = pyodbc.connect(
+        connection_string,
+        attrs_before=attrs_before,
+        autocommit=True,
+        timeout=credentials.login_timeout,
+    )
+    handle.timeout = credentials.query_timeout
+    logger.debug(f"Connected to db: {credentials.database}")
+    return handle
+
+
 def _get_backend_exceptions(
     credentials: SQLServerCredentials,
 ) -> Tuple[Type[Exception], ...]:
-    if _use_mssql_python_backend(credentials):
+    if _is_mssql_python_backend(credentials):
         mssql_python = _get_mssql_python()
 
         retryable_exceptions = [
@@ -558,7 +801,7 @@ def _get_backend_exceptions(
             getattr(mssql_python, "OperationalError", Exception),
         ]
 
-        if _requires_pyodbc_backend(credentials):
+        if _uses_pyodbc_token_authentication(credentials):
             retryable_exceptions.append(getattr(mssql_python, "InterfaceError", Exception))
 
         return tuple(retryable_exceptions)
@@ -570,7 +813,7 @@ def _get_backend_exceptions(
         pyodbc.OperationalError,
     ]
 
-    if credentials.authentication.lower() in AZURE_AUTH_FUNCTIONS:
+    if _uses_pyodbc_token_authentication(credentials):
         retryable_exceptions.append(pyodbc.InterfaceError)
 
     return tuple(retryable_exceptions)
@@ -591,7 +834,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
         except Exception as e:
             credentials = self.get_thread_connection().credentials
 
-            if not _use_mssql_python_backend(credentials):
+            if not _is_mssql_python_backend(credentials):
                 pyodbc = _PYODBC_MODULE
                 if pyodbc is not None and isinstance(e, getattr(pyodbc, "DatabaseError", tuple())):
                     logger.debug("Database error: {}".format(str(e)))
@@ -603,7 +846,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
                     raise dbt_common.exceptions.DbtDatabaseError(str(e).strip()) from e
 
-            if _use_mssql_python_backend(credentials):
+            if _is_mssql_python_backend(credentials):
                 mssql_python = _MSSQL_PYTHON_MODULE
                 if mssql_python is not None and isinstance(
                     e, getattr(mssql_python, "DatabaseError", tuple())
@@ -633,56 +876,33 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         credentials = cls.get_credentials(connection.credentials)
 
-        if _use_mssql_python_backend(credentials):
+        _validate_connection_requirements(credentials)
+
+        if _is_mssql_python_backend(credentials):
             mssql_python = _get_mssql_python()
             _validate_mssql_python_requirements(credentials)
             con_str_concat = _build_mssql_python_connection_string(credentials)
-            pyodbc = None
+
+            def connect() -> Any:
+                logger.debug(
+                    "Using connection string: %s"
+                    % _sanitize_connection_string_for_logging(con_str_concat)
+                )
+                return _connect_mssql_python(mssql_python, credentials, con_str_concat)
+
         else:
             pyodbc = _get_pyodbc()
             _validate_pyodbc_requirements(credentials)
             con_str_concat = _build_pyodbc_connection_string(credentials)
-            mssql_python = None
 
-        con_str_display = _sanitize_connection_string_for_logging(con_str_concat)
-        retryable_exceptions = _get_backend_exceptions(credentials)
-
-        def connect():
-            logger.debug(f"Using connection string: {con_str_display}")
-
-            if _use_mssql_python_backend(credentials):
-                assert mssql_python is not None
-
-                mssql_python.pooling(enabled=False)
-                handle = mssql_python.connect(
-                    con_str_concat,
-                    autocommit=True,
-                    timeout=credentials.login_timeout,
+            def connect() -> Any:
+                logger.debug(
+                    "Using connection string: %s"
+                    % _sanitize_connection_string_for_logging(con_str_concat)
                 )
-                try:
-                    handle.timeout = credentials.query_timeout
-                except Exception:
-                    logger.debug(
-                        "The mssql-python connection object does not expose a mutable `timeout` "
-                        "attribute; continuing without setting query timeout on the handle."
-                    )
-                logger.debug(f"Connected to db: {credentials.database}")
-                return handle
+                return _connect_pyodbc(pyodbc, credentials, con_str_concat)
 
-            assert pyodbc is not None
-
-            pyodbc.pooling = True
-            attrs_before = get_pyodbc_attrs_before_credentials(credentials)
-
-            handle = pyodbc.connect(
-                con_str_concat,
-                attrs_before=attrs_before,
-                autocommit=True,
-                timeout=credentials.login_timeout,
-            )
-            handle.timeout = credentials.query_timeout
-            logger.debug(f"Connected to db: {credentials.database}")
-            return handle
+        retryable_exceptions = _get_backend_exceptions(credentials)
 
         conn = cls.retry_connection(
             connection,
@@ -831,7 +1051,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
         )
 
     @classmethod
-    def data_type_code_to_name(cls, type_code: Union[str, str]) -> str:
+    def data_type_code_to_name(cls, type_code: Union[int, str]) -> str:
         data_type = str(type_code)[
             str(type_code).index("'") + 1 : str(type_code).rindex("'")  # noqa: E203
         ]

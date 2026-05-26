@@ -16,7 +16,7 @@ Join us on the [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W) to ask q
 
 ## Installation
 
-The base package does not bundle any connection driver. Install the adapter together with the backend extra that matches your setup.
+The default install uses the `pyodbc` backend and includes the `pyodbc` dependency. If you want the optional `mssql-python` backend instead, install the `mssql` extra.
 
 Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-sqlserver?label=latest%20stable&logo=pypi)  
 Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/dbt-msft/dbt-sqlserver?include_prereleases&label=latest%20pre-release&logo=pypi)
@@ -24,6 +24,12 @@ Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shield
 ### `pyodbc` backend
 
 The legacy and currently default ODBC path uses `pyodbc` and the Microsoft ODBC driver.
+
+```shell
+pip install -U dbt-sqlserver
+```
+
+You should migrate to use an explicit extra for incoming deprecation, the following is equivalent:
 
 ```shell
 pip install -U "dbt-sqlserver[pyodbc]"
@@ -74,7 +80,7 @@ your_profile:
       password: your-password
       encrypt: true
       trust_cert: false
-      use_mssql_python: true  # <-- enables this backend
+      backend: mssql-python  # <-- enables this backend
 ```
 
 ## Changelog
@@ -83,9 +89,10 @@ See [the changelog](CHANGELOG.md)
 
 ## Configuration
 
-### `use_mssql_python`
+### `backend`
 
-*(default: `false`)* Set to `true` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required driver is not installed.
+*(default: `pyodbc`)* Set to `mssql-python` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required driver is not installed.
+
 
 ### `dbt_sqlserver_use_default_schema_concat`
 

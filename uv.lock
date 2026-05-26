@@ -577,6 +577,7 @@ dependencies = [
     { name = "dbt-adapters" },
     { name = "dbt-common" },
     { name = "dbt-core" },
+    { name = "pyodbc" },
 ]
 
 [package.optional-dependencies]
@@ -619,7 +620,8 @@ requires-dist = [
     { name = "dbt-adapters", specifier = ">=1.15.2,<2.0" },
     { name = "dbt-common", specifier = ">=1.22.0,<2.0" },
     { name = "dbt-core", specifier = ">=1.10.0,<1.11.0" },
-    { name = "mssql-python", marker = "extra == 'mssql'", specifier = ">=1.1.0" },
+    { name = "mssql-python", marker = "extra == 'mssql'", specifier = ">=1.4.0" },
+    { name = "pyodbc", specifier = ">=5.2.0" },
     { name = "pyodbc", marker = "extra == 'pyodbc'", specifier = ">=5.2.0" },
 ]
 provides-extras = ["azure", "pyodbc", "mssql"]
@@ -633,7 +635,7 @@ dev = [
     { name = "flaky" },
     { name = "freezegun", specifier = ">=1.5.0,<2.0" },
     { name = "ipdb" },
-    { name = "mssql-python", specifier = ">=1.1.0" },
+    { name = "mssql-python", specifier = ">=1.4.0" },
     { name = "mypy", specifier = "==1.11.2" },
     { name = "pre-commit" },
     { name = "pyodbc", specifier = ">=5.2.0" },

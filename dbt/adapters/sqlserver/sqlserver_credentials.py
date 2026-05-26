@@ -1,15 +1,24 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union, cast
+
+import dbt_common.exceptions
+from dbt_common.dataclass_schema import StrEnum
 
 from dbt.adapters.contracts.connection import Credentials
 
 
+class SQLServerBackend(StrEnum):
+    pyodbc = "pyodbc"
+    mssql_python = "mssql-python"
+
+
 @dataclass
 class SQLServerCredentials(Credentials):
+    backend: Union[SQLServerBackend, str] = SQLServerBackend.pyodbc
     driver: Optional[str] = None
-    host: str = ""
-    database: str = ""
-    schema: str = ""
+    host: Optional[str] = None
+    database: Optional[str] = None
+    schema: Optional[str] = None
     UID: Optional[str] = None
     PWD: Optional[str] = None
     port: Optional[int] = 1433
@@ -27,7 +36,6 @@ class SQLServerCredentials(Credentials):
     schema_authorization: Optional[str] = None
     login_timeout: Optional[int] = 0
     query_timeout: Optional[int] = 0
-    use_mssql_python: bool = False
 
     _ALIASES = {
         "user": "UID",
@@ -42,13 +50,26 @@ class SQLServerCredentials(Credentials):
         "TrustServerCertificate": "trust_cert",
         "schema_auth": "schema_authorization",
         "SQL_ATTR_TRACE": "trace_flag",
-        "mssql_python": "use_mssql_python",
-        "use_mssql_python_backend": "use_mssql_python",
     }
+
+    def __post_init__(self) -> None:
+        if isinstance(self.backend, str):
+            try:
+                self.backend = SQLServerBackend(self.backend)
+            except ValueError as exc:
+                raise dbt_common.exceptions.DbtRuntimeError(
+                    "Unsupported sqlserver backend: '{}'. "
+                    "Supported backends are 'pyodbc' and 'mssql-python'.".format(self.backend)
+                ) from exc
+
+        self.backend = cast(SQLServerBackend, self.backend)
 
     @property
     def type(self):
         return "sqlserver"
+
+    def _effective_backend(self) -> SQLServerBackend:
+        return cast(SQLServerBackend, self.backend)
 
     def _connection_keys(self):
         if self.windows_login is True:
@@ -70,10 +91,10 @@ class SQLServerCredentials(Credentials):
             "trace_flag",
             "encrypt",
             "trust_cert",
-            "use_mssql_python",
+            "backend",
         )
 
-        if not self.use_mssql_python:
+        if self._effective_backend() == SQLServerBackend.pyodbc:
             keys = ("driver",) + keys
 
         return keys
