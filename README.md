@@ -29,7 +29,7 @@ The legacy and currently default ODBC path uses `pyodbc` and the Microsoft ODBC 
 pip install -U dbt-sqlserver
 ```
 
-You should migrate to use an explicit extra for incoming deprecation, the following is equivalent:
+You should migrate to using an explicit extra in preparation for deprecation; the following is equivalent:
 
 ```shell
 pip install -U "dbt-sqlserver[pyodbc]"
@@ -137,7 +137,7 @@ vars:
 
 ### `backend`
 
-*(default: `pyodbc`)* Set to `mssql-python` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required driver is not installed.
+*(default: `pyodbc`)* Set to `mssql-python` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required backend package (Python dependency), such as `pyodbc` or `mssql-python`, is not installed.
 
 ## Contributing
 

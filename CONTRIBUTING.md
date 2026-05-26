@@ -59,7 +59,7 @@ This will use Docker Compose to spin up a local instance of SQL Server. Docker C
 Next, tell our tests how they should connect to the local instance by creating a file called `test.env` in the root of the project.
 You can use the provided `test.env.sample` as a base and if you started the server with `make server`, then this matches the instance running on your local machine.
 
-If you are testing the optional `mssql-python` backend, also enable its profile setting in `test.env` so the adapter selects that implementation instead of the legacy driver-based one.
+If you are testing the optional `mssql-python` backend, also enable its backend setting in `test.env` so the adapter selects that implementation instead of the legacy driver-based one.
 
 ```shell
 cp test.env.sample test.env

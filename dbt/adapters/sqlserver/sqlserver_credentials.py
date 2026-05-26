@@ -5,16 +5,36 @@ import dbt_common.exceptions
 from dbt_common.dataclass_schema import StrEnum
 
 from dbt.adapters.contracts.connection import Credentials
+from dbt.adapters.sqlserver.sqlserver_auth import normalize_authentication_key
+from dbt.adapters.sqlserver.sqlserver_constants import (
+    MSSQL_AUTH_ACTIVE_DIRECTORY_SERVICE_PRINCIPAL,
+    SQLSERVER_BACKEND_MSSQL_PYTHON,
+    SQLSERVER_BACKEND_PYODBC,
+    SUPPORTED_SQLSERVER_BACKENDS_MESSAGE,
+)
+from dbt.adapters.sqlserver.sqlserver_helpers import normalize_query_timeout
 
 
 class SQLServerBackend(StrEnum):
-    pyodbc = "pyodbc"
-    mssql_python = "mssql-python"
+    pyodbc = SQLSERVER_BACKEND_PYODBC
+    mssql_python = SQLSERVER_BACKEND_MSSQL_PYTHON
+
+
+DEFAULT_SQLSERVER_BACKEND = cast(SQLServerBackend, SQLServerBackend.pyodbc)
+
+
+def coerce_backend(backend: Union[SQLServerBackend, str]) -> SQLServerBackend:
+    try:
+        return SQLServerBackend(backend)
+    except ValueError as exc:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            f"Unsupported sqlserver backend: '{backend}'. {SUPPORTED_SQLSERVER_BACKENDS_MESSAGE}"
+        ) from exc
 
 
 @dataclass
 class SQLServerCredentials(Credentials):
-    backend: Union[SQLServerBackend, str] = SQLServerBackend.pyodbc
+    backend: SQLServerBackend = DEFAULT_SQLSERVER_BACKEND
     driver: Optional[str] = None
     host: Optional[str] = None
     database: Optional[str] = None
@@ -53,30 +73,21 @@ class SQLServerCredentials(Credentials):
     }
 
     def __post_init__(self) -> None:
-        if isinstance(self.backend, str):
-            try:
-                self.backend = SQLServerBackend(self.backend)
-            except ValueError as exc:
-                raise dbt_common.exceptions.DbtRuntimeError(
-                    "Unsupported sqlserver backend: '{}'. "
-                    "Supported backends are 'pyodbc' and 'mssql-python'.".format(self.backend)
-                ) from exc
-
-        self.backend = cast(SQLServerBackend, self.backend)
+        self.backend = coerce_backend(self.backend)
+        self.query_timeout = normalize_query_timeout(self.query_timeout)
 
     @property
     def type(self):
         return "sqlserver"
 
-    def _effective_backend(self) -> SQLServerBackend:
-        return cast(SQLServerBackend, self.backend)
-
     def _connection_keys(self):
-        if self.windows_login is True:
-            self.authentication = "Windows Login"
+        """Return the credential fields that distinguish reusable connections."""
 
-        if self.authentication.lower().strip() == "serviceprincipal":
-            self.authentication = "ActiveDirectoryServicePrincipal"
+        authentication = self.authentication
+        if self.windows_login is True:
+            authentication = "Windows Login"
+        elif normalize_authentication_key(authentication) == "serviceprincipal":
+            authentication = MSSQL_AUTH_ACTIVE_DIRECTORY_SERVICE_PRINCIPAL
 
         keys = (
             "server",
@@ -85,6 +96,7 @@ class SQLServerCredentials(Credentials):
             "schema",
             "UID",
             "authentication",
+            "windows_login",
             "retries",
             "login_timeout",
             "query_timeout",
@@ -94,7 +106,10 @@ class SQLServerCredentials(Credentials):
             "backend",
         )
 
-        if self._effective_backend() == SQLServerBackend.pyodbc:
+        if self.backend == SQLServerBackend.pyodbc:
+            # Only the pyodbc path uses an ODBC driver name. The mssql-python
+            # backend ignores `driver`, so excluding it keeps connection reuse
+            # aligned with the actual connection string that backend produces.
             keys = ("driver",) + keys
 
         return keys
