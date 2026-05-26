@@ -89,9 +89,28 @@ See [the changelog](CHANGELOG.md)
 
 ## Configuration
 
-### `backend`
+- `dbt_sqlserver_use_default_schema_concat`: *(default: `false`)* Controls schema name generation when a [custom schema](https://docs.getdbt.com/docs/build/custom-schemas) is set on a model.
 
-*(default: `pyodbc`)* Set to `mssql-python` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required driver is not installed.
+  | Flag value | `custom_schema_name` | Result |
+  |---|---|---|
+  | `false` (default, legacy) | *(none)* | `target.schema` |
+  | `false` (default, legacy) | `"reporting"` | `reporting` |
+  | `true` (dbt-core standard) | *(none)* | `target.schema` |
+  | `true` (dbt-core standard) | `"reporting"` | `target.schema_reporting` |
+
+  When `false` (the default), the adapter uses its legacy behaviour: `custom_schema_name` is used **as-is** without being prefixed by `target.schema`.  
+  When `true`, the adapter delegates to dbt-core's `default__generate_schema_name`, which concatenates `target.schema` + `_` + `custom_schema_name`.
+
+  **Example usage in `dbt_project.yml`:**
+
+  ```yaml
+  flags:
+    dbt_sqlserver_use_default_schema_concat: true  # Enable standard schema concatenation
+  ```
+
+  This adapter also supports the same setting via `vars:` for backwards compatibility, so either method works in the current release.
+
+  > **Note:** If you want to permanently customise schema generation and avoid any future changes, override the `sqlserver__generate_schema_name` macro directly in your project instead.
 
 
 ### `dbt_sqlserver_use_default_schema_concat`
@@ -115,6 +134,10 @@ vars:
 ```
 
 > **Note:** To permanently customise schema generation without a flag dependency, override the `sqlserver__generate_schema_name` macro directly in your project.
+
+### `backend`
+
+*(default: `pyodbc`)* Set to `mssql-python` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required driver is not installed.
 
 ## Contributing
 

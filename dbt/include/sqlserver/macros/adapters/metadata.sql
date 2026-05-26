@@ -90,6 +90,20 @@
   {{ return(load_result('get_relation_without_caching').table) }}
 {% endmacro %}
 
+{% macro get_view_definition_sql(relation) %}
+    {{ return(adapter.dispatch('get_view_definition_sql')(relation)) }}
+{% endmacro %}
+
+{% macro sqlserver__get_view_definition_sql(relation) -%}
+  {{ get_use_database_sql(relation.database) }}
+  select object_definition(v.object_id) as definition
+  from sys.views as v {{ information_schema_hints() }}
+  inner join sys.schemas as s {{ information_schema_hints() }}
+    on v.schema_id = s.schema_id
+  where upper(s.name) = upper('{{ relation.schema }}')
+    and upper(v.name) = upper('{{ relation.identifier }}')
+{% endmacro %}
+
 {% macro sqlserver__get_relation_last_modified(information_schema, relations) -%}
   {%- call statement('last_modified', fetch_result=True) -%}
         select

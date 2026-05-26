@@ -48,16 +48,19 @@
       - `target.schema`              when no custom schema is set
       - `custom_schema_name` (trim)  when a custom schema is set
 
-    When the `dbt_sqlserver_use_default_schema_concat` variable is set to true,
+    When the `dbt_sqlserver_use_default_schema_concat` flag is enabled,
     this delegates to dbt-core's `default__generate_schema_name`, which concatenates
     `target.schema` + `_` + `custom_schema_name`.
 
-    Set the flag in dbt_project.yml:
-      vars:
+    Set the flag in `dbt_project.yml`:
+      flags:
         dbt_sqlserver_use_default_schema_concat: true
+
 #}
 {% macro sqlserver__generate_schema_name(custom_schema_name, node) -%}
-    {%- if var('dbt_sqlserver_use_default_schema_concat', false) -%}
+    {%- if adapter.behavior.dbt_sqlserver_use_default_schema_concat -%}
+        {{ default__generate_schema_name(custom_schema_name, node) }}
+    {%- elif var('dbt_sqlserver_use_default_schema_concat', false) -%}
         {{ default__generate_schema_name(custom_schema_name, node) }}
     {%- else -%}
         {%- set default_schema = target.schema -%}

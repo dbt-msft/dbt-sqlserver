@@ -9,6 +9,7 @@ The tag typically comes from ``$GITHUB_REF_NAME`` and may be prefixed with
 
 Exits 0 on match, 1 on mismatch, 2 on usage error.
 """
+
 from __future__ import annotations
 
 import re
