@@ -14,6 +14,7 @@ from dbt.adapters.sqlserver.sqlserver_connections import (
     _build_mssql_python_connection_string,
     _normalize_mssql_python_authentication,
     _validate_mssql_python_requirements,
+    _validate_pyodbc_requirements,
     bool_to_connection_string_arg,
     get_pyodbc_attrs_before_credentials,
 )
@@ -66,6 +67,26 @@ def test_get_pyodbc_attrs_before_cli_auth_requires_azure_identity(
 
     with pytest.raises(DbtRuntimeError, match="requires the optional dependency 'azure-identity'"):
         get_pyodbc_attrs_before_credentials(credentials)
+
+
+@pytest.mark.parametrize(
+    "driver",
+    [None, "", "   "],
+)
+def test_validate_pyodbc_requirements_rejects_blank_driver(
+    driver: str | None,
+) -> None:
+    credentials = SQLServerCredentials(
+        driver=driver,
+        host="fake.sql.sqlserver.net",
+        database="dbt",
+        schema="sqlserver",
+    )
+
+    with pytest.raises(
+        DbtRuntimeError, match="The pyodbc backend requires a SQL Server ODBC driver name"
+    ):
+        _validate_pyodbc_requirements(credentials)
 
 
 @pytest.mark.parametrize(

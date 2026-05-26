@@ -299,7 +299,7 @@ def _validate_connection_requirements(credentials: SQLServerCredentials) -> None
 
 
 def _validate_pyodbc_requirements(credentials: SQLServerCredentials) -> None:
-    if not credentials.driver:
+    if credentials.driver is None or not credentials.driver.strip():
         raise dbt_common.exceptions.DbtRuntimeError(
             "The pyodbc backend requires a SQL Server ODBC driver name "
             "in the `driver` profile field."
