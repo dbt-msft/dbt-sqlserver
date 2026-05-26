@@ -49,11 +49,14 @@ def is_azure(request: FixtureRequest) -> bool:
 
 
 def _all_profiles_base():
+    backend = os.getenv("SQLSERVER_TEST_BACKEND", "pyodbc")
+
     return {
         "type": "sqlserver",
         "driver": os.getenv("SQLSERVER_TEST_DRIVER", "ODBC Driver 18 for SQL Server"),
         "port": int(os.getenv("SQLSERVER_TEST_PORT", "1433")),
         "retries": 2,
+        "backend": backend,
     }
 
 
