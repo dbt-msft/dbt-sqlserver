@@ -92,9 +92,10 @@
 {% endmacro %}
 
 {% macro sqlserver__get_view_definition_sql(relation) -%}
+  {%- set object_name = "quotename('" ~ relation.schema ~ "') + '.' + quotename('" ~ relation.identifier ~ "')" -%}
   {{ get_use_database_sql(relation.database) }}
-  select object_definition(object_id('[{{ relation.schema }}].[{{ relation.identifier }}]', 'V')) as definition
-  where object_id('[{{ relation.schema }}].[{{ relation.identifier }}]', 'V') is not null
+  select object_definition(object_id({{ object_name }}, 'V')) as definition
+  where object_id({{ object_name }}, 'V') is not null
 {% endmacro %}
 
 {% macro sqlserver__get_relation_last_modified(information_schema, relations) -%}
