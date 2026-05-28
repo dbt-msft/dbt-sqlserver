@@ -431,8 +431,7 @@ class TestApplyLabelBackwardCompat:
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {
-            "verify_apply_label.sql": """
+        return {"verify_apply_label.sql": """
 {% macro verify_apply_label() %}
     {%- set result = apply_label() -%}
     {{ log("apply_label returned: " ~ result, info=True) }}
@@ -443,8 +442,7 @@ class TestApplyLabelBackwardCompat:
         {{ exceptions.raise_compiler_error("apply_label() must not emit query_options hints") }}
     {%- endif -%}
 {% endmacro %}
-"""
-        }
+"""}
 
     def test_apply_label_callable_and_label_only(self, project):
         # run-operation will fail (non-zero exit) if apply_label is undefined
