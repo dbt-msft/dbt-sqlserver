@@ -26,7 +26,6 @@
             'MAXRECURSION',
             'NO_PERFORMANCE_SPOOL',
             'OPTIMIZE FOR UNKNOWN',
-            'PARAMETERIZATION',
             'QUERYTRACEON',
             'RECOMPILE',
             'ROBUST PLAN',
@@ -46,11 +45,18 @@
                     {{ exceptions.raise_compiler_error("Query option '" ~ key ~ "' value must be a number, got: '" ~ value ~ "'") }}
                 {%- endif -%}
                 {%- set separator = ' = ' if key | upper in equals_syntax_options else ' ' -%}
-                {%- do options_list.append(key | upper ~ separator ~ value | int) -%}
+                {#- Render the value verbatim: ints become "1", floats become "12.5".
+                    MAX_GRANT_PERCENT / MIN_GRANT_PERCENT accept decimals 0.0–100.0; integer-only
+                    options will surface a clear SQL Server parse error on invalid decimals. -#}
+                {%- do options_list.append(key | upper ~ separator ~ value) -%}
             {%- endif -%}
         {%- endfor -%}
 
-        {#- query_options_raw bypasses the allowlist; users opt in to writing valid SQL Server syntax themselves. -#}
+        {#- query_options_raw bypasses the allowlist; users opt in to writing valid SQL Server syntax themselves.
+            Shape-check only: a plain string would be iterated character-by-character into garbage. -#}
+        {%- if query_options_raw is string or query_options_raw is mapping -%}
+            {{ exceptions.raise_compiler_error("query_options_raw must be a list of strings, got: '" ~ query_options_raw ~ "'") }}
+        {%- endif -%}
         {%- for raw in query_options_raw -%}
             {%- do options_list.append(raw) -%}
         {%- endfor -%}
@@ -59,17 +65,16 @@
     OPTION ({{ options_list | join(', ') }});
 {% endmacro %}
 
-{#- Backward-compat alias for the pre-1.10 macro. Emits only the LABEL hint
-    and ignores query_options / query_options_raw. New adapter code should
-    call get_query_options() directly.
+{#- DEPRECATED: backward-compat alias for the pre-1.10 macro.
 
-    Note: this preserves non-breaking *consumption* of apply_label (user
-    macros calling `{{ apply_label() }}` still resolve), but does NOT
-    preserve non-breaking *override*: adapter macros no longer call
-    apply_label internally, so a project that overrides apply_label in its
-    own macros directory will find that override has no effect on adapter
-    behaviour. To customise the OPTION clause emitted by adapter macros,
-    override get_query_options instead. -#}
+    Calls to `{{ apply_label() }}` from user macros still resolve and emit
+    a LABEL-only OPTION clause — but apply_label() is no longer the
+    extension point. Adapter macros now call get_query_options() instead,
+    so overriding apply_label() in a project's macros directory will have
+    no effect on adapter-emitted SQL.
+
+    To customise the OPTION clause emitted by adapter macros (table,
+    incremental, snapshot, unit_test), override get_query_options instead. -#}
 {% macro apply_label() %}
     {{ log (config.get('query_tag','dbt-sqlserver'))}}
     {%- set query_label = config.get('query_tag','dbt-sqlserver') -%}
