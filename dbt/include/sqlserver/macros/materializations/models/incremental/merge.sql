@@ -1,5 +1,6 @@
 {% macro sqlserver__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates=none) %}
-  {{ default__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) }};
+  {{ default__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) }}
+  {{ get_query_options(parse_options=True) }}
 {% endmacro %}
 
 {% macro sqlserver__get_insert_overwrite_merge_sql(target, source, dest_columns, predicates, include_sql_header) %}
@@ -8,7 +9,7 @@
 
 {% macro sqlserver__get_delete_insert_merge_sql(target, source, unique_key, dest_columns, incremental_predicates=none) %}
 
-    {% set query_label = apply_label() %}
+    {% set query_label = get_query_options(parse_options=True) %}
     {%- set dest_cols_csv = get_quoted_csv(dest_columns | map(attribute="name")) -%}
 
     {% if unique_key %}
@@ -57,6 +58,7 @@
     {%- set source = arg_dict["temp_relation"] -%}
     {%- set dest_columns = arg_dict["dest_columns"] -%}
     {%- set incremental_predicates = [] if arg_dict.get('incremental_predicates') is none else arg_dict.get('incremental_predicates') -%}
+    {%- set query_label = get_query_options(parse_options=True) -%}
 
     {#-- Add additional incremental_predicates to filter for batch --#}
     {% if model.config.get("__dbt_internal_microbatch_event_time_start") -%}
@@ -74,7 +76,8 @@
     {% for predicate in incremental_predicates %}
         {%- if not loop.first %}and {% endif -%} {{ predicate }}
     {% endfor %}
-    );
+    )
+    {{ query_label }}
 
     {%- set dest_cols_csv = get_quoted_csv(dest_columns | map(attribute="name")) -%}
     insert into {{ target }} ({{ dest_cols_csv }})
@@ -82,4 +85,5 @@
         select {{ dest_cols_csv }}
         from {{ source }}
     )
+    {{ query_label }}
 {% endmacro %}

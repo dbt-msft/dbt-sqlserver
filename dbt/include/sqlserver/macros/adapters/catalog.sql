@@ -1,5 +1,5 @@
 {% macro sqlserver__get_catalog(information_schemas, schemas) -%}
-    {% set query_label = apply_label() %}
+    {% set query_label = get_query_options() %}
     {%- call statement('catalog', fetch_result=True) -%}
         {{ get_use_database_sql(information_schemas.database) }}
         with
@@ -126,8 +126,8 @@
 {%- endmacro %}
 
 {% macro sqlserver__get_catalog_relations(information_schema, relations) -%}
-    {% set query_label = apply_label() %}
-    {%- set distinct_databases = relations | map(attribute='database') | unique | list -%}
+    {% set query_label = get_query_options() %}
+    {%- call statement('catalog', fetch_result=True) -%}
 
     {%- if distinct_databases | length == 1 -%}
         {%- call statement('catalog', fetch_result=True) -%}

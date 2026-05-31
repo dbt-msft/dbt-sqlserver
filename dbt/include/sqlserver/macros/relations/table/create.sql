@@ -1,5 +1,5 @@
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
-    {%- set query_label = apply_label() -%}
+    {%- set query_label = get_query_options(parse_options=True) -%}
     {%- set tmp_relation = relation.incorporate(path={"identifier": relation.identifier ~ '__dbt_tmp_vw'}, type='view') -%}
 
     {%- do adapter.drop_relation(tmp_relation) -%}
