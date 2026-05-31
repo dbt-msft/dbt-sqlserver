@@ -18,7 +18,7 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.events.types import SchemaCreation
 from dbt.adapters.reference_keys import _make_ref_key_dict
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
-from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn
+from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
@@ -48,6 +48,11 @@ class SQLServerAdapter(SQLAdapter):
         ConstraintType.foreign_key: ConstraintSupport.ENFORCED,
     }
 
+    def __init__(self, config, mp_context=None):
+        super().__init__(config, mp_context)
+        if self.behavior.dbt_sqlserver_use_native_string_types:
+            self.Column = SQLServerColumnNative
+
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
         return [
@@ -69,6 +74,17 @@ class SQLServerAdapter(SQLAdapter):
                     "`custom_schema_name` is used directly without prefixing `target.schema`. "
                     "For a permanent solution, override the `sqlserver__generate_schema_name` "
                     "macro in your project instead."
+                ),
+            },
+            {
+                "name": "dbt_sqlserver_use_native_string_types",
+                "default": False,
+                "description": (
+                    "When True, uses SQL Server-native string type mappings: "
+                    "STRING -> VARCHAR(MAX), NCHAR -> NCHAR(1), NVARCHAR -> NVARCHAR(4000). "
+                    "When False (default), preserves legacy mappings: "
+                    "STRING and NVARCHAR -> VARCHAR(8000), NCHAR -> CHAR(1). "
+                    "The new behaviour is intended to become the default in a future release."
                 ),
             },
         ]

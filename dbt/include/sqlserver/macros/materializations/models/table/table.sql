@@ -17,6 +17,19 @@
   -- grab current tables grants config for comparision later on
   {% set grant_config = config.get('grants') %}
 
+  {%- set table_refresh_method = config.get('table_refresh_method', 'rename') -%}
+  {%- if table_refresh_method not in ['rename', 'dml'] -%}
+    {{ exceptions.raise_compiler_error(
+      "Invalid table_refresh_method '" ~ table_refresh_method ~ "'. "
+      "Valid values are: 'rename' (default), 'dml'."
+    ) }}
+  {%- endif -%}
+  {%- set use_dml_refresh = (
+    table_refresh_method == 'dml'
+    and existing_relation is not none
+    and existing_relation.type == 'table'
+  ) -%}
+
   -- drop the temp relations if they exist already in the database
   {{ drop_relation_if_exists(preexisting_intermediate_relation) }}
   {{ drop_relation_if_exists(preexisting_backup_relation) }}
@@ -26,24 +39,28 @@
   -- `BEGIN` happens here:
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
-  -- build model
-  {% call statement('main') -%}
-    {{ get_create_table_as_sql(False, intermediate_relation, sql) }}
-  {%- endcall %}
+  {% if use_dml_refresh %}
+    {{ sqlserver__table_dml_refresh(target_relation, sql) }}
+  {% else %}
+    -- build model
+    {% call statement('main') -%}
+      {{ get_create_table_as_sql(False, intermediate_relation, sql) }}
+    {%- endcall %}
 
-  -- cleanup
-  {% if existing_relation is not none %}
-     /* Do the equivalent of rename_if_exists. 'existing_relation' could have been dropped
-        since the variable was first set. */
-    {% set existing_relation = load_cached_relation(existing_relation) %}
+    -- cleanup
     {% if existing_relation is not none %}
-        {{ adapter.rename_relation(existing_relation, backup_relation) }}
+       /* Do the equivalent of rename_if_exists. 'existing_relation' could have been dropped
+          since the variable was first set. */
+      {% set existing_relation = load_cached_relation(existing_relation) %}
+      {% if existing_relation is not none %}
+          {{ adapter.rename_relation(existing_relation, backup_relation) }}
+      {% endif %}
     {% endif %}
+
+    {{ adapter.rename_relation(intermediate_relation, target_relation) }}
+
+    {% do create_indexes(target_relation) %}
   {% endif %}
-
-  {{ adapter.rename_relation(intermediate_relation, target_relation) }}
-
-  {% do create_indexes(target_relation) %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}
 
@@ -55,8 +72,10 @@
   -- `COMMIT` happens here
   {{ adapter.commit() }}
 
-  -- finally, drop the existing/backup relation after the commit
-  {{ drop_relation_if_exists(backup_relation) }}
+  {% if not use_dml_refresh %}
+    -- finally, drop the existing/backup relation after the commit
+    {{ drop_relation_if_exists(backup_relation) }}
+  {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=False) }}
 
