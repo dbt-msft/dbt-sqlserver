@@ -265,7 +265,7 @@ class TestQueryOptionsOnIncrementalDeleteInsert:
 
 
 # ---------------------------------------------------------------------------
-# Incremental merge / microbatch — unsupported, must raise
+# Incremental merge / microbatch
 # ---------------------------------------------------------------------------
 
 incremental_merge_model_sql = """
