@@ -2,9 +2,32 @@
 
 ### v1.10.0
 
+#### Features
+
+- Official support for `dbt-core` 1.10.
 - Add `query_options` / `query_options_raw` model configs for emitting SQL Server `OPTION` clauses on table, incremental (delete+insert / microbatch), snapshot, and unit_test materializations. See https://github.com/dbt-msft/dbt-sqlserver/issues/613.
 - `get_query_options()` is the new extension point for customising the emitted `OPTION` clause.
-- **Migration note:** `apply_label()` is preserved as a callable alias (emits LABEL only) in case you use it in your own project but is no longer called by adapter macros. Projects that override `apply_label()` to customise the OPTION clause must override `get_query_options()` instead.
+- Add DML table refresh support for table materializations.
+- Add opt-in native string type mappings via a behaviour flag.
+- Add default schema concatenation flag support and update the documentation.
+- Enable SQL Server limited-relation no-alias behavior by default.
+
+#### Bugfixes
+
+- Fix reserved-keyword quoting in table-create `DROP VIEW` handling.
+- Fix CTE detection in empty-subquery wrapping when leading comments are present.
+- Fix snapshot meta column name overrides on a second run.
+- Fix connection-string port handling regressions.
+- Fix `TABLOCK` interaction with contract-enforced inserts and `query_options`.
+- Fix `get_view_definition()` escaping for `]` characters.
+
+#### Migration note
+
+- `apply_label()` is preserved as a callable alias (emits LABEL only) in case you use it in your own project but is no longer called by adapter macros. Projects that override `apply_label()` to customise the OPTION clause must override `get_query_options()` instead.
+
+### v1.9.2
+
+- Add default schema concatenation flag support and update the documentation. See PR #685.
 
 ### v1.9.1
 
