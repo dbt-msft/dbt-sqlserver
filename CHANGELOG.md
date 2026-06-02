@@ -1,5 +1,11 @@
 # Changelog
 
+### v1.10.0
+
+- Add `query_options` / `query_options_raw` model configs for emitting SQL Server `OPTION` clauses on table, incremental (delete+insert / microbatch), snapshot, and unit_test materializations. See https://github.com/dbt-msft/dbt-sqlserver/issues/613.
+- `get_query_options()` is the new extension point for customising the emitted `OPTION` clause.
+- **Migration note:** `apply_label()` is preserved as a callable alias (emits LABEL only) in case you use it in your own project but is no longer called by adapter macros. Projects that override `apply_label()` to customise the OPTION clause must override `get_query_options()` instead.
+
 ### v1.9.1
 
 - Removes the dependency on `dbt-fabric`.

@@ -127,7 +127,7 @@
 
 {% macro sqlserver__get_catalog_relations(information_schema, relations) -%}
     {% set query_label = get_query_options() %}
-    {%- call statement('catalog', fetch_result=True) -%}
+    {%- set distinct_databases = relations | map(attribute='database') | unique | list -%}
 
     {%- if distinct_databases | length == 1 -%}
         {%- call statement('catalog', fetch_result=True) -%}

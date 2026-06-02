@@ -26,7 +26,6 @@
             'MAXRECURSION',
             'NO_PERFORMANCE_SPOOL',
             'OPTIMIZE FOR UNKNOWN',
-            'PARAMETERIZATION',
             'QUERYTRACEON',
             'RECOMPILE',
             'ROBUST PLAN',
@@ -46,11 +45,18 @@
                     {{ exceptions.raise_compiler_error("Query option '" ~ key ~ "' value must be a number, got: '" ~ value ~ "'") }}
                 {%- endif -%}
                 {%- set separator = ' = ' if key | upper in equals_syntax_options else ' ' -%}
-                {%- do options_list.append(key | upper ~ separator ~ value | int) -%}
+                {#- Render the value verbatim: ints become "1", floats become "12.5".
+                    MAX_GRANT_PERCENT / MIN_GRANT_PERCENT accept decimals 0.0–100.0; integer-only
+                    options will surface a clear SQL Server parse error on invalid decimals. -#}
+                {%- do options_list.append(key | upper ~ separator ~ value) -%}
             {%- endif -%}
         {%- endfor -%}
 
-        {#- query_options_raw bypasses the allowlist; users opt in to writing valid SQL Server syntax themselves. -#}
+        {#- query_options_raw bypasses the allowlist; users opt in to writing valid SQL Server syntax themselves.
+            Shape-check only: a plain string would be iterated character-by-character into garbage. -#}
+        {%- if query_options_raw is string or query_options_raw is mapping -%}
+            {{ exceptions.raise_compiler_error("query_options_raw must be a list of strings, got: '" ~ query_options_raw ~ "'") }}
+        {%- endif -%}
         {%- for raw in query_options_raw -%}
             {%- do options_list.append(raw) -%}
         {%- endfor -%}
@@ -59,17 +65,16 @@
     OPTION ({{ options_list | join(', ') }});
 {% endmacro %}
 
-{#- Backward-compat alias for the pre-1.10 macro. Emits only the LABEL hint
-    and ignores query_options / query_options_raw. New adapter code should
-    call get_query_options() directly.
+{#- DEPRECATED: backward-compat alias for the pre-1.10 macro.
 
-    Note: this preserves non-breaking *consumption* of apply_label (user
-    macros calling `{{ apply_label() }}` still resolve), but does NOT
-    preserve non-breaking *override*: adapter macros no longer call
-    apply_label internally, so a project that overrides apply_label in its
-    own macros directory will find that override has no effect on adapter
-    behaviour. To customise the OPTION clause emitted by adapter macros,
-    override get_query_options instead. -#}
+    Calls to `{{ apply_label() }}` from user macros still resolve and emit
+    a LABEL-only OPTION clause — but apply_label() is no longer the
+    extension point. Adapter macros now call get_query_options() instead,
+    so overriding apply_label() in a project's macros directory will have
+    no effect on adapter-emitted SQL.
+
+    To customise the OPTION clause emitted by adapter macros (table,
+    incremental, snapshot, unit_test), override get_query_options instead. -#}
 {% macro apply_label() %}
     {{ log (config.get('query_tag','dbt-sqlserver'))}}
     {%- set query_label = config.get('query_tag','dbt-sqlserver') -%}
@@ -125,23 +130,22 @@
 {% macro sqlserver__list_relations_without_caching(schema_relation) -%}
   {% call statement('list_relations_without_caching', fetch_result=True) -%}
     {{ get_use_database_sql(schema_relation.database) }}
-    with base as (
-      select
-        DB_NAME() as [database],
-        t.name as [name],
-        SCHEMA_NAME(t.schema_id) as [schema],
-        'table' as table_type
-      from sys.tables as t {{ information_schema_hints() }}
-      union all
-      select
-        DB_NAME() as [database],
-        v.name as [name],
-        SCHEMA_NAME(v.schema_id) as [schema],
-        'view' as table_type
-      from sys.views as v {{ information_schema_hints() }}
-    )
-    select * from base
-    where [schema] like '{{ schema_relation.schema }}'
+    declare @schema_id int = schema_id('{{ schema_relation.schema }}');
+    select
+      DB_NAME() as [database],
+      t.name as [name],
+      '{{ schema_relation.schema }}' as [schema],
+      'table' as table_type
+    from sys.tables as t {{ information_schema_hints() }}
+    where t.schema_id = @schema_id
+    union all
+    select
+      DB_NAME() as [database],
+      v.name as [name],
+      '{{ schema_relation.schema }}' as [schema],
+      'view' as table_type
+    from sys.views as v {{ information_schema_hints() }}
+    where v.schema_id = @schema_id
     {{ get_query_options() }}
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
@@ -150,24 +154,22 @@
 {% macro sqlserver__get_relation_without_caching(schema_relation) -%}
   {% call statement('get_relation_without_caching', fetch_result=True) -%}
     {{ get_use_database_sql(schema_relation.database) }}
-    with base as (
-      select
-        DB_NAME() as [database],
-        t.name as [name],
-        SCHEMA_NAME(t.schema_id) as [schema],
-        'table' as table_type
-      from sys.tables as t {{ information_schema_hints() }}
-      union all
-      select
-        DB_NAME() as [database],
-        v.name as [name],
-        SCHEMA_NAME(v.schema_id) as [schema],
-        'view' as table_type
-      from sys.views as v {{ information_schema_hints() }}
-    )
-    select * from base
-    where [schema] like '{{ schema_relation.schema }}'
-    and [name] like '{{ schema_relation.identifier }}'
+    declare @schema_id int = schema_id('{{ schema_relation.schema }}');
+    select
+      DB_NAME() as [database],
+      t.name as [name],
+      '{{ schema_relation.schema }}' as [schema],
+      'table' as table_type
+    from sys.tables as t {{ information_schema_hints() }}
+    where t.schema_id = @schema_id and t.name = '{{ schema_relation.identifier }}'
+    union all
+    select
+      DB_NAME() as [database],
+      v.name as [name],
+      '{{ schema_relation.schema }}' as [schema],
+      'view' as table_type
+    from sys.views as v {{ information_schema_hints() }}
+    where v.schema_id = @schema_id and v.name = '{{ schema_relation.identifier }}'
     {{ get_query_options() }}
   {% endcall %}
   {{ return(load_result('get_relation_without_caching').table) }}
@@ -178,13 +180,10 @@
 {% endmacro %}
 
 {% macro sqlserver__get_view_definition_sql(relation) -%}
+  {%- set object_name = "quotename('" ~ relation.schema ~ "') + '.' + quotename('" ~ relation.identifier ~ "')" -%}
   {{ get_use_database_sql(relation.database) }}
-  select object_definition(v.object_id) as definition
-  from sys.views as v {{ information_schema_hints() }}
-  inner join sys.schemas as s {{ information_schema_hints() }}
-    on v.schema_id = s.schema_id
-  where upper(s.name) = upper('{{ relation.schema }}')
-    and upper(v.name) = upper('{{ relation.identifier }}')
+  select object_definition(object_id({{ object_name }}, 'V')) as definition
+  where object_id({{ object_name }}, 'V') is not null
 {% endmacro %}
 
 {% macro sqlserver__get_relation_last_modified(information_schema, relations) -%}

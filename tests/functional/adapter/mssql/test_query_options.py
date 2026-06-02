@@ -265,7 +265,7 @@ class TestQueryOptionsOnIncrementalDeleteInsert:
 
 
 # ---------------------------------------------------------------------------
-# Incremental merge / microbatch — unsupported, must raise
+# Incremental merge / microbatch
 # ---------------------------------------------------------------------------
 
 incremental_merge_model_sql = """
@@ -760,3 +760,85 @@ class TestQueryOptionsSnapshotFirstRun:
 
         sql = _find_compiled_run_sql(project, "snap_first.sql")
         assert "MAXDOP 1" in sql
+
+
+# ---------------------------------------------------------------------------
+# Decimal MAX_GRANT_PERCENT renders verbatim (no `| int` truncation)
+# ---------------------------------------------------------------------------
+
+decimal_grant_model_sql = """
+{{ config(materialized='table', query_options={'MAX_GRANT_PERCENT': 12.5}) }}
+select 1 as id
+"""
+
+
+class TestQueryOptionsDecimalGrantPercent:
+    """MAX_GRANT_PERCENT accepts decimals 0.0–100.0 per SQL Server spec; the
+    adapter must render the value verbatim rather than truncating to int."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"decimal_grant_model.sql": decimal_grant_model_sql}
+
+    def test_decimal_value_not_truncated(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        sql = _find_compiled_run_sql(project, "decimal_grant_model.sql")
+        assert "MAX_GRANT_PERCENT = 12.5" in sql
+        # Make sure the value did not get truncated to 12
+        assert "MAX_GRANT_PERCENT = 12," not in sql
+        assert "MAX_GRANT_PERCENT = 12)" not in sql
+
+
+# ---------------------------------------------------------------------------
+# query_options_raw shape validation
+# ---------------------------------------------------------------------------
+
+raw_string_model_sql = """
+{{ config(
+    materialized='table',
+    query_options_raw="USE HINT('DISABLE_OPTIMIZER_ROWGOAL')"
+) }}
+select 1 as id
+"""
+
+
+class TestQueryOptionsRawStringRaises:
+    """A plain string passed where a list is expected must raise rather than
+    silently iterate character-by-character into garbage SQL."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"raw_string_model.sql": raw_string_model_sql}
+
+    def test_string_raises_error(self, project):
+        results = run_dbt(["run"], expect_pass=False)
+        assert len(results) == 1
+        assert results[0].status == "error"
+
+
+# ---------------------------------------------------------------------------
+# PARAMETERIZATION is no longer in the allowlist (use query_options_raw)
+# ---------------------------------------------------------------------------
+
+parameterization_model_sql = """
+{{ config(materialized='table', query_options={'PARAMETERIZATION': 'FORCED'}) }}
+select 1 as id
+"""
+
+
+class TestQueryOptionsParameterizationRejected:
+    """PARAMETERIZATION requires a SIMPLE/FORCED keyword (not numeric), which
+    the allowlist path cannot render. It was removed from the allowlist; users
+    needing it use query_options_raw."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"param_model.sql": parameterization_model_sql}
+
+    def test_parameterization_rejected_as_invalid_key(self, project):
+        results = run_dbt(["run"], expect_pass=False)
+        assert len(results) == 1
+        assert results[0].status == "error"
