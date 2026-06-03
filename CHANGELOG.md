@@ -11,6 +11,8 @@
 - Add opt-in native string type mappings via a behaviour flag.
 - Add default schema concatenation flag support and update the documentation.
 - Enable SQL Server limited-relation no-alias behavior by default.
+- Support catalog generation across multiple databases. [#603](https://github.com/dbt-msft/dbt-sqlserver/issues/603)
+- Fix view rematerialization when a view already exists, including preserving grants and avoiding unnecessary rebuilds. [#610](https://github.com/dbt-msft/dbt-sqlserver/issues/610)
 
 #### Bugfixes
 
@@ -20,6 +22,12 @@
 - Fix connection-string port handling regressions.
 - Fix `TABLOCK` interaction with contract-enforced inserts and `query_options`.
 - Fix `get_view_definition()` escaping for `]` characters.
+- Make the highest-frequency catalog queries sargable so they seek instead of scan. [#686](https://github.com/dbt-msft/dbt-sqlserver/issues/686)
+
+#### Under the hood
+
+- Drop Python 3.9 support; this release targets Python 3.10 and newer.
+- Adopt standard `pyproject.toml`/PEP 621 packaging metadata for source installs and downloads.
 
 #### Migration note
 

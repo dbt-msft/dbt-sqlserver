@@ -577,6 +577,7 @@ dependencies = [
     { name = "dbt-adapters" },
     { name = "dbt-common" },
     { name = "dbt-core" },
+    { name = "pyodbc" },
 ]
 
 [package.optional-dependencies]
@@ -611,9 +612,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.12.0" },
-    { name = "dbt-adapters", specifier = ">=1.11.0,<2.0" },
-    { name = "dbt-common", specifier = ">=1.0,<2.0" },
-    { name = "dbt-core", specifier = ">=1.9.0,<2.0" },
+    { name = "dbt-adapters", specifier = ">=1.15.2,<2.0" },
+    { name = "dbt-common", specifier = ">=1.22.0,<2.0" },
+    { name = "dbt-core", specifier = ">=1.10.0,<2.0" },
+    { name = "pyodbc", specifier = ">=5.2.0" },
     { name = "pyodbc", marker = "extra == 'pyodbc'", specifier = ">=5.2.0" },
 ]
 provides-extras = ["azure", "pyodbc"]
@@ -623,9 +625,9 @@ dev = [
     { name = "azure-identity", specifier = ">=1.12.0" },
     { name = "build" },
     { name = "bumpversion" },
-    { name = "dbt-tests-adapter", specifier = ">=1.9.0,<2.0" },
+    { name = "dbt-tests-adapter", specifier = ">=1.15.0,<2.0" },
     { name = "flaky" },
-    { name = "freezegun", specifier = "==1.4.0" },
+    { name = "freezegun", specifier = ">=1.5.0,<2.0" },
     { name = "ipdb" },
     { name = "mypy", specifier = "==1.11.2" },
     { name = "pre-commit" },
@@ -744,14 +746,14 @@ wheels = [
 
 [[package]]
 name = "freezegun"
-version = "1.4.0"
+version = "1.5.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-dateutil" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1c/73/5decad3abddbe7e1bf4bf98ead1a8345b1cc6fc6ec7e4fa27da81f4e1eee/freezegun-1.4.0.tar.gz", hash = "sha256:10939b0ba0ff5adaecf3b06a5c2f73071d9678e507c5eaedb23c761d56ac774b", size = 31748, upload-time = "2023-12-19T10:46:41.79Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/dd/23e2f4e357f8fd3bdff613c1fe4466d21bfb00a6177f238079b17f7b1c84/freezegun-1.5.5.tar.gz", hash = "sha256:ac7742a6cc6c25a2c35e9292dfd554b897b517d2dec26891a2e8debf205cb94a", size = 35914, upload-time = "2025-08-09T10:39:08.338Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/ad/72ae71e18011e59b7d129f176ff1a607f4558be4cf5b5d739860a57f9381/freezegun-1.4.0-py3-none-any.whl", hash = "sha256:55e0fc3c84ebf0a96a5aa23ff8b53d70246479e9a68863f1fcac5a3e52f19dd6", size = 17557, upload-time = "2023-12-19T10:46:39.919Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/2e/b41d8a1a917d6581fc27a35d05561037b048e47df50f27f8ac9c7e27a710/freezegun-1.5.5-py3-none-any.whl", hash = "sha256:cd557f4a75cf074e84bc374249b9dd491eaeacd61376b9eb3c423282211619d2", size = 19266, upload-time = "2025-08-09T10:39:06.636Z" },
 ]
 
 [[package]]
