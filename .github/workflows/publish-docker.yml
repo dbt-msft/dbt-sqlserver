@@ -1,6 +1,7 @@
 ---
 name: Publish Docker images for CI/CD
 on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
   push:
     paths:
       - 'devops/**'
@@ -13,7 +14,7 @@ jobs:
     strategy:
       matrix:
         python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-        docker_target: ["msodbc17", "msodbc18"]
+        docker_target: ["msodbc17", "msodbc18", "mssql"]
     runs-on: ubuntu-latest
     permissions:
       contents: read
