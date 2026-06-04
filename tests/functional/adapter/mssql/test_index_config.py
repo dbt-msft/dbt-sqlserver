@@ -155,6 +155,22 @@ select 1 as column_a, 2 as column_b, 3 as column_c
 """
 
 
+models__table_reserved_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['order'], 'included_columns': ['select']},
+    ]
+  )
+}}
+
+select 1 as [order], 2 as [select]
+
+"""
+
+
 models__table_included_sql = """
 {{
   config(
@@ -276,6 +292,7 @@ class TestSQLServerIndex:
             "incremental.sql": models__incremental_sql,
             "columnstore.sql": models__columnstore_sql,
             "table_included.sql": models__table_included_sql,
+            "table_reserved.sql": models__table_reserved_sql,
         }
 
     @pytest.fixture(scope="class")
@@ -455,38 +472,40 @@ class TestSQLServerIndex:
             ]
             assert indexes == expected
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Characterization: index names are timestamp-hashed so every rebuild "
-            "generates fresh names. Reconciliation requires deterministic names. "
-            "Fixed by deterministic render() + IF NOT EXISTS create guard."
-        ),
-    )
-    def test_table_index_names_stable_across_runs(self, project, unique_schema):
+    def test_table_indexes_stable_across_runs(self, project, unique_schema):
+        # Deterministic naming: a rebuild must produce the same index *names*
+        # (reconciliation relies on name equality <=> definition equality),
+        # and the definition set must never accumulate.
         results = run_dbt(["run", "--models", "table"])
         assert len(results) == 1
         first_names = self.get_index_names("table", project, unique_schema)
+        first_defs = self.sort_indexes(self.get_indexes("table", project, unique_schema))
 
         results = run_dbt(["run", "--models", "table"])
         assert len(results) == 1
         second_names = self.get_index_names("table", project, unique_schema)
+        second_defs = self.sort_indexes(self.get_indexes("table", project, unique_schema))
 
         assert first_names == second_names
+        assert first_defs == second_defs
+        assert len(first_defs) == 5
 
-    def test_table_definitions_stable_across_runs(self, project, unique_schema):
-        # Pins current behavior: table is rebuilt fresh each run, so the index
-        # *definition* set never accumulates even though names churn today.
-        results = run_dbt(["run", "--models", "table"])
+    def test_table_reserved_word_columns(self, project, unique_schema):
+        # Index key and included columns must be bracket-quoted: this model
+        # indexes columns named after T-SQL reserved words.
+        results = run_dbt(["run", "--models", "table_reserved"])
         assert len(results) == 1
-        first = self.sort_indexes(self.get_indexes("table", project, unique_schema))
 
-        results = run_dbt(["run", "--models", "table"])
-        assert len(results) == 1
-        second = self.sort_indexes(self.get_indexes("table", project, unique_schema))
-
-        assert first == second
-        assert len(first) == 5
+        indexes = self.sort_indexes(self.get_indexes("table_reserved", project, unique_schema))
+        expected = [
+            {
+                "columns": "order",
+                "unique": False,
+                "type": "nonclustered",
+                "included_columns": "select",
+            },
+        ]
+        assert indexes == expected
 
     def get_index_names(self, table_name, project, unique_schema):
         sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)

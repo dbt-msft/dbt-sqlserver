@@ -240,17 +240,24 @@
 
 {% macro sqlserver__get_create_index_sql(relation, index_dict) -%}
   {%- set index_config = adapter.parse_index(index_dict) -%}
-  {%- set comma_separated_columns = ", ".join(index_config.columns) -%}
   {%- set index_name = index_config.render(relation) -%}
 
   {# Validations are made on the adapter class SQLServerIndexConfig to control resulting sql #}
+  {# Names are a deterministic hash of the full definition, so an existing #}
+  {# index with this name is already the index we want: skip, don't fail.  #}
+  if not exists(select *
+                  from sys.indexes {{ information_schema_hints() }}
+                  where name = '{{ index_name }}'
+                  and object_id = OBJECT_ID('{{ relation }}')
+  )
+  begin
   create
   {% if index_config.unique -%} unique {% endif %}{{ index_config.type }}
-  index "{{ index_name }}"
+  index [{{ index_name }}]
   on {{ relation }}
-  ({{ comma_separated_columns }})
+  ({{ '[' + index_config.columns | join('], [') + ']' }})
     {% if index_config.included_columns -%}
-        include ({{ ", ".join(index_config.included_columns) }})
+        include ({{ '[' + index_config.included_columns | join('], [') + ']' }})
     {% endif %}
-
+  end
 {%- endmacro %}
