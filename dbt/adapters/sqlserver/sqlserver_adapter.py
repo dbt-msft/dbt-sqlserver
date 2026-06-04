@@ -19,7 +19,7 @@ from dbt.adapters.events.types import SchemaCreation
 from dbt.adapters.reference_keys import _make_ref_key_dict
 from dbt.adapters.relation_configs import RelationConfigChangeAction
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
-from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig
+from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig, SQLServerIndexType
 from dbt.adapters.sqlserver.relation_configs.index import index_config_changes
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
@@ -295,6 +295,30 @@ class SQLServerAdapter(SQLAdapter):
     @available
     def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
         return SQLServerIndexConfig.parse(raw_index)
+
+    @available
+    def validate_indexes(self, raw_indexes: Any, as_columnstore: Any = False) -> None:
+        """Cross-config checks that individual index validation can't see."""
+        configs = []
+        for raw_index in raw_indexes or []:
+            parsed = self.parse_index(raw_index)
+            if parsed:
+                configs.append(parsed)
+
+        clustered = [config for config in configs if config.type == SQLServerIndexType.clustered]
+        if len(clustered) > 1:
+            raise dbt_common.exceptions.DbtRuntimeError(
+                f"A table can have at most one clustered index; "
+                f"{len(clustered)} declared in the indexes config: "
+                f"{[list(config.columns) for config in clustered]}"
+            )
+        if clustered and as_columnstore:
+            raise dbt_common.exceptions.DbtRuntimeError(
+                "A clustered rowstore index in the indexes config conflicts with "
+                "as_columnstore=true (the default), which builds the table with a "
+                "clustered columnstore index. Set as_columnstore: false on the "
+                "model, or remove the clustered entry."
+            )
 
     @available
     def index_changes(

@@ -811,3 +811,58 @@ class TestSQLServerClusteredCollision:
         )
         assert "ix_dba_clustered" in output
         assert "will not be dropped" in output
+
+
+models__multiple_clustered_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['column_a'], 'type': 'clustered'},
+      {'columns': ['column_b'], 'type': 'clustered'},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+
+"""
+
+models__clustered_with_cci_sql = """
+{{
+  config(
+    materialized = "table",
+    indexes=[
+      {'columns': ['column_a'], 'type': 'clustered'},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+
+"""
+
+
+class TestSQLServerCrossConfigValidation:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "multiple_clustered.sql": models__multiple_clustered_sql,
+            "clustered_with_cci.sql": models__clustered_with_cci_sql,
+        }
+
+    def test_multiple_clustered_rejected(self, project):
+        _, output = run_dbt_and_capture(
+            ["run", "--models", "multiple_clustered"], expect_pass=False
+        )
+        assert "at most one clustered index" in output
+
+    def test_clustered_with_default_columnstore_rejected(self, project):
+        # as_columnstore deliberately omitted: it defaults to TRUE, so the
+        # table is built with a clustered columnstore index and a clustered
+        # rowstore index cannot also exist.
+        _, output = run_dbt_and_capture(
+            ["run", "--models", "clustered_with_cci"], expect_pass=False
+        )
+        assert "as_columnstore" in output

@@ -327,6 +327,27 @@
 {%- endmacro %}
 
 
+{% macro sqlserver__create_indexes(relation) %}
+  {#-
+    Override of the dbt-adapters default to validate the index set as a whole
+    (at most one clustered; clustered rowstore vs as_columnstore conflict)
+    before creating anything. as_columnstore is only honored by
+    create_table_as, so it is irrelevant for seeds despite defaulting true.
+  -#}
+  {%- set raw_indexes = config.get('indexes', default=[]) -%}
+  {%- set materialized = config.get('materialized') -%}
+  {%- set as_columnstore = config.get('as_columnstore', default=true)
+      if materialized in ('table', 'incremental', 'snapshot') else false -%}
+  {%- do adapter.validate_indexes(raw_indexes, as_columnstore) -%}
+  {%- for _index_dict in raw_indexes %}
+    {%- set create_index_sql = get_create_index_sql(relation, _index_dict) -%}
+    {% if create_index_sql %}
+      {% do run_query(create_index_sql) %}
+    {% endif %}
+  {%- endfor %}
+{% endmacro %}
+
+
 {% macro sqlserver__reconcile_indexes(relation) %}
   {#-
     Converge an existing relation on its configured index set. Called on the
@@ -335,6 +356,8 @@
     would let config changes drift.
   -#}
   {%- set raw_indexes = config.get('indexes', default=[]) -%}
+  {#- all three callers (incremental, dml refresh, snapshot) honor as_columnstore -#}
+  {%- do adapter.validate_indexes(raw_indexes, config.get('as_columnstore', default=true)) -%}
   {%- set drop_unmanaged = config.get('drop_unmanaged_indexes', default=false) -%}
   {%- set existing = sqlserver__describe_indexes(relation) -%}
   {%- set result = adapter.index_changes(existing, raw_indexes, relation, drop_unmanaged) -%}
