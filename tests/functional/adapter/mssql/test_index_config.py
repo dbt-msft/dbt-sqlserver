@@ -866,3 +866,93 @@ class TestSQLServerCrossConfigValidation:
             ["run", "--models", "clustered_with_cci"], expect_pass=False
         )
         assert "as_columnstore" in output
+
+
+models__full_options_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['column_a', {'column': 'column_b', 'desc': True}],
+       'type': 'clustered', 'data_compression': 'page', 'fillfactor': 90},
+      {'columns': ['column_a'], 'unique': True, 'ignore_dup_key': True,
+       'build_options': {'maxdop': 1, 'allow_page_locks': False}},
+      {'columns': ['column_b'], 'included_columns': ['column_c'],
+       'where': 'column_b is not null',
+       'optimize_for_sequential_key': True},
+      {'columns': ['column_c'], 'type': 'columnstore',
+       'data_compression': 'columnstore_archive'},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b, 3 as column_c
+
+"""
+
+
+class TestSQLServerIndexFullOptions:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"full_options.sql": models__full_options_sql}
+
+    def introspect(self, project, unique_schema):
+        sql = f"""
+        select i.[name], i.type_desc, i.is_unique, i.ignore_dup_key,
+               i.fill_factor, i.has_filter, i.filter_definition,
+               isnull(desc_cols.cols, '') as descending_columns,
+               isnull(part.data_compression_desc, '') as data_compression
+        from sys.indexes i
+        outer apply (
+            select string_agg(col.[name], ', ') as cols
+            from sys.index_columns ic
+            join sys.columns col
+              on col.object_id = ic.object_id and col.column_id = ic.column_id
+            where ic.object_id = i.object_id and ic.index_id = i.index_id
+              and ic.is_descending_key = 1
+        ) desc_cols
+        outer apply (
+            select max(p.data_compression_desc) as data_compression_desc
+            from sys.partitions p
+            where p.object_id = i.object_id and p.index_id = i.index_id
+        ) part
+        where i.object_id = OBJECT_ID('{unique_schema}.full_options')
+          and i.index_id > 0
+        """
+        rows = project.run_sql(sql, fetch="all")
+        return {(row[1], bool(row[2]), bool(row[5])): row for row in rows}
+
+    def test_full_option_surface(self, project, unique_schema):
+        results = run_dbt(["run", "--models", "full_options"])
+        assert len(results) == 1
+
+        by_key = self.introspect(project, unique_schema)
+        assert set(by_key) == {
+            ("CLUSTERED", False, False),
+            ("NONCLUSTERED", True, False),
+            ("NONCLUSTERED", False, True),
+            ("NONCLUSTERED COLUMNSTORE", False, False),
+        }
+
+        clustered = by_key[("CLUSTERED", False, False)]
+        assert clustered[4] == 90  # fill_factor
+        assert clustered[7] == "column_b"  # descending key
+        assert clustered[8] == "PAGE"
+
+        unique_idx = by_key[("NONCLUSTERED", True, False)]
+        assert unique_idx[3] in (True, 1)  # ignore_dup_key
+
+        filtered_idx = by_key[("NONCLUSTERED", False, True)]
+        assert "column_b" in filtered_idx[6]  # filter_definition
+
+        columnstore = by_key[("NONCLUSTERED COLUMNSTORE", False, False)]
+        assert columnstore[8] == "COLUMNSTORE_ARCHIVE"
+
+        # Stability: rebuild produces identical names - the new fields hash
+        # deterministically and reconcile/create has nothing to churn.
+        first_names = sorted(by_key[k][0] for k in by_key)
+        results = run_dbt(["run", "--models", "full_options"])
+        assert len(results) == 1
+        second = self.introspect(project, unique_schema)
+        assert sorted(second[k][0] for k in second) == first_names

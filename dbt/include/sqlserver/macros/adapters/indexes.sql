@@ -251,21 +251,59 @@
                   and object_id = OBJECT_ID('{{ relation }}')
   )
   begin
+  {# key columns: bracket-quoted (with ]] escaping) plus per-column direction #}
+  {%- set key_columns = [] -%}
+  {%- for column in index_config.columns -%}
+    {%- do key_columns.append(
+        '[' ~ column | replace(']', ']]') ~ ']'
+        ~ (' desc' if column in index_config.descending_columns else '')
+    ) -%}
+  {%- endfor -%}
+  {%- set include_columns = [] -%}
+  {%- for column in index_config.included_columns -%}
+    {%- do include_columns.append('[' ~ column | replace(']', ']]') ~ ']') -%}
+  {%- endfor %}
   create
   {% if index_config.unique -%} unique {% endif %}{{ index_config.type }}
   index [{{ index_name }}]
   on {{ relation }}
-  ({{ '[' + index_config.columns | join('], [') + ']' }})
-    {% if index_config.included_columns -%}
-        include ({{ '[' + index_config.included_columns | join('], [') + ']' }})
+  ({{ key_columns | join(', ') }})
+    {% if include_columns -%}
+        include ({{ include_columns | join(', ') }})
+    {% endif %}
+    {% if index_config.where -%}
+        where {{ index_config.where }}
     {% endif %}
     {%- set with_options = [] -%}
     {%- if index_config.data_compression -%}
         {%- do with_options.append('data_compression = ' ~ index_config.data_compression | upper) -%}
     {%- endif -%}
+    {%- if index_config.fillfactor -%}
+        {%- do with_options.append('fillfactor = ' ~ index_config.fillfactor) -%}
+    {%- endif -%}
+    {%- if index_config.pad_index -%}
+        {%- do with_options.append('pad_index = on') -%}
+    {%- endif -%}
+    {%- if index_config.ignore_dup_key -%}
+        {%- do with_options.append('ignore_dup_key = on') -%}
+    {%- endif -%}
+    {%- if index_config.optimize_for_sequential_key -%}
+        {%- do with_options.append('optimize_for_sequential_key = on') -%}
+    {%- endif -%}
     {%- if index_config.sort_in_tempdb -%}
         {%- do with_options.append('sort_in_tempdb = on') -%}
     {%- endif -%}
+    {%- for option_key, option_value in (index_config.build_options or {}).items() -%}
+        {%- if option_value is sameas true -%}
+            {%- do with_options.append(option_key ~ ' = on') -%}
+        {%- elif option_value is sameas false -%}
+            {%- do with_options.append(option_key ~ ' = off') -%}
+        {%- elif option_key == 'max_duration' -%}
+            {%- do with_options.append('max_duration = ' ~ option_value ~ ' minutes') -%}
+        {%- else -%}
+            {%- do with_options.append(option_key ~ ' = ' ~ option_value) -%}
+        {%- endif -%}
+    {%- endfor -%}
     {% if with_options %}
         with ({{ with_options | join(', ') }})
     {% endif %}
@@ -287,9 +325,16 @@
         i.is_unique_constraint as is_unique_constraint,
         isnull(key_cols.cols, '') as [columns],
         isnull(incl_cols.cols, '') as included_columns,
-        case when i.[type] in (1, 2)
+        case when i.[type] in (1, 2, 6)
              then isnull(part.data_compression_desc, 'NONE')
-        end as data_compression
+        end as data_compression,
+        isnull(desc_cols.cols, '') as descending_columns,
+        i.filter_definition as [where],
+        i.fill_factor as [fillfactor],
+        i.ignore_dup_key as [ignore_dup_key]
+        /* optimize_for_sequential_key is deliberately not selected: the
+           sys.indexes column only exists on SQL Server 2019+ and managed
+           comparisons are name-based, so it isn't needed here */
     from sys.indexes i {{ information_schema_hints() }}
     outer apply (
         /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
@@ -310,7 +355,17 @@
           and ic.is_included_column = 1
     ) incl_cols
     outer apply (
-        select top 1 p.data_compression_desc
+        select string_agg(col.[name], ', ') as cols
+        from sys.index_columns ic
+        inner join sys.columns col
+            on col.object_id = ic.object_id and col.column_id = ic.column_id
+        where ic.object_id = i.object_id and ic.index_id = i.index_id
+          and ic.is_descending_key = 1
+    ) desc_cols
+    outer apply (
+        /* MAX() rather than TOP 1: deterministic if partitions ever carry
+           mixed compression (the adapter doesn't manage partitioning today) */
+        select max(p.data_compression_desc) as data_compression_desc
         from sys.partitions p
         where p.object_id = i.object_id and p.index_id = i.index_id
     ) part

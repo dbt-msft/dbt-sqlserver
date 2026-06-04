@@ -205,9 +205,13 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             ),
             RelationConfigValidationRule(
                 validation_check=not self.ignore_dup_key
-                or (self.unique and self.type != SQLServerIndexType.columnstore),
+                or (
+                    self.unique and self.type != SQLServerIndexType.columnstore and not self.where
+                ),
                 validation_error=DbtRuntimeError(
-                    "ignore_dup_key is only valid for unique rowstore indexes"
+                    "ignore_dup_key is only valid for unique rowstore indexes, "
+                    "and cannot be combined with 'where' (the engine forbids "
+                    "IGNORE_DUP_KEY on filtered indexes)"
                 ),
             ),
             RelationConfigValidationRule(

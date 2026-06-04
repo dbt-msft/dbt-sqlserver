@@ -527,3 +527,14 @@ def test_build_options_in_as_node_config_round_trip():
     )
     reparsed = SQLServerIndexConfig.parse(config.as_node_config)
     assert reparsed.build_options == {"maxdop": 2, "allow_page_locks": False}
+
+
+def test_ignore_dup_key_invalid_with_where():
+    # Engine rule: IGNORE_DUP_KEY = ON cannot be combined with a filtered index.
+    with pytest.raises(DbtRuntimeError, match="ignore_dup_key"):
+        SQLServerIndexConfig(
+            columns=("col_a",),
+            unique=True,
+            ignore_dup_key=True,
+            where="col_a is not null",
+        )
