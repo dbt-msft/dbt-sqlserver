@@ -137,7 +137,7 @@ Replacing the usage of the `dm_sql_referencing_entities` stored procedure with a
 
 Minor release to follow up on 1.4.1 and 1.4.0.
 
-Adding `nolock` to information_schema and sys tables/views can be overriden with the dispatched `information_schema_hints` macro. This is required for adapters inheriting from this one.
+Adding `nolock` to information_schema and sys tables/views can be overridden with the dispatched `information_schema_hints` macro. This is required for adapters inheriting from this one.
 
 ### v1.4.1
 
@@ -405,11 +405,11 @@ Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core
 
 #### features:
 
-- users can now delcare a model's database to be other than the one specified in the profile. This will only work for on-premise SQL Server and Azure SQL Managed Instance. [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) thanks [@semcha](https://github.com/semcha)!
+- users can now declare a model's database to be other than the one specified in the profile. This will only work for on-premise SQL Server and Azure SQL Managed Instance. [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) thanks [@semcha](https://github.com/semcha)!
 
 #### under the hood
 
-- abandon four-part version names (`v0.19.0.2`) in favor of three-part version names because it isn't [SemVer](https://semver.org/) and it causes problems with the `~=` pip operator used dbt-synapse, a pacakge that depends on dbt-sqlserver
+- abandon four-part version names (`v0.19.0.2`) in favor of three-part version names because it isn't [SemVer](https://semver.org/) and it causes problems with the `~=` pip operator used dbt-synapse, a package that depends on dbt-sqlserver
 - allow CI to work with the lower-cost serverless Azure SQL [#132](https://github.com/dbt-msft/dbt-sqlserver/pull/132)
 
 ### v0.19.0.2
@@ -510,7 +510,7 @@ Adds support for:
 
 #### Fixes:
 
-- Fixes an issue with clustered columnstore index not beeing created.
+- Fixes an issue with clustered columnstore index not being created.
 
 ### v0.15.1
 
@@ -520,7 +520,7 @@ Adds support for:
 
 #### Fixes:
 
-- Previously when a model run was interupted unfinished models prevented the next run and you had to manually delete them. This is now fixed so that unfinished models will be deleted on next run.
+- Previously when a model run was interrupted unfinished models prevented the next run and you had to manually delete them. This is now fixed so that unfinished models will be deleted on next run.
 
 ### v0.15.0.1
 

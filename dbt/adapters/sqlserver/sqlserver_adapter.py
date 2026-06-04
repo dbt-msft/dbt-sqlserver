@@ -26,7 +26,7 @@ from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
 class SQLServerAdapter(SQLAdapter):
     """
-    Controls actual implmentation of adapter, and ability to override certain methods.
+    Controls actual implementation of adapter, and ability to override certain methods.
     """
 
     ConnectionManager = SQLServerConnectionManager
@@ -193,7 +193,7 @@ class SQLServerAdapter(SQLAdapter):
         except_operator: str = "EXCEPT",
     ) -> str:
         """
-        note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjsuted
+        note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjusted
         Generate SQL for a query that returns a single row with a two
         columns: the number of rows that are different between the two
         relations and the number of mismatched rows.
