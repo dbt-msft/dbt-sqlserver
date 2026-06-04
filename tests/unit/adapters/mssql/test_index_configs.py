@@ -111,7 +111,44 @@ def test_sqlserver_index_config_parse_relation_results():
         "unique": True,
         "type": "nonclustered",
         "included_columns": {"col3", "col4"},
+        "data_compression": None,
     }
+
+
+def test_parse_relation_results_strips_whitespace():
+    # The sys.indexes introspection aggregates columns as "col1, col2" -
+    # entries must be stripped or reconciliation comparisons never match.
+    parsed = SQLServerIndexConfig.parse_relation_results(
+        {
+            "name": "ix",
+            "columns": "col1, col2",
+            "unique": True,
+            "type": "nonclustered",
+            "included_columns": "col3, col4",
+        }
+    )
+    assert parsed["columns"] == ("col1", "col2")
+    assert parsed["included_columns"] == {"col3", "col4"}
+
+
+def test_parse_relation_results_empty_and_null_includes():
+    parsed = SQLServerIndexConfig.parse_relation_results(
+        {"name": "ix", "columns": "col1", "unique": False, "type": "clustered"}
+    )
+    assert parsed["columns"] == ("col1",)
+    # absent/NULL included_columns must parse to empty, not {""}
+    assert parsed["included_columns"] == set()
+
+    parsed = SQLServerIndexConfig.parse_relation_results(
+        {
+            "name": "ix",
+            "columns": "col1",
+            "unique": False,
+            "type": "clustered",
+            "included_columns": "",
+        }
+    )
+    assert parsed["included_columns"] == set()
 
 
 def test_sqlserver_index_config_as_node_config():

@@ -19,6 +19,21 @@ from dbt.adapters.relation_configs import (
 # `indexes` model config. Reconciliation only ever drops indexes carrying it.
 SQLSERVER_MANAGED_INDEX_PREFIX = "dbt_idx_"
 
+# Names created by the legacy post-hook macros (create_clustered_index /
+# create_nonclustered_index). Existing users rely on those post-hooks, so
+# reconciliation must never drop them — not even under
+# drop_unmanaged_indexes: true.
+LEGACY_INDEX_PREFIXES = ("clustered_", "nonclustered_")
+
+VALID_DROP_UNMANAGED_MODES = ("false", "warn", "true")
+
+
+def _split_column_list(raw) -> Tuple[str, ...]:
+    """Split a 'col1, col2' aggregate from sys introspection into clean parts."""
+    if not raw:
+        return ()
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
 
 # ALTERED FROM:
 # github.com/dbt-labs/dbt-postgres/blob/main/dbt/adapters/postgres/relation_configs/index.py
@@ -180,10 +195,15 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     def parse_relation_results(cls, relation_results_entry: agate.Row) -> dict:
         config_dict = {
             "name": relation_results_entry.get("name"),
-            "columns": tuple(relation_results_entry.get("columns", "").split(",")),
-            "unique": relation_results_entry.get("unique"),
+            "columns": _split_column_list(relation_results_entry.get("columns")),
+            "unique": bool(relation_results_entry.get("unique")),
             "type": relation_results_entry.get("type"),
-            "included_columns": set(relation_results_entry.get("included_columns", "").split(",")),
+            "included_columns": set(
+                _split_column_list(relation_results_entry.get("included_columns"))
+            ),
+            "data_compression": cls._normalize_data_compression(
+                relation_results_entry.get("data_compression")
+            ),
         }
         return config_dict
 
@@ -260,7 +280,6 @@ class SQLServerIndexConfigChange(RelationConfigChange, RelationConfigValidationM
     }
     """
 
-    # TODO: Implement the change actions on the adapter
     context: SQLServerIndexConfig
 
     @property
@@ -295,3 +314,118 @@ class SQLServerIndexConfigChange(RelationConfigChange, RelationConfigValidationM
                 ),
             ),
         }
+
+
+def index_config_changes(
+    existing_rows,
+    expected_configs,
+    relation,
+    drop_unmanaged="false",
+):
+    """Compute the index changes needed to converge an existing relation on its
+    configured index set.
+
+    Managed indexes (dbt_idx_ prefix) carry a deterministic full-definition
+    hash in their name, so name equality <=> definition equality: drops are
+    "managed names not expected", creates are "expected names not present".
+
+    Args:
+        existing_rows: rows from sqlserver__describe_indexes (mappings with
+            name/type/unique/columns/included_columns/data_compression plus
+            is_primary_key/is_unique_constraint flags)
+        expected_configs: list of SQLServerIndexConfig from the model config
+        relation: the target relation (for rendering expected names)
+        drop_unmanaged: "false" (default) | "warn" | "true" - how to treat
+            droppable indexes dbt didn't create. Constraint-backing indexes
+            and legacy post-hook (clustered_/nonclustered_) indexes are never
+            dropped in any mode.
+
+    Returns:
+        (changes, warnings): changes is a list of SQLServerIndexConfigChange
+        with all drops ordered before all creates; warnings is a list of
+        messages about unmanaged indexes (populated in "warn" mode).
+
+    Raises:
+        DbtRuntimeError: for an invalid drop_unmanaged value, or when an
+            expected clustered index is blocked by an existing clustered index
+            that will not be dropped (a table can only have one).
+    """
+    if isinstance(drop_unmanaged, bool):
+        drop_unmanaged = "true" if drop_unmanaged else "false"
+    if drop_unmanaged not in VALID_DROP_UNMANAGED_MODES:
+        raise DbtRuntimeError(
+            f"Invalid drop_unmanaged_indexes value: {drop_unmanaged!r}. "
+            f"Valid values: {', '.join(VALID_DROP_UNMANAGED_MODES)}"
+        )
+
+    expected_by_name = {config.render(relation): config for config in expected_configs}
+    existing_names = set()
+    drop_names = []
+    warnings = []
+
+    for row in existing_rows:
+        name = row.get("name")
+        existing_names.add(name)
+        if name in expected_by_name:
+            continue
+
+        protected = bool(row.get("is_primary_key")) or bool(row.get("is_unique_constraint"))
+        if protected:
+            continue
+        if name.startswith(SQLSERVER_MANAGED_INDEX_PREFIX):
+            drop_names.append(name)
+            continue
+        if name.startswith(LEGACY_INDEX_PREFIXES):
+            # Legacy post-hook indexes: the owning post-hook would recreate
+            # them right after we dropped them. Never touch.
+            continue
+        if drop_unmanaged == "true":
+            drop_names.append(name)
+        elif drop_unmanaged == "warn":
+            warnings.append(
+                f"Unmanaged index not in the expected set "
+                f"(kept; set drop_unmanaged_indexes: true to drop): "
+                f"{name} on ({row.get('columns')})"
+            )
+
+    creating_clustered = any(
+        config.type == SQLServerIndexType.clustered
+        for name, config in expected_by_name.items()
+        if name not in existing_names
+    )
+    if creating_clustered:
+        blocking = [
+            row.get("name")
+            for row in existing_rows
+            if str(row.get("type") or "") == str(SQLServerIndexType.clustered)
+            and row.get("name") not in expected_by_name
+            and row.get("name") not in drop_names
+        ]
+        if blocking:
+            raise DbtRuntimeError(
+                f"Cannot create the configured clustered index on "
+                f"{relation.render()}: existing clustered index "
+                f"{', '.join(blocking)} will not be dropped (constraint-backing "
+                "and legacy post-hook indexes are never dropped; other unmanaged "
+                "indexes require drop_unmanaged_indexes: true). Drop or migrate "
+                "the conflicting index, or remove the clustered entry from the "
+                "indexes config."
+            )
+
+    rows_by_name = {row.get("name"): row for row in existing_rows}
+    changes = []
+    for name in drop_names:
+        context = SQLServerIndexConfig.from_dict(
+            SQLServerIndexConfig.parse_relation_results(rows_by_name[name])
+        )
+        changes.append(
+            SQLServerIndexConfigChange(action=RelationConfigChangeAction.drop, context=context)
+        )
+    for name, config in expected_by_name.items():
+        if name not in existing_names:
+            changes.append(
+                SQLServerIndexConfigChange(
+                    action=RelationConfigChangeAction.create, context=config
+                )
+            )
+    return changes, warnings
