@@ -1,5 +1,42 @@
 # Changelog
 
+### v1.10.0
+
+#### Features
+
+- Official support for `dbt-core` 1.10.
+- Add `query_options` / `query_options_raw` model configs for emitting SQL Server `OPTION` clauses on table, incremental (delete+insert / microbatch), snapshot, and unit_test materializations. See https://github.com/dbt-msft/dbt-sqlserver/issues/613.
+- `get_query_options()` is the new extension point for customising the emitted `OPTION` clause.
+- Add DML table refresh support for table materializations.
+- Add opt-in native string type mappings via a behaviour flag.
+- Add default schema concatenation flag support and update the documentation.
+- Enable SQL Server limited-relation no-alias behavior by default.
+- Support catalog generation across multiple databases. [#603](https://github.com/dbt-msft/dbt-sqlserver/issues/603)
+- Fix view rematerialization when a view already exists, including preserving grants and avoiding unnecessary rebuilds. [#610](https://github.com/dbt-msft/dbt-sqlserver/issues/610)
+
+#### Bugfixes
+
+- Fix reserved-keyword quoting in table-create `DROP VIEW` handling.
+- Fix CTE detection in empty-subquery wrapping when leading comments are present.
+- Fix snapshot meta column name overrides on a second run.
+- Fix connection-string port handling regressions.
+- Fix `TABLOCK` interaction with contract-enforced inserts and `query_options`.
+- Fix `get_view_definition()` escaping for `]` characters.
+- Make the highest-frequency catalog queries sargable so they seek instead of scan. [#686](https://github.com/dbt-msft/dbt-sqlserver/issues/686)
+
+#### Under the hood
+
+- Drop Python 3.9 support; this release targets Python 3.10 and newer.
+- Adopt standard `pyproject.toml`/PEP 621 packaging metadata for source installs and downloads.
+
+#### Migration note
+
+- `apply_label()` is preserved as a callable alias (emits LABEL only) in case you use it in your own project but is no longer called by adapter macros. Projects that override `apply_label()` to customise the OPTION clause must override `get_query_options()` instead.
+
+### v1.9.2
+
+- Add default schema concatenation flag support and update the documentation. See PR #685.
+
 ### v1.9.1
 
 - Removes the dependency on `dbt-fabric`.
@@ -94,7 +131,7 @@ Replacing the usage of the `dm_sql_referencing_entities` stored procedure with a
 
 Minor release to follow up on 1.4.1 and 1.4.0.
 
-Adding `nolock` to information_schema and sys tables/views can be overriden with the dispatched `information_schema_hints` macro. This is required for adapters inheriting from this one.
+Adding `nolock` to information_schema and sys tables/views can be overridden with the dispatched `information_schema_hints` macro. This is required for adapters inheriting from this one.
 
 ### v1.4.1
 
@@ -362,11 +399,11 @@ Please see [dbt-core v0.21.0 release notes](https://github.com/dbt-labs/dbt-core
 
 #### features:
 
-- users can now delcare a model's database to be other than the one specified in the profile. This will only work for on-premise SQL Server and Azure SQL Managed Instance. [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) thanks [@semcha](https://github.com/semcha)!
+- users can now declare a model's database to be other than the one specified in the profile. This will only work for on-premise SQL Server and Azure SQL Managed Instance. [#126](https://github.com/dbt-msft/dbt-sqlserver/issues/126) thanks [@semcha](https://github.com/semcha)!
 
 #### under the hood
 
-- abandon four-part version names (`v0.19.0.2`) in favor of three-part version names because it isn't [SemVer](https://semver.org/) and it causes problems with the `~=` pip operator used dbt-synapse, a pacakge that depends on dbt-sqlserver
+- abandon four-part version names (`v0.19.0.2`) in favor of three-part version names because it isn't [SemVer](https://semver.org/) and it causes problems with the `~=` pip operator used dbt-synapse, a package that depends on dbt-sqlserver
 - allow CI to work with the lower-cost serverless Azure SQL [#132](https://github.com/dbt-msft/dbt-sqlserver/pull/132)
 
 ### v0.19.0.2
@@ -467,7 +504,7 @@ Adds support for:
 
 #### Fixes:
 
-- Fixes an issue with clustered columnstore index not beeing created.
+- Fixes an issue with clustered columnstore index not being created.
 
 ### v0.15.1
 
@@ -477,7 +514,7 @@ Adds support for:
 
 #### Fixes:
 
-- Previously when a model run was interupted unfinished models prevented the next run and you had to manually delete them. This is now fixed so that unfinished models will be deleted on next run.
+- Previously when a model run was interrupted unfinished models prevented the next run and you had to manually delete them. This is now fixed so that unfinished models will be deleted on next run.
 
 ### v0.15.0.1
 

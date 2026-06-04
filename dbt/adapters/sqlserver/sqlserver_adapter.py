@@ -26,7 +26,7 @@ from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
 class SQLServerAdapter(SQLAdapter):
     """
-    Controls actual implmentation of adapter, and ability to override certain methods.
+    Controls actual implementation of adapter, and ability to override certain methods.
     """
 
     ConnectionManager = SQLServerConnectionManager
@@ -50,6 +50,9 @@ class SQLServerAdapter(SQLAdapter):
 
     def __init__(self, config, mp_context=None):
         super().__init__(config, mp_context)
+        SQLServerRelation.disable_empty_relation_aliases = (
+            self.behavior.dbt_sqlserver_disable_empty_relation_aliases
+        )
         if self.behavior.dbt_sqlserver_use_native_string_types:
             self.Column = SQLServerColumnNative
 
@@ -74,6 +77,15 @@ class SQLServerAdapter(SQLAdapter):
                     "`custom_schema_name` is used directly without prefixing `target.schema`. "
                     "For a permanent solution, override the `sqlserver__generate_schema_name` "
                     "macro in your project instead."
+                ),
+            },
+            {
+                "name": "dbt_sqlserver_disable_empty_relation_aliases",
+                "default": True,
+                "description": (
+                    "When True, SQL Server limited relations used by --empty and sample mode "
+                    "do not automatically receive dbt-generated aliases. Set this false to opt "
+                    "out of alias generation temporarily for testing."
                 ),
             },
             {
@@ -181,7 +193,7 @@ class SQLServerAdapter(SQLAdapter):
         except_operator: str = "EXCEPT",
     ) -> str:
         """
-        note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjsuted
+        note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjusted
         Generate SQL for a query that returns a single row with a two
         columns: the number of rows that are different between the two
         relations and the number of mismatched rows.

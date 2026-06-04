@@ -4,7 +4,7 @@
   {%- set target_table = model.get('alias', model.get('name')) -%}
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
-  -- grab current tables grants config for comparision later on
+  -- grab current tables grants config for comparison later on
   {%- set grant_config = config.get('grants') -%}
 
   {% set target_relation_exists, target_relation = get_or_create_relation(

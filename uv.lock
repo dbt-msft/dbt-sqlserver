@@ -623,7 +623,7 @@ requires-dist = [
     { name = "azure-identity", marker = "extra == 'mssql'", specifier = ">=1.12.0" },
     { name = "dbt-adapters", specifier = ">=1.15.2,<2.0" },
     { name = "dbt-common", specifier = ">=1.22.0,<2.0" },
-    { name = "dbt-core", specifier = ">=1.10.0,<1.11.0" },
+    { name = "dbt-core", specifier = ">=1.10.0,<2.0" },
     { name = "mssql-python", marker = "extra == 'mssql'", specifier = ">=1.7.1" },
     { name = "pyodbc", specifier = ">=5.2.0" },
     { name = "pyodbc", marker = "extra == 'pyodbc'", specifier = ">=5.2.0" },

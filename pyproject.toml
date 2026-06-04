@@ -27,7 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dbt-core>=1.10.0,<1.11.0",
+    "dbt-core>=1.10.0,<2.0",
     "dbt-common>=1.22.0,<2.0",
     "dbt-adapters>=1.15.2,<2.0",
     "pyodbc>=5.2.0",
