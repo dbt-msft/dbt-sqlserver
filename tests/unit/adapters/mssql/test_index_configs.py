@@ -53,7 +53,7 @@ def test_sqlserver_index_config_validation_rules():
         type=SQLServerIndexType.nonclustered,
         included_columns=frozenset(["col3", "col4"]),
     )
-    assert len(valid_config.validation_rules) == 7
+    assert len(valid_config.validation_rules) == 11
     for rule in valid_config.validation_rules:
         assert rule.validation_check is True
 
@@ -93,6 +93,12 @@ def test_sqlserver_index_config_parse_model_node():
         "included_columns": frozenset(["col3", "col4"]),
         "data_compression": None,
         "sort_in_tempdb": False,
+        "descending_columns": frozenset(),
+        "where": None,
+        "fillfactor": None,
+        "pad_index": False,
+        "ignore_dup_key": False,
+        "optimize_for_sequential_key": False,
     }
 
 
@@ -112,6 +118,12 @@ def test_sqlserver_index_config_parse_relation_results():
         "type": "nonclustered",
         "included_columns": {"col3", "col4"},
         "data_compression": None,
+        "descending_columns": set(),
+        "where": None,
+        "fillfactor": None,
+        "pad_index": False,
+        "ignore_dup_key": False,
+        "optimize_for_sequential_key": False,
     }
 
 
@@ -166,6 +178,12 @@ def test_sqlserver_index_config_as_node_config():
         "included_columns": ["col3", "col4"],
         "data_compression": None,
         "sort_in_tempdb": False,
+        "descending_columns": [],
+        "where": None,
+        "fillfactor": None,
+        "pad_index": False,
+        "ignore_dup_key": False,
+        "optimize_for_sequential_key": False,
     }
 
 
@@ -340,3 +358,137 @@ def test_parse_normalizes_compression_case():
     assert config.data_compression is None
     # explicit 'NONE' hashes identically to omitting the key
     assert config == SQLServerIndexConfig.parse({"columns": ["a"]})
+
+
+# --- column direction ---
+
+
+def test_parse_column_direction_dict_entries():
+    config = SQLServerIndexConfig.parse({"columns": ["col_a", {"column": "col_b", "desc": True}]})
+    assert config.columns == ("col_a", "col_b")
+    assert config.descending_columns == frozenset(["col_b"])
+
+    # plain strings stay ascending
+    config = SQLServerIndexConfig.parse({"columns": ["col_a", "col_b"]})
+    assert config.descending_columns == frozenset()
+
+
+def test_descending_must_be_subset_of_columns():
+    with pytest.raises(DbtRuntimeError, match="descending"):
+        SQLServerIndexConfig(columns=("col_a",), descending_columns=frozenset(["col_x"]))
+
+
+def test_render_differs_on_direction():
+    relation = make_relation()
+    asc = SQLServerIndexConfig.parse({"columns": ["col_a", "col_b"]})
+    desc = SQLServerIndexConfig.parse({"columns": ["col_a", {"column": "col_b", "desc": True}]})
+    assert asc.render(relation) != desc.render(relation)
+
+
+# --- filtered indexes ---
+
+
+def test_where_round_trip_and_hash():
+    relation = make_relation()
+    plain = SQLServerIndexConfig.parse({"columns": ["col_a"]})
+    filtered = SQLServerIndexConfig.parse({"columns": ["col_a"], "where": "col_a is not null"})
+    assert filtered.where == "col_a is not null"
+    assert plain.render(relation) != filtered.render(relation)
+
+
+def test_where_invalid_for_clustered():
+    with pytest.raises(DbtRuntimeError, match="where"):
+        SQLServerIndexConfig(columns=("col_a",), type="clustered", where="col_a > 0")
+
+
+def test_where_valid_for_columnstore():
+    config = SQLServerIndexConfig(columns=("col_a",), type="columnstore", where="col_a > 0")
+    assert config.where == "col_a > 0"
+
+
+# --- fillfactor / pad_index ---
+
+
+def test_fillfactor_round_trip_and_validation():
+    config = SQLServerIndexConfig.parse({"columns": ["col_a"], "fillfactor": 80})
+    assert config.fillfactor == 80
+
+    with pytest.raises(DbtRuntimeError, match="fillfactor"):
+        SQLServerIndexConfig(columns=("col_a",), fillfactor=0)
+    with pytest.raises(DbtRuntimeError, match="fillfactor"):
+        SQLServerIndexConfig(columns=("col_a",), fillfactor=101)
+    with pytest.raises(DbtRuntimeError, match="fillfactor"):
+        SQLServerIndexConfig(columns=("col_a",), type="columnstore", fillfactor=80)
+
+
+def test_fillfactor_and_pad_index_in_hash():
+    relation = make_relation()
+    base = SQLServerIndexConfig(columns=("col_a",))
+    assert base.render(relation) != SQLServerIndexConfig(columns=("col_a",), fillfactor=80).render(
+        relation
+    )
+    assert base.render(relation) != SQLServerIndexConfig(
+        columns=("col_a",), fillfactor=80, pad_index=True
+    ).render(relation)
+
+
+# --- ignore_dup_key / optimize_for_sequential_key ---
+
+
+def test_ignore_dup_key_requires_unique_rowstore():
+    config = SQLServerIndexConfig(columns=("col_a",), unique=True, ignore_dup_key=True)
+    assert config.ignore_dup_key is True
+
+    with pytest.raises(DbtRuntimeError, match="ignore_dup_key"):
+        SQLServerIndexConfig(columns=("col_a",), ignore_dup_key=True)  # not unique
+
+
+def test_optimize_for_sequential_key_rowstore_only():
+    config = SQLServerIndexConfig(columns=("col_a",), optimize_for_sequential_key=True)
+    assert config.optimize_for_sequential_key is True
+
+    with pytest.raises(DbtRuntimeError, match="optimize_for_sequential_key"):
+        SQLServerIndexConfig(
+            columns=("col_a",), type="columnstore", optimize_for_sequential_key=True
+        )
+
+
+def test_semantic_flags_in_hash():
+    relation = make_relation()
+    base = SQLServerIndexConfig(columns=("col_a",), unique=True)
+    assert base.render(relation) != SQLServerIndexConfig(
+        columns=("col_a",), unique=True, ignore_dup_key=True
+    ).render(relation)
+    assert base.render(relation) != SQLServerIndexConfig(
+        columns=("col_a",), unique=True, optimize_for_sequential_key=True
+    ).render(relation)
+
+
+# --- columnstore compression ---
+
+
+def test_columnstore_archive_compression():
+    config = SQLServerIndexConfig.parse(
+        {"columns": ["col_a"], "type": "columnstore", "data_compression": "columnstore_archive"}
+    )
+    assert config.data_compression == "columnstore_archive"
+
+    # rowstore values rejected for columnstore and vice versa
+    with pytest.raises(DbtRuntimeError):
+        SQLServerIndexConfig(columns=("col_a",), type="columnstore", data_compression="page")
+    with pytest.raises(DbtRuntimeError):
+        SQLServerIndexConfig(columns=("col_a",), data_compression="columnstore_archive")
+
+
+# --- name stability: new fields must not change existing hashes when unset ---
+
+
+def test_hash_backward_compatible_when_new_fields_unset():
+    config = SQLServerIndexConfig(
+        columns=("col1", "col2"),
+        unique=True,
+        type=SQLServerIndexType.nonclustered,
+        included_columns=frozenset(["col4", "col3"]),
+    )
+    expected_string = "col1_col2_col3_col4_test_relation_True_nonclustered"
+    assert config.render(make_relation()) == "dbt_idx_" + dbt_encoding.md5(expected_string)

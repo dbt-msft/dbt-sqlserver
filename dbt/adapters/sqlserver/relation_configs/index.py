@@ -66,13 +66,23 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
       definition (so a definition change always produces a new name)
     - unique: checks for duplicate values when the index is created and on data updates
     - type: the index type method to be used
-    - columns: the columns names in the index
+    - columns: the column names in the index; entries are either a plain name
+      (ascending) or {'column': name, 'desc': true}
     - included_columns: the extra included columns names in the index
-    - data_compression: none | row | page (rowstore indexes only)
+    - data_compression: none | row | page (rowstore) or
+      columnstore | columnstore_archive (columnstore)
+    - where: filter predicate for a filtered index (nonclustered / columnstore)
+    - fillfactor (1-100) / pad_index: leaf/intermediate page density (rowstore)
+    - ignore_dup_key: discard duplicate rows instead of erroring (unique rowstore)
+    - optimize_for_sequential_key: last-page contention optimization
+      (rowstore, SQL Server 2019+)
     - sort_in_tempdb: build-time option for the create statement; deliberately
       excluded from identity (not introspectable and doesn't change the
       resulting index, so it must not trigger drop/recreate)
 
+    All definition-affecting fields participate in the rendered name hash, but
+    only when set - so names of pre-existing managed indexes stay stable when
+    the adapter adds new optional fields.
     """
 
     name: str = field(default="", hash=False, compare=False)
@@ -88,6 +98,12 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     )  # Keeping order is not important
     data_compression: Optional[str] = field(default=None, hash=True)
     sort_in_tempdb: bool = field(default=False, hash=False, compare=False)
+    descending_columns: FrozenSet[str] = field(default_factory=frozenset, hash=True)
+    where: Optional[str] = field(default=None, hash=True)
+    fillfactor: Optional[int] = field(default=None, hash=True)
+    pad_index: bool = field(default=False, hash=True)
+    ignore_dup_key: bool = field(default=False, hash=True)
+    optimize_for_sequential_key: bool = field(default=False, hash=True)
 
     @property
     def validation_rules(self) -> Set[RelationConfigValidationRule]:
@@ -125,20 +141,16 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
                 ),
             ),
             RelationConfigValidationRule(
-                validation_check=self.data_compression in (None, "none", "row", "page"),
-                validation_error=DbtRuntimeError(
-                    f"Invalid data_compression: {self.data_compression}, "
-                    "valid values: none, row, page"
-                ),
-            ),
-            RelationConfigValidationRule(
-                validation_check=not (
-                    self.type == SQLServerIndexType.columnstore and self.data_compression
+                validation_check=self.data_compression
+                in (
+                    (None, "columnstore", "columnstore_archive")
+                    if self.type == SQLServerIndexType.columnstore
+                    else (None, "none", "row", "page")
                 ),
                 validation_error=DbtRuntimeError(
-                    "data_compression is not configurable for columnstore indexes here; "
-                    "columnstore compression is managed by the engine "
-                    "(COLUMNSTORE / COLUMNSTORE_ARCHIVE via maintenance, not CREATE INDEX)"
+                    f"Invalid data_compression: {self.data_compression}. "
+                    "Valid values: none, row, page (rowstore) or "
+                    "columnstore, columnstore_archive (columnstore)"
                 ),
             ),
             RelationConfigValidationRule(
@@ -147,6 +159,47 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
                 ),
                 validation_error=DbtRuntimeError(
                     "sort_in_tempdb is not valid for columnstore indexes"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=frozenset(self.descending_columns) <= frozenset(self.columns),
+                validation_error=DbtRuntimeError(
+                    "descending columns must be a subset of the index key columns: "
+                    f"{sorted(set(self.descending_columns) - set(self.columns))}"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=not (self.where and self.type == SQLServerIndexType.clustered),
+                validation_error=DbtRuntimeError(
+                    "'where' (filtered index) is not valid for clustered indexes"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=(
+                    self.fillfactor is None
+                    or (
+                        1 <= self.fillfactor <= 100 and self.type != SQLServerIndexType.columnstore
+                    )
+                )
+                and not (self.pad_index and self.type == SQLServerIndexType.columnstore),
+                validation_error=DbtRuntimeError(
+                    f"Invalid fillfactor/pad_index: fillfactor={self.fillfactor} "
+                    "(must be 1-100, rowstore indexes only)"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=not self.ignore_dup_key
+                or (self.unique and self.type != SQLServerIndexType.columnstore),
+                validation_error=DbtRuntimeError(
+                    "ignore_dup_key is only valid for unique rowstore indexes"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=not self.optimize_for_sequential_key
+                or self.type in (SQLServerIndexType.clustered, SQLServerIndexType.nonclustered),
+                validation_error=DbtRuntimeError(
+                    "optimize_for_sequential_key is only valid for rowstore indexes "
+                    "(SQL Server 2019+)"
                 ),
             ),
         }
@@ -159,6 +212,21 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         # same as omitting the key entirely.
         return None if value in (None, "none") else value
 
+    @staticmethod
+    def _normalize_columns(raw_columns):
+        """Split mixed column entries - plain names or {'column': n, 'desc': bool}
+        dicts - into (names, descending_names). Non-conforming entries are left
+        as-is for jsonschema validation to reject with a useful message."""
+        names, descending = [], []
+        for entry in raw_columns:
+            if isinstance(entry, dict) and isinstance(entry.get("column"), str):
+                names.append(entry["column"])
+                if entry.get("desc"):
+                    descending.append(entry["column"])
+            else:
+                names.append(entry)
+        return names, descending
+
     # NOTE: no custom from_dict override here - dbtClassMixin (mashumaro)
     # generates from_dict during class creation and silently replaces any
     # method defined in the class body, so an override would be dead code.
@@ -166,8 +234,13 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
 
     @classmethod
     def parse_model_node(cls, model_node_entry: dict) -> dict:
+        raw_columns = model_node_entry.get("columns", [])
+        if isinstance(raw_columns, list):
+            names, descending = cls._normalize_columns(raw_columns)
+        else:
+            names, descending = raw_columns, []
         config_dict = {
-            "columns": tuple(model_node_entry.get("columns", tuple())),
+            "columns": tuple(names),
             "unique": model_node_entry.get("unique"),
             "type": model_node_entry.get("type"),
             "included_columns": frozenset(model_node_entry.get("included_columns", set())),
@@ -175,6 +248,16 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
                 model_node_entry.get("data_compression")
             ),
             "sort_in_tempdb": bool(model_node_entry.get("sort_in_tempdb") or False),
+            "descending_columns": frozenset(
+                set(descending) | set(model_node_entry.get("descending_columns") or [])
+            ),
+            "where": model_node_entry.get("where"),
+            "fillfactor": model_node_entry.get("fillfactor"),
+            "pad_index": bool(model_node_entry.get("pad_index") or False),
+            "ignore_dup_key": bool(model_node_entry.get("ignore_dup_key") or False),
+            "optimize_for_sequential_key": bool(
+                model_node_entry.get("optimize_for_sequential_key") or False
+            ),
         }
         return config_dict
 
@@ -190,6 +273,17 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             ),
             "data_compression": cls._normalize_data_compression(
                 relation_results_entry.get("data_compression")
+            ),
+            "descending_columns": set(
+                _split_column_list(relation_results_entry.get("descending_columns"))
+            ),
+            "where": relation_results_entry.get("where") or None,
+            # sys.indexes.fill_factor reports 0 for the server default
+            "fillfactor": relation_results_entry.get("fillfactor") or None,
+            "pad_index": bool(relation_results_entry.get("pad_index")),
+            "ignore_dup_key": bool(relation_results_entry.get("ignore_dup_key")),
+            "optimize_for_sequential_key": bool(
+                relation_results_entry.get("optimize_for_sequential_key")
             ),
         }
         return config_dict
@@ -208,6 +302,12 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             "included_columns": sorted(self.included_columns),
             "data_compression": self.data_compression,
             "sort_in_tempdb": self.sort_in_tempdb,
+            "descending_columns": sorted(self.descending_columns),
+            "where": self.where,
+            "fillfactor": self.fillfactor,
+            "pad_index": self.pad_index,
+            "ignore_dup_key": self.ignore_dup_key,
+            "optimize_for_sequential_key": self.optimize_for_sequential_key,
         }
         return node_config
 
@@ -219,14 +319,27 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         # makes name equality <=> definition equality, which reconciliation
         # relies on; create idempotency comes from the IF NOT EXISTS guard in
         # sqlserver__get_create_index_sql.
-        # sort_in_tempdb is deliberately NOT hashed: it's a build-time option
-        # that doesn't change the resulting index, so toggling it must not
-        # produce a new name (which would drop/recreate on reconcile).
+        # Build-time options (sort_in_tempdb, build_options) are deliberately
+        # NOT hashed: they don't change the resulting index, so toggling them
+        # must not produce a new name (which would drop/recreate on reconcile).
+        # Optional definition fields are appended ONLY when set, with a field
+        # prefix, so pre-existing managed index names stay stable as the
+        # adapter grows new options.
         inputs = (
             self.columns
             + tuple(sorted(self.included_columns))
             + (relation.render(), str(self.unique), str(self.type))
             + ((str(self.data_compression),) if self.data_compression else ())
+            + (
+                ("desc:" + ",".join(sorted(self.descending_columns)),)
+                if self.descending_columns
+                else ()
+            )
+            + (("where:" + self.where,) if self.where else ())
+            + ((f"fillfactor:{self.fillfactor}",) if self.fillfactor else ())
+            + (("pad_index",) if self.pad_index else ())
+            + (("ignore_dup_key",) if self.ignore_dup_key else ())
+            + (("optimize_for_sequential_key",) if self.optimize_for_sequential_key else ())
         )
         return SQLSERVER_MANAGED_INDEX_PREFIX + dbt_encoding.md5("_".join(inputs))
 
@@ -237,12 +350,22 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         try:
             if not isinstance(raw_index, dict):
                 raise IndexConfigNotDictError(raw_index)
-            cls.validate(raw_index)
+            # Normalize BEFORE jsonschema validation: {'column','desc'} entries
+            # become plain names + descending_columns, and data_compression is
+            # case/'none'-normalized. mashumaro replaces from_dict overrides,
+            # so this is the only place raw input can be massaged.
             normalized = dict(raw_index)
+            if isinstance(normalized.get("columns"), list):
+                names, descending = cls._normalize_columns(normalized["columns"])
+                normalized["columns"] = names
+                if descending or normalized.get("descending_columns"):
+                    merged = set(descending) | set(normalized.get("descending_columns") or [])
+                    normalized["descending_columns"] = sorted(merged)
             if "data_compression" in normalized:
                 normalized["data_compression"] = cls._normalize_data_compression(
                     normalized.get("data_compression")
                 )
+            cls.validate(normalized)
             return cls.from_dict(normalized)
         except ValidationError as exc:
             raise IndexConfigError(exc)
