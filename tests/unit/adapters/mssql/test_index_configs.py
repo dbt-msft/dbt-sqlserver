@@ -1,12 +1,11 @@
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from dbt.adapters.exceptions import IndexConfigError, IndexConfigNotDictError
-from dbt.exceptions import DbtRuntimeError
 from dbt_common.utils import encoding as dbt_encoding
 
+from dbt.adapters.exceptions import IndexConfigError, IndexConfigNotDictError
 from dbt.adapters.sqlserver.relation_configs.index import SQLServerIndexConfig, SQLServerIndexType
+from dbt.exceptions import DbtRuntimeError
 
 
 def test_sqlserver_index_type_default():
@@ -129,32 +128,66 @@ def test_sqlserver_index_config_as_node_config():
     }
 
 
-FAKE_NOW = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-
-
-@pytest.fixture(autouse=True)
-def patch_datetime_now():
-    with patch("dbt.adapters.sqlserver.relation_configs.index.datetime_now") as mocked_datetime:
-        mocked_datetime.return_value = FAKE_NOW
-        yield mocked_datetime
+def make_relation(rendered="test_relation"):
+    relation = MagicMock()
+    relation.render.return_value = rendered
+    return relation
 
 
 def test_sqlserver_index_config_render():
     config = SQLServerIndexConfig(
-        columns=("col1", "col2"), unique=True, type=SQLServerIndexType.nonclustered
+        columns=("col1", "col2"),
+        unique=True,
+        type=SQLServerIndexType.nonclustered,
+        included_columns=frozenset(["col4", "col3"]),
     )
-    relation = MagicMock()
-    relation.render.return_value = "test_relation"
 
-    result = config.render(relation)
+    result = config.render(make_relation())
 
-    expected_string = "col1_col2_test_relation_True_nonclustered_2023-01-01T00:00:00+00:00"
+    # Deterministic full-definition hash: ordered columns, sorted includes,
+    # relation identity, unique flag, type. NO timestamp.
+    expected_string = "col1_col2_col3_col4_test_relation_True_nonclustered"
+    assert result == "dbt_idx_" + dbt_encoding.md5(expected_string)
 
-    print(f"Expected string: {expected_string}")
-    print(f"Actual result (MD5): {result}")
-    print(f"Expected result (MD5): {dbt_encoding.md5(expected_string)}")
 
-    assert result == dbt_encoding.md5(expected_string)
+def test_render_is_deterministic():
+    def build():
+        return SQLServerIndexConfig(
+            columns=("col1", "col2"),
+            unique=False,
+            type=SQLServerIndexType.clustered,
+        )
+
+    assert build().render(make_relation()) == build().render(make_relation())
+
+
+def test_render_differs_on_definition():
+    base = SQLServerIndexConfig(columns=("col1", "col2"))
+    variants = [
+        SQLServerIndexConfig(columns=("col1",)),
+        SQLServerIndexConfig(columns=("col2", "col1")),  # order matters
+        SQLServerIndexConfig(columns=("col1", "col2"), unique=True),
+        SQLServerIndexConfig(columns=("col1", "col2"), type=SQLServerIndexType.clustered),
+        SQLServerIndexConfig(columns=("col1", "col2"), included_columns=frozenset(["col3"])),
+    ]
+    relation = make_relation()
+    base_name = base.render(relation)
+    names = [variant.render(relation) for variant in variants]
+    assert base_name not in names
+    assert len(set(names)) == len(names)
+
+    # Same definition against a different relation gets a different name.
+    assert base_name != base.render(make_relation("other_relation"))
+
+
+def test_render_managed_prefix():
+    config = SQLServerIndexConfig(columns=("col1",))
+    assert config.render(make_relation()).startswith("dbt_idx_")
+
+
+def test_render_no_stdout(capsys):
+    SQLServerIndexConfig(columns=("col1",)).render(make_relation())
+    assert capsys.readouterr().out == ""
 
 
 def test_sqlserver_index_config_parse():

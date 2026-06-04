@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import FrozenSet, Optional, Set, Tuple
 
 import agate
+from dbt_common.dataclass_schema import StrEnum, ValidationError, dbtClassMixin
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import encoding as dbt_encoding
+
 from dbt.adapters.exceptions import IndexConfigError, IndexConfigNotDictError
 from dbt.adapters.relation_configs import (
     RelationConfigBase,
@@ -11,14 +14,10 @@ from dbt.adapters.relation_configs import (
     RelationConfigValidationMixin,
     RelationConfigValidationRule,
 )
-from dbt_common.dataclass_schema import StrEnum, ValidationError, dbtClassMixin
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import encoding as dbt_encoding
 
-
-# Handle datetime now for testing.
-def datetime_now(tz: Optional[timezone] = timezone.utc) -> datetime:
-    return datetime.now(tz)
+# Prefix identifying indexes whose lifecycle is managed by the adapter via the
+# `indexes` model config. Reconciliation only ever drops indexes carrying it.
+SQLSERVER_MANAGED_INDEX_PREFIX = "dbt_idx_"
 
 
 # ALTERED FROM:
@@ -48,7 +47,8 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     https://learn.microsoft.com/en-us/sql/t-sql/statements/create-index-transact-sql
 
     The following parameters are configurable by dbt:
-    - name: the name of the index in the database, isn't predictable since we apply a timestamp
+    - name: the name of the index in the database; deterministic hash of the full
+      definition (so a definition change always produces a new name)
     - unique: checks for duplicate values when the index is created and on data updates
     - type: the index type method to be used
     - columns: the columns names in the index
@@ -154,16 +154,19 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         return node_config
 
     def render(self, relation):
-        # We append the current timestamp to the index name because otherwise
-        # the index will only be created on every other run. See
-        # https://github.com/dbt-labs/dbt-core/issues/1945#issuecomment-576714925
-        # for an explanation.
-
-        now = datetime_now(tz=timezone.utc).isoformat()
-        inputs = self.columns + tuple((relation.render(), str(self.unique), str(self.type), now))
-        string = "_".join(inputs)
-        print(f"Actual string before MD5: {string}")
-        return dbt_encoding.md5(string)
+        # Deterministic full-definition hash. Unlike Postgres (dbt-core#1945),
+        # SQL Server index names are scoped per table, so a renamed backup
+        # relation keeping the same index names cannot collide with the new
+        # target's indexes — no timestamp salt is needed. Determinism is what
+        # makes name equality <=> definition equality, which reconciliation
+        # relies on; create idempotency comes from the IF NOT EXISTS guard in
+        # sqlserver__get_create_index_sql.
+        inputs = (
+            self.columns
+            + tuple(sorted(self.included_columns))
+            + (relation.render(), str(self.unique), str(self.type))
+        )
+        return SQLSERVER_MANAGED_INDEX_PREFIX + dbt_encoding.md5("_".join(inputs))
 
     @classmethod
     def parse(cls, raw_index) -> Optional["SQLServerIndexConfig"]:
