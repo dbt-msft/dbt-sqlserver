@@ -178,3 +178,18 @@ def test_diff_clustered_no_guard_when_expected_exists():
     changes, warnings = index_config_changes(existing, [CFG_CLUSTERED], RELATION, "false")
     assert changes == []
     assert warnings == []
+
+
+def test_diff_never_drops_clustered_columnstore():
+    # as_columnstore=true tables carry a CCI the adapter created outside the
+    # indexes config; sweeping it would silently convert the table to a heap.
+    existing = [existing_row("someschema_sometable_cci", type="clustered columnstore")]
+    for mode in ("false", "warn", "true"):
+        changes, _ = index_config_changes(existing, [], RELATION, mode)
+        assert changes == []
+
+
+def test_diff_clustered_columnstore_blocks_expected_clustered():
+    existing = [existing_row("someschema_sometable_cci", type="clustered columnstore")]
+    with pytest.raises(DbtRuntimeError, match="sometable_cci"):
+        index_config_changes(existing, [CFG_CLUSTERED], RELATION, "true")

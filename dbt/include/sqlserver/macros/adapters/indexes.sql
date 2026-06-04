@@ -271,3 +271,81 @@
     {% endif %}
   end
 {%- endmacro %}
+
+
+{% macro sqlserver__describe_indexes(relation) %}
+  {% call statement('describe_indexes', fetch_result=True) -%}
+    select
+        i.[name] as [name],
+        case when i.[type] = 1 then 'clustered'
+             when i.[type] = 2 then 'nonclustered'
+             when i.[type] = 5 then 'clustered columnstore'
+             when i.[type] = 6 then 'columnstore'
+        end as [type],
+        i.is_unique as [unique],
+        i.is_primary_key as is_primary_key,
+        i.is_unique_constraint as is_unique_constraint,
+        isnull(key_cols.cols, '') as [columns],
+        isnull(incl_cols.cols, '') as included_columns,
+        case when i.[type] in (1, 2)
+             then isnull(part.data_compression_desc, 'NONE')
+        end as data_compression
+    from sys.indexes i {{ information_schema_hints() }}
+    outer apply (
+        /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
+           of this adapter's CI matrix */
+        select string_agg(col.[name], ', ') within group (order by ic.key_ordinal) as cols
+        from sys.index_columns ic
+        inner join sys.columns col
+            on col.object_id = ic.object_id and col.column_id = ic.column_id
+        where ic.object_id = i.object_id and ic.index_id = i.index_id
+          and ic.is_included_column = 0
+    ) key_cols
+    outer apply (
+        select string_agg(col.[name], ', ') as cols
+        from sys.index_columns ic
+        inner join sys.columns col
+            on col.object_id = ic.object_id and col.column_id = ic.column_id
+        where ic.object_id = i.object_id and ic.index_id = i.index_id
+          and ic.is_included_column = 1
+    ) incl_cols
+    outer apply (
+        select top 1 p.data_compression_desc
+        from sys.partitions p
+        where p.object_id = i.object_id and p.index_id = i.index_id
+    ) part
+    where i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+      and i.index_id > 0
+      and i.[type] not in (3, 4, 7)  /* xml, spatial, memory-optimized hash */
+  {%- endcall %}
+  {{ return(load_result('describe_indexes').table) }}
+{% endmacro %}
+
+
+{% macro sqlserver__get_drop_index_sql(relation, index_name) -%}
+    drop index [{{ index_name }}] on {{ relation }}
+{%- endmacro %}
+
+
+{% macro sqlserver__reconcile_indexes(relation) %}
+  {#-
+    Converge an existing relation on its configured index set. Called on the
+    paths where the relation persists across runs (incremental non-full-
+    refresh, dml table refresh, snapshot updates), where create_indexes alone
+    would let config changes drift.
+  -#}
+  {%- set raw_indexes = config.get('indexes', default=[]) -%}
+  {%- set drop_unmanaged = config.get('drop_unmanaged_indexes', default=false) -%}
+  {%- set existing = sqlserver__describe_indexes(relation) -%}
+  {%- set result = adapter.index_changes(existing, raw_indexes, relation, drop_unmanaged) -%}
+  {%- for warning in result['warnings'] %}
+    {% do log("Index reconcile on " ~ relation ~ ": " ~ warning, info=true) %}
+  {%- endfor %}
+  {%- for index_name in result['drops'] %}
+    {% do log("Dropping index " ~ index_name ~ " on " ~ relation, info=true) %}
+    {% do run_query(sqlserver__get_drop_index_sql(relation, index_name)) %}
+  {%- endfor %}
+  {%- for index_dict in result['creates'] %}
+    {% do run_query(sqlserver__get_create_index_sql(relation, index_dict)) %}
+  {%- endfor %}
+{% endmacro %}

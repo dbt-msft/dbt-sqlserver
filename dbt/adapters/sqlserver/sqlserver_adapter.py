@@ -17,8 +17,10 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.events.types import SchemaCreation
 from dbt.adapters.reference_keys import _make_ref_key_dict
+from dbt.adapters.relation_configs import RelationConfigChangeAction
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
 from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig
+from dbt.adapters.sqlserver.relation_configs.index import index_config_changes
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
@@ -293,6 +295,46 @@ class SQLServerAdapter(SQLAdapter):
     @available
     def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
         return SQLServerIndexConfig.parse(raw_index)
+
+    @available
+    def index_changes(
+        self,
+        existing_indexes: Any,
+        raw_indexes: Any,
+        relation: BaseRelation,
+        drop_unmanaged: Any = False,
+    ) -> dict:
+        """Diff existing indexes (agate table from sqlserver__describe_indexes)
+        against the model's `indexes` config. Returns plain lists for jinja:
+        drops (index names), creates (index config dicts), warnings (strings).
+        Drops must be applied before creates (a replacement clustered index
+        needs its predecessor gone first)."""
+        rows = []
+        if existing_indexes is not None:
+            column_names = existing_indexes.column_names
+            for row in existing_indexes.rows:
+                rows.append(dict(zip(column_names, row)))
+
+        expected = []
+        for raw_index in raw_indexes or []:
+            parsed = self.parse_index(raw_index)
+            if parsed:
+                expected.append(parsed)
+
+        changes, warnings = index_config_changes(rows, expected, relation, drop_unmanaged)
+        return {
+            "drops": [
+                change.context.name
+                for change in changes
+                if change.action == RelationConfigChangeAction.drop
+            ],
+            "creates": [
+                change.context.as_node_config
+                for change in changes
+                if change.action == RelationConfigChangeAction.create
+            ],
+            "warnings": warnings,
+        }
 
 
 COLUMNS_EQUAL_SQL = """

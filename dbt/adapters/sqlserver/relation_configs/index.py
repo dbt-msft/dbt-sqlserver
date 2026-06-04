@@ -212,11 +212,13 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         """
         Returns: a dictionary that can be passed into `get_create_index_sql()`
         """
+        # JSON-compatible types only: this dict is fed back through
+        # adapter.parse_index, whose jsonschema validation requires arrays.
         node_config = {
-            "columns": tuple(self.columns),
+            "columns": list(self.columns),
             "unique": self.unique,
             "type": self.type.value,
-            "included_columns": frozenset(self.included_columns),
+            "included_columns": sorted(self.included_columns),
             "data_compression": self.data_compression,
             "sort_in_tempdb": self.sort_in_tempdb,
         }
@@ -369,7 +371,13 @@ def index_config_changes(
         if name in expected_by_name:
             continue
 
-        protected = bool(row.get("is_primary_key")) or bool(row.get("is_unique_constraint"))
+        protected = (
+            bool(row.get("is_primary_key"))
+            or bool(row.get("is_unique_constraint"))
+            # The adapter's own as_columnstore CCI lives outside the indexes
+            # config; dropping it would silently convert the table to a heap.
+            or str(row.get("type") or "") == "clustered columnstore"
+        )
         if protected:
             continue
         if name.startswith(SQLSERVER_MANAGED_INDEX_PREFIX):
@@ -397,7 +405,9 @@ def index_config_changes(
         blocking = [
             row.get("name")
             for row in existing_rows
-            if str(row.get("type") or "") == str(SQLServerIndexType.clustered)
+            # 'clustered' and 'clustered columnstore' both occupy the one
+            # clustered slot a table has.
+            if str(row.get("type") or "").startswith("clustered")
             and row.get("name") not in expected_by_name
             and row.get("name") not in drop_names
         ]

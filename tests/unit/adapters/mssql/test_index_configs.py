@@ -160,10 +160,10 @@ def test_sqlserver_index_config_as_node_config():
     )
     node_config = config.as_node_config
     assert node_config == {
-        "columns": ("col1", "col2"),
+        "columns": ["col1", "col2"],
         "unique": True,
         "type": "nonclustered",
-        "included_columns": frozenset(["col3", "col4"]),
+        "included_columns": ["col3", "col4"],
         "data_compression": None,
         "sort_in_tempdb": False,
     }
@@ -314,3 +314,17 @@ def test_sqlserver_index_config_parse():
 
     with pytest.raises(IndexConfigNotDictError):
         SQLServerIndexConfig.parse("not a dict")
+
+
+def test_as_node_config_round_trips_through_parse():
+    # as_node_config output is fed back into get_create_index_sql ->
+    # adapter.parse_index -> jsonschema validation, which requires
+    # JSON-compatible types (arrays, not tuples/frozensets).
+    config = SQLServerIndexConfig(
+        columns=("col1", "col2"),
+        unique=True,
+        included_columns=frozenset(["col3"]),
+        data_compression="page",
+    )
+    reparsed = SQLServerIndexConfig.parse(config.as_node_config)
+    assert reparsed == config

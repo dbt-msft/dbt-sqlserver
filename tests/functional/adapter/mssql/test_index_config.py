@@ -582,3 +582,232 @@ class TestSQLServerInvalidIndex:
         assert re.search(r"unique.*is not of type 'boolean'", output)
         assert re.search(r"'columns' is a required property", output)
         assert re.search(r"'non_existent_type'.*is not one of", output)
+
+
+models__reconcile_incremental_sql = """
+{{
+  config(
+    materialized = "incremental",
+    as_columnstore = False,
+    indexes = var('reconcile_indexes', [{'columns': ['column_a'], 'type': 'nonclustered'}])
+  )
+}}
+
+select *
+from (
+  select 1 as column_a, 2 as column_b
+) t
+
+{% if is_incremental() %}
+    where column_a > (select max(column_a) from {{this}})
+{% endif %}
+
+"""
+
+models__reconcile_dml_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    table_refresh_method = "dml",
+    indexes = var('reconcile_indexes', [{'columns': ['column_a'], 'type': 'nonclustered'}])
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+
+"""
+
+snapshots__reconcile_snapshot_sql = """
+{% snapshot reconcile_colors %}
+
+    {{
+        config(
+            target_database=database,
+            target_schema=schema,
+            as_columnstore=False,
+            unique_key='id',
+            strategy='check',
+            check_cols=['color'],
+            indexes=var('reconcile_indexes', [{'columns': ['id'], 'type': 'nonclustered'}])
+        )
+    }}
+
+    select 1 as id, 'red' as color
+
+{% endsnapshot %}
+
+"""
+
+models__drop_unmanaged_sql = """
+{{
+  config(
+    materialized = "incremental",
+    as_columnstore = False,
+    drop_unmanaged_indexes = var('dum', False),
+    indexes = [{'columns': ['column_a'], 'type': 'nonclustered'}]
+  )
+}}
+
+select *
+from (
+  select 1 as column_a, 2 as column_b
+) t
+
+{% if is_incremental() %}
+    where column_a > (select max(column_a) from {{this}})
+{% endif %}
+
+"""
+
+models__collision_sql = """
+{{
+  config(
+    materialized = "incremental",
+    as_columnstore = False,
+    indexes = var('coll_idx', [])
+  )
+}}
+
+select *
+from (
+  select 1 as column_a, 2 as column_b
+) t
+
+{% if is_incremental() %}
+    where column_a > (select max(column_a) from {{this}})
+{% endif %}
+
+"""
+
+SET_B = "[{'columns': ['column_b'], 'type': 'nonclustered'}]"
+
+
+def get_index_rows(project, unique_schema, table_name):
+    sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)
+    return project.run_sql(sql, fetch="all")
+
+
+def index_summary(rows):
+    return sorted((row[1], row[3]) for row in rows)  # (columns, type)
+
+
+class TestSQLServerIndexReconciliation:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"reconcile_incremental.sql": models__reconcile_incremental_sql}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {"reconcile_colors.sql": snapshots__reconcile_snapshot_sql}
+
+    def test_incremental_reconciles_definition_change(self, project, unique_schema):
+        run_dbt(["run", "--models", "reconcile_incremental"])
+        first = get_index_rows(project, unique_schema, "reconcile_incremental")
+        assert index_summary(first) == [("column_a", "nonclustered")]
+        first_names = sorted(row[0] for row in first)
+
+        # Non-full-refresh rerun with unchanged config: no churn, names stable.
+        _, output = run_dbt_and_capture(["run", "--models", "reconcile_incremental"])
+        second = get_index_rows(project, unique_schema, "reconcile_incremental")
+        assert sorted(row[0] for row in second) == first_names
+        assert "Dropping index" not in output
+
+        # Non-full-refresh rerun with a changed definition: reconciled to set B.
+        run_dbt(
+            ["run", "--models", "reconcile_incremental", "--vars", f"reconcile_indexes: {SET_B}"]
+        )
+        third = get_index_rows(project, unique_schema, "reconcile_incremental")
+        assert index_summary(third) == [("column_b", "nonclustered")]
+
+    def test_snapshot_reconciles_definition_change(self, project, unique_schema):
+        run_dbt(["snapshot"])
+        first = get_index_rows(project, unique_schema, "reconcile_colors")
+        assert index_summary(first) == [("id", "nonclustered")]
+
+        run_dbt(["snapshot", "--vars", "reconcile_indexes: [{'columns': ['color']}]"])
+        second = get_index_rows(project, unique_schema, "reconcile_colors")
+        assert index_summary(second) == [("color", "nonclustered")]
+
+
+class TestSQLServerIndexReconciliationDML:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"reconcile_dml.sql": models__reconcile_dml_sql}
+
+    def test_dml_refresh_reconciles_definition_change(self, project, unique_schema):
+        run_dbt(["run", "--models", "reconcile_dml"])
+        first = get_index_rows(project, unique_schema, "reconcile_dml")
+        assert index_summary(first) == [("column_a", "nonclustered")]
+
+        # Pure-DML refresh keeps the table; reconcile must converge it.
+        run_dbt(["run", "--models", "reconcile_dml", "--vars", f"reconcile_indexes: {SET_B}"])
+        second = get_index_rows(project, unique_schema, "reconcile_dml")
+        assert index_summary(second) == [("column_b", "nonclustered")]
+
+
+class TestSQLServerDropUnmanagedIndexes:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"drop_unmanaged.sql": models__drop_unmanaged_sql}
+
+    def seed_out_of_band_indexes(self, project, unique_schema):
+        table = f"{unique_schema}.drop_unmanaged"
+        project.run_sql(f"CREATE NONCLUSTERED INDEX dbt_idx_orphan ON {table} (column_b)")
+        project.run_sql(f"CREATE NONCLUSTERED INDEX ix_dba_tuning ON {table} (column_b)")
+        project.run_sql(f"CREATE NONCLUSTERED INDEX nonclustered_legacy1 ON {table} (column_b)")
+        project.run_sql(f"ALTER TABLE {table} ADD CONSTRAINT uq_drop_unmanaged UNIQUE (column_a)")
+
+    def names(self, project, unique_schema):
+        return sorted(row[0] for row in get_index_rows(project, unique_schema, "drop_unmanaged"))
+
+    def test_drop_unmanaged_modes(self, project, unique_schema):
+        run_dbt(["run", "--models", "drop_unmanaged"])
+        self.seed_out_of_band_indexes(project, unique_schema)
+
+        # Default (false): managed orphan swept, everything else kept.
+        run_dbt(["run", "--models", "drop_unmanaged"])
+        names = self.names(project, unique_schema)
+        assert "dbt_idx_orphan" not in names
+        assert "ix_dba_tuning" in names
+        assert "nonclustered_legacy1" in names
+        assert "uq_drop_unmanaged" in names
+
+        # warn: unmanaged listed, nothing else dropped.
+        _, output = run_dbt_and_capture(
+            ["run", "--models", "drop_unmanaged", "--vars", "dum: warn"]
+        )
+        assert "ix_dba_tuning" in output
+        assert "ix_dba_tuning" in self.names(project, unique_schema)
+
+        # true: unmanaged dropped; constraint-backing and legacy names survive.
+        run_dbt(["run", "--models", "drop_unmanaged", "--vars", "dum: true"])
+        names = self.names(project, unique_schema)
+        assert "ix_dba_tuning" not in names
+        assert "nonclustered_legacy1" in names
+        assert "uq_drop_unmanaged" in names
+
+
+class TestSQLServerClusteredCollision:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"collision.sql": models__collision_sql}
+
+    def test_clustered_collision_fails_with_clear_error(self, project, unique_schema):
+        run_dbt(["run", "--models", "collision"])
+        project.run_sql(
+            f"CREATE CLUSTERED INDEX ix_dba_clustered " f"ON {unique_schema}.collision (column_a)"
+        )
+
+        _, output = run_dbt_and_capture(
+            [
+                "run",
+                "--models",
+                "collision",
+                "--vars",
+                "coll_idx: [{'columns': ['column_b'], 'type': 'clustered'}]",
+            ],
+            expect_pass=False,
+        )
+        assert "ix_dba_clustered" in output
+        assert "will not be dropped" in output
