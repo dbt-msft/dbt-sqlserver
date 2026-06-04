@@ -1,6 +1,7 @@
 import re
 
 import pytest
+
 from dbt.tests.util import run_dbt, run_dbt_and_capture
 
 base_validation = """
@@ -54,9 +55,7 @@ and index_id > 0
 )
 """
 
-index_count = (
-    base_validation
-    + """
+index_count = base_validation + """
 select
   index_type + case when [unique] = 'Unique' then ' unique' else '' end as index_type,
   count(*) index_count
@@ -66,11 +65,8 @@ WHERE
   schema_name='{schema_name}'
 group by index_type + case when [unique] = 'Unique' then ' unique' else '' end
 """
-)
 
-indexes_def = (
-    base_validation
-    + """
+indexes_def = base_validation + """
 SELECT
   index_name,
   [columns],
@@ -88,7 +84,6 @@ WHERE
   table_view='{schema_name}.{table_name}'
 
 """
-)
 
 # Altered from: https://github.com/dbt-labs/dbt-postgres
 
@@ -459,6 +454,44 @@ class TestSQLServerIndex:
                 },
             ]
             assert indexes == expected
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "Characterization: index names are timestamp-hashed so every rebuild "
+            "generates fresh names. Reconciliation requires deterministic names. "
+            "Fixed by deterministic render() + IF NOT EXISTS create guard."
+        ),
+    )
+    def test_table_index_names_stable_across_runs(self, project, unique_schema):
+        results = run_dbt(["run", "--models", "table"])
+        assert len(results) == 1
+        first_names = self.get_index_names("table", project, unique_schema)
+
+        results = run_dbt(["run", "--models", "table"])
+        assert len(results) == 1
+        second_names = self.get_index_names("table", project, unique_schema)
+
+        assert first_names == second_names
+
+    def test_table_definitions_stable_across_runs(self, project, unique_schema):
+        # Pins current behavior: table is rebuilt fresh each run, so the index
+        # *definition* set never accumulates even though names churn today.
+        results = run_dbt(["run", "--models", "table"])
+        assert len(results) == 1
+        first = self.sort_indexes(self.get_indexes("table", project, unique_schema))
+
+        results = run_dbt(["run", "--models", "table"])
+        assert len(results) == 1
+        second = self.sort_indexes(self.get_indexes("table", project, unique_schema))
+
+        assert first == second
+        assert len(first) == 5
+
+    def get_index_names(self, table_name, project, unique_schema):
+        sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)
+        results = project.run_sql(sql, fetch="all")
+        return sorted(row[0] for row in results)
 
     def get_indexes(self, table_name, project, unique_schema):
         sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)
