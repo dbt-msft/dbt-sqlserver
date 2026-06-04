@@ -259,5 +259,15 @@
     {% if index_config.included_columns -%}
         include ({{ '[' + index_config.included_columns | join('], [') + ']' }})
     {% endif %}
+    {%- set with_options = [] -%}
+    {%- if index_config.data_compression -%}
+        {%- do with_options.append('data_compression = ' ~ index_config.data_compression | upper) -%}
+    {%- endif -%}
+    {%- if index_config.sort_in_tempdb -%}
+        {%- do with_options.append('sort_in_tempdb = on') -%}
+    {%- endif -%}
+    {% if with_options %}
+        with ({{ with_options | join(', ') }})
+    {% endif %}
   end
 {%- endmacro %}

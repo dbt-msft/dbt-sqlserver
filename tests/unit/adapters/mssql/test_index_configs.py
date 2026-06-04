@@ -53,7 +53,7 @@ def test_sqlserver_index_config_validation_rules():
         type=SQLServerIndexType.nonclustered,
         included_columns=frozenset(["col3", "col4"]),
     )
-    assert len(valid_config.validation_rules) == 4
+    assert len(valid_config.validation_rules) == 7
     for rule in valid_config.validation_rules:
         assert rule.validation_check is True
 
@@ -91,6 +91,8 @@ def test_sqlserver_index_config_parse_model_node():
         "unique": True,
         "type": "nonclustered",
         "included_columns": frozenset(["col3", "col4"]),
+        "data_compression": None,
+        "sort_in_tempdb": False,
     }
 
 
@@ -125,6 +127,8 @@ def test_sqlserver_index_config_as_node_config():
         "unique": True,
         "type": "nonclustered",
         "included_columns": frozenset(["col3", "col4"]),
+        "data_compression": None,
+        "sort_in_tempdb": False,
     }
 
 
@@ -188,6 +192,74 @@ def test_render_managed_prefix():
 def test_render_no_stdout(capsys):
     SQLServerIndexConfig(columns=("col1",)).render(make_relation())
     assert capsys.readouterr().out == ""
+
+
+def test_index_config_data_compression_round_trip():
+    config = SQLServerIndexConfig(columns=("col1",), data_compression="page")
+    assert config.data_compression == "page"
+    assert config.sort_in_tempdb is False
+
+    config = SQLServerIndexConfig.from_dict(
+        {"columns": ["col1"], "data_compression": "row", "sort_in_tempdb": True}
+    )
+    assert config.data_compression == "row"
+    assert config.sort_in_tempdb is True
+
+
+def test_parse_model_node_new_fields():
+    parsed = SQLServerIndexConfig.parse_model_node(
+        {"columns": ["col1"], "data_compression": "page", "sort_in_tempdb": True}
+    )
+    assert parsed["data_compression"] == "page"
+    assert parsed["sort_in_tempdb"] is True
+
+
+def test_as_node_config_new_fields():
+    config = SQLServerIndexConfig(columns=("col1",), data_compression="page", sort_in_tempdb=True)
+    node_config = config.as_node_config
+    assert node_config["data_compression"] == "page"
+    assert node_config["sort_in_tempdb"] is True
+
+
+def test_data_compression_invalid_value():
+    with pytest.raises(DbtRuntimeError, match="none.*row.*page"):
+        SQLServerIndexConfig(columns=("col1",), data_compression="gzip")
+
+
+def test_data_compression_invalid_for_columnstore():
+    with pytest.raises(DbtRuntimeError, match="data_compression"):
+        SQLServerIndexConfig(
+            columns=("col1",),
+            type=SQLServerIndexType.columnstore,
+            data_compression="page",
+        )
+
+
+def test_sort_in_tempdb_invalid_for_columnstore():
+    with pytest.raises(DbtRuntimeError, match="sort_in_tempdb"):
+        SQLServerIndexConfig(
+            columns=("col1",),
+            type=SQLServerIndexType.columnstore,
+            sort_in_tempdb=True,
+        )
+
+
+def test_render_differs_on_data_compression():
+    relation = make_relation()
+    plain = SQLServerIndexConfig(columns=("col1",))
+    compressed = SQLServerIndexConfig(columns=("col1",), data_compression="page")
+    assert plain.render(relation) != compressed.render(relation)
+
+
+def test_render_and_equality_ignore_sort_in_tempdb():
+    # sort_in_tempdb is a build-time option: not introspectable from sys.indexes
+    # and doesn't change the resulting index. If it participated in the name or
+    # equality, reconciliation would drop/recreate on every run.
+    relation = make_relation()
+    without = SQLServerIndexConfig(columns=("col1",))
+    with_tempdb = SQLServerIndexConfig(columns=("col1",), sort_in_tempdb=True)
+    assert without.render(relation) == with_tempdb.render(relation)
+    assert without == with_tempdb
 
 
 def test_sqlserver_index_config_parse():

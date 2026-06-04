@@ -155,6 +155,23 @@ select 1 as column_a, 2 as column_b, 3 as column_c
 """
 
 
+models__table_compressed_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['column_b', 'column_a'], 'type': 'clustered', 'data_compression': 'page'},
+      {'columns': ['column_a'], 'data_compression': 'row', 'sort_in_tempdb': True},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+
+"""
+
+
 models__table_reserved_sql = """
 {{
   config(
@@ -293,6 +310,7 @@ class TestSQLServerIndex:
             "columnstore.sql": models__columnstore_sql,
             "table_included.sql": models__table_included_sql,
             "table_reserved.sql": models__table_reserved_sql,
+            "table_compressed.sql": models__table_compressed_sql,
         }
 
     @pytest.fixture(scope="class")
@@ -506,6 +524,23 @@ class TestSQLServerIndex:
             },
         ]
         assert indexes == expected
+
+    def test_table_data_compression(self, project, unique_schema):
+        results = run_dbt(["run", "--models", "table_compressed"])
+        assert len(results) == 1
+
+        sql = f"""
+        select i.type_desc, p.data_compression_desc
+        from sys.indexes i
+        join sys.partitions p
+          on p.object_id = i.object_id and p.index_id = i.index_id
+        where i.object_id = OBJECT_ID('{unique_schema}.table_compressed')
+          and i.index_id > 0
+        order by i.type_desc
+        """
+        rows = project.run_sql(sql, fetch="all")
+        compression = {row[0]: row[1] for row in rows}
+        assert compression == {"CLUSTERED": "PAGE", "NONCLUSTERED": "ROW"}
 
     def get_index_names(self, table_name, project, unique_schema):
         sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)

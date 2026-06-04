@@ -53,6 +53,10 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     - type: the index type method to be used
     - columns: the columns names in the index
     - included_columns: the extra included columns names in the index
+    - data_compression: none | row | page (rowstore indexes only)
+    - sort_in_tempdb: build-time option for the create statement; deliberately
+      excluded from identity (not introspectable and doesn't change the
+      resulting index, so it must not trigger drop/recreate)
 
     """
 
@@ -67,6 +71,8 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     included_columns: FrozenSet[str] = field(
         default_factory=frozenset, hash=True
     )  # Keeping order is not important
+    data_compression: Optional[str] = field(default=None, hash=True)
+    sort_in_tempdb: bool = field(default=False, hash=False, compare=False)
 
     @property
     def validation_rules(self) -> Set[RelationConfigValidationRule]:
@@ -103,7 +109,40 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
                     + f"{SQLServerIndexType.valid_types()}"
                 ),
             ),
+            RelationConfigValidationRule(
+                validation_check=self.data_compression in (None, "none", "row", "page"),
+                validation_error=DbtRuntimeError(
+                    f"Invalid data_compression: {self.data_compression}, "
+                    "valid values: none, row, page"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=not (
+                    self.type == SQLServerIndexType.columnstore and self.data_compression
+                ),
+                validation_error=DbtRuntimeError(
+                    "data_compression is not configurable for columnstore indexes here; "
+                    "columnstore compression is managed by the engine "
+                    "(COLUMNSTORE / COLUMNSTORE_ARCHIVE via maintenance, not CREATE INDEX)"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=not (
+                    self.type == SQLServerIndexType.columnstore and self.sort_in_tempdb
+                ),
+                validation_error=DbtRuntimeError(
+                    "sort_in_tempdb is not valid for columnstore indexes"
+                ),
+            ),
         }
+
+    @staticmethod
+    def _normalize_data_compression(value):
+        if isinstance(value, str):
+            value = value.lower()
+        # "none" is the engine default: normalize so it hashes/compares the
+        # same as omitting the key entirely.
+        return None if value in (None, "none") else value
 
     @classmethod
     def from_dict(cls, config_dict) -> "SQLServerIndexConfig":
@@ -115,6 +154,10 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             "included_columns": frozenset(
                 column for column in config_dict.get("included_columns", set())
             ),
+            "data_compression": cls._normalize_data_compression(
+                config_dict.get("data_compression")
+            ),
+            "sort_in_tempdb": bool(config_dict.get("sort_in_tempdb") or False),
         }
         index: "SQLServerIndexConfig" = super().from_dict(kwargs_dict)  # type: ignore
         return index
@@ -126,6 +169,10 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             "unique": model_node_entry.get("unique"),
             "type": model_node_entry.get("type"),
             "included_columns": frozenset(model_node_entry.get("included_columns", set())),
+            "data_compression": cls._normalize_data_compression(
+                model_node_entry.get("data_compression")
+            ),
+            "sort_in_tempdb": bool(model_node_entry.get("sort_in_tempdb") or False),
         }
         return config_dict
 
@@ -150,6 +197,8 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             "unique": self.unique,
             "type": self.type.value,
             "included_columns": frozenset(self.included_columns),
+            "data_compression": self.data_compression,
+            "sort_in_tempdb": self.sort_in_tempdb,
         }
         return node_config
 
@@ -161,10 +210,14 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         # makes name equality <=> definition equality, which reconciliation
         # relies on; create idempotency comes from the IF NOT EXISTS guard in
         # sqlserver__get_create_index_sql.
+        # sort_in_tempdb is deliberately NOT hashed: it's a build-time option
+        # that doesn't change the resulting index, so toggling it must not
+        # produce a new name (which would drop/recreate on reconcile).
         inputs = (
             self.columns
             + tuple(sorted(self.included_columns))
             + (relation.render(), str(self.unique), str(self.type))
+            + ((str(self.data_compression),) if self.data_compression else ())
         )
         return SQLSERVER_MANAGED_INDEX_PREFIX + dbt_encoding.md5("_".join(inputs))
 
