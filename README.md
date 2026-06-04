@@ -21,6 +21,15 @@ The default install uses the `pyodbc` backend and includes the `pyodbc` dependen
 Latest version: ![PyPI](https://img.shields.io/pypi/v/dbt-sqlserver?label=latest%20stable&logo=pypi)  
 Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/dbt-msft/dbt-sqlserver?include_prereleases&label=latest%20pre-release&logo=pypi)
 
+
+### Backend requirements at a glance
+
+| Backend | Python package | Debian/Ubuntu system packages |
+|---|---|---|
+| `pyodbc` | `dbt-sqlserver[pyodbc]` or `pyodbc` | `unixodbc-dev` plus the Microsoft ODBC Driver for SQL Server |
+| `mssql-python` | `dbt-sqlserver[mssql]` or `mssql-python` | `libltdl7`, `libkrb5-3`, `libgssapi-krb5-2` |
+
+
 ### `pyodbc` backend
 
 The legacy and currently default ODBC path uses `pyodbc` and the Microsoft ODBC driver.

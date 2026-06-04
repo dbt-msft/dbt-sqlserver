@@ -32,6 +32,13 @@ The functional tests require a running SQL Server instance. You can easily spin 
 make server
 ```
 
+### Backend requirements at a glance
+
+| Backend | Python package | Debian/Ubuntu system packages |
+|---|---|---|
+| `pyodbc` | `dbt-sqlserver[pyodbc]` or `pyodbc` | `unixodbc-dev` plus the Microsoft ODBC Driver for SQL Server |
+| `mssql-python` | `dbt-sqlserver[mssql]` or `mssql-python` | `libltdl7`, `libkrb5-3`, `libgssapi-krb5-2` |
+
 The default development flow uses the ODBC-based path, but the ODBC driver itself is now an optional dependency. If you want to develop or test that backend, install either the adapter extra or the driver itself before running tests.
 
 ```shell

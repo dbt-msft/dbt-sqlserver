@@ -97,7 +97,7 @@ jobs:
             collation: SQL_Latin1_General_CP1_CS_AS
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-msodbc${{ matrix.msodbc_version }}
+      image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-${{ matrix.backend == 'pyodbc' && format('msodbc{0}', matrix.msodbc_version) || 'mssql' }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
