@@ -43,6 +43,19 @@ VALID_BUILD_OPTIONS = (
 )
 
 
+def normalize_drop_unmanaged(value) -> str:
+    """Normalize/validate a drop_unmanaged_indexes config value. YAML supplies
+    bools for false/true and a string for warn."""
+    if isinstance(value, bool):
+        value = "true" if value else "false"
+    if value not in VALID_DROP_UNMANAGED_MODES:
+        raise DbtRuntimeError(
+            f"Invalid drop_unmanaged_indexes value: {value!r}. "
+            f"Valid values: {', '.join(VALID_DROP_UNMANAGED_MODES)}"
+        )
+    return value
+
+
 def _split_column_list(raw) -> Tuple[str, ...]:
     """Split a 'col1, col2' aggregate from sys introspection into clean parts."""
     if not raw:
@@ -453,8 +466,7 @@ class SQLServerIndexConfigChange(RelationConfigChange, RelationConfigValidationM
             ),
             RelationConfigValidationRule(
                 validation_check=not (
-                    self.action == RelationConfigChangeAction.create
-                    and self.context.columns == set()
+                    self.action == RelationConfigChangeAction.create and not self.context.columns
                 ),
                 validation_error=DbtRuntimeError(
                     "Invalid operations, attempting to create an index with no columns."
@@ -497,13 +509,7 @@ def index_config_changes(
             expected clustered index is blocked by an existing clustered index
             that will not be dropped (a table can only have one).
     """
-    if isinstance(drop_unmanaged, bool):
-        drop_unmanaged = "true" if drop_unmanaged else "false"
-    if drop_unmanaged not in VALID_DROP_UNMANAGED_MODES:
-        raise DbtRuntimeError(
-            f"Invalid drop_unmanaged_indexes value: {drop_unmanaged!r}. "
-            f"Valid values: {', '.join(VALID_DROP_UNMANAGED_MODES)}"
-        )
+    drop_unmanaged = normalize_drop_unmanaged(drop_unmanaged)
 
     expected_by_name = {config.render(relation): config for config in expected_configs}
     existing_names = set()

@@ -20,7 +20,10 @@ from dbt.adapters.reference_keys import _make_ref_key_dict
 from dbt.adapters.relation_configs import RelationConfigChangeAction
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
 from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig, SQLServerIndexType
-from dbt.adapters.sqlserver.relation_configs.index import index_config_changes
+from dbt.adapters.sqlserver.relation_configs.index import (
+    index_config_changes,
+    normalize_drop_unmanaged,
+)
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
@@ -297,8 +300,13 @@ class SQLServerAdapter(SQLAdapter):
         return SQLServerIndexConfig.parse(raw_index)
 
     @available
-    def validate_indexes(self, raw_indexes: Any, as_columnstore: Any = False) -> None:
-        """Cross-config checks that individual index validation can't see."""
+    def validate_indexes(
+        self, raw_indexes: Any, as_columnstore: Any = False, drop_unmanaged: Any = False
+    ) -> None:
+        """Cross-config checks that individual index validation can't see.
+        Also fail-fast validates drop_unmanaged_indexes so a bad value errors
+        on the first build, not only when reconciliation first runs."""
+        normalize_drop_unmanaged(drop_unmanaged)
         configs = []
         for raw_index in raw_indexes or []:
             parsed = self.parse_index(raw_index)

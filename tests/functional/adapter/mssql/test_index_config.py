@@ -739,6 +739,15 @@ class TestSQLServerIndexReconciliationDML:
         run_dbt(["run", "--models", "reconcile_dml"])
         first = get_index_rows(project, unique_schema, "reconcile_dml")
         assert index_summary(first) == [("column_a", "nonclustered")]
+        first_names = sorted(row[0] for row in first)
+
+        # Unchanged pure-DML rerun: no churn, names stable.
+        _, output = run_dbt_and_capture(["run", "--models", "reconcile_dml"])
+        assert "Dropping index" not in output
+        assert (
+            sorted(row[0] for row in get_index_rows(project, unique_schema, "reconcile_dml"))
+            == first_names
+        )
 
         # Pure-DML refresh keeps the table; reconcile must converge it.
         run_dbt(["run", "--models", "reconcile_dml", "--vars", f"reconcile_indexes: {SET_B}"])
@@ -956,3 +965,112 @@ class TestSQLServerIndexFullOptions:
         assert len(results) == 1
         second = self.introspect(project, unique_schema)
         assert sorted(second[k][0] for k in second) == first_names
+
+
+models__project_level_sql = """
+select 1 as column_a, 2 as column_b
+"""
+
+models__project_level_override_sql = """
+{{
+  config(
+    indexes=[{'columns': ['column_b']}]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+"""
+
+
+class TestSQLServerProjectLevelIndexes:
+    """indexes set as keys in dbt_project.yml (models scope) must behave the
+    same as in-model config, and a model-level indexes config must fully
+    replace (clobber, not merge) the project-level list."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "project_level.sql": models__project_level_sql,
+            "project_level_override.sql": models__project_level_override_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "test": {
+                    "+materialized": "table",
+                    "+as_columnstore": False,
+                    "+indexes": [{"columns": ["column_a"], "type": "nonclustered"}],
+                }
+            }
+        }
+
+    def test_project_level_indexes_apply(self, project, unique_schema):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+
+        from_project = get_index_rows(project, unique_schema, "project_level")
+        assert index_summary(from_project) == [("column_a", "nonclustered")]
+
+        # model-level config clobbers the project-level list entirely
+        overridden = get_index_rows(project, unique_schema, "project_level_override")
+        assert index_summary(overridden) == [("column_b", "nonclustered")]
+
+
+models__invalid_dum_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    drop_unmanaged_indexes = "yes please",
+    indexes=[{'columns': ['column_a']}]
+  )
+}}
+
+select 1 as column_a
+
+"""
+
+snapshots__clustered_cci_snapshot_sql = """
+{% snapshot clustered_cci_snapshot %}
+
+    {{
+        config(
+            target_database=database,
+            target_schema=schema,
+            unique_key='id',
+            strategy='check',
+            check_cols=['color'],
+            indexes=[{'columns': ['id'], 'type': 'clustered'}]
+        )
+    }}
+
+    select 1 as id, 'red' as color
+
+{% endsnapshot %}
+
+"""
+
+
+class TestSQLServerEarlyValidation:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"invalid_dum.sql": models__invalid_dum_sql}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {"clustered_cci_snapshot.sql": snapshots__clustered_cci_snapshot_sql}
+
+    def test_invalid_drop_unmanaged_fails_on_first_build(self, project):
+        # Must fail on the FIRST build (create path), not only when
+        # reconciliation first runs on a later build.
+        _, output = run_dbt_and_capture(["run", "--models", "invalid_dum"], expect_pass=False)
+        assert "drop_unmanaged_indexes" in output
+
+    def test_snapshot_clustered_with_default_columnstore_rejected(self, project):
+        # Snapshots build through create_table_as, which honors the
+        # as_columnstore default (true) - a clustered rowstore index in the
+        # snapshot config must be rejected with the clear cross-config error.
+        _, output = run_dbt_and_capture(["snapshot"], expect_pass=False)
+        assert "as_columnstore" in output

@@ -393,7 +393,9 @@
   {%- set materialized = config.get('materialized') -%}
   {%- set as_columnstore = config.get('as_columnstore', default=true)
       if materialized in ('table', 'incremental', 'snapshot') else false -%}
-  {%- do adapter.validate_indexes(raw_indexes, as_columnstore) -%}
+  {%- do adapter.validate_indexes(
+      raw_indexes, as_columnstore, config.get('drop_unmanaged_indexes', default=false)
+  ) -%}
   {%- for _index_dict in raw_indexes %}
     {%- set create_index_sql = get_create_index_sql(relation, _index_dict) -%}
     {% if create_index_sql %}
@@ -411,19 +413,33 @@
     would let config changes drift.
   -#}
   {%- set raw_indexes = config.get('indexes', default=[]) -%}
-  {#- all three callers (incremental, dml refresh, snapshot) honor as_columnstore -#}
-  {%- do adapter.validate_indexes(raw_indexes, config.get('as_columnstore', default=true)) -%}
   {%- set drop_unmanaged = config.get('drop_unmanaged_indexes', default=false) -%}
+  {#- all three callers (incremental, dml refresh, snapshot) honor as_columnstore -#}
+  {%- do adapter.validate_indexes(
+      raw_indexes, config.get('as_columnstore', default=true), drop_unmanaged
+  ) -%}
   {%- set existing = sqlserver__describe_indexes(relation) -%}
   {%- set result = adapter.index_changes(existing, raw_indexes, relation, drop_unmanaged) -%}
   {%- for warning in result['warnings'] %}
     {% do log("Index reconcile on " ~ relation ~ ": " ~ warning, info=true) %}
   {%- endfor %}
+  {#- Apply all drops and creates in ONE transactional batch: a definition
+      change is then atomic, with no window where a replacement index (or the
+      uniqueness it enforces) is missing for concurrent readers. xact_abort
+      guarantees rollback if any statement fails mid-batch. -#}
+  {%- set reconcile_statements = [] -%}
   {%- for index_name in result['drops'] %}
     {% do log("Dropping index " ~ index_name ~ " on " ~ relation, info=true) %}
-    {% do run_query(sqlserver__get_drop_index_sql(relation, index_name)) %}
+    {%- do reconcile_statements.append(sqlserver__get_drop_index_sql(relation, index_name)) -%}
   {%- endfor %}
   {%- for index_dict in result['creates'] %}
-    {% do run_query(sqlserver__get_create_index_sql(relation, index_dict)) %}
+    {%- do reconcile_statements.append(sqlserver__get_create_index_sql(relation, index_dict)) -%}
   {%- endfor %}
+  {% if reconcile_statements %}
+    {% do run_query(
+        "set xact_abort on;\nbegin transaction;\n"
+        ~ reconcile_statements | join(";\n")
+        ~ ";\ncommit transaction;"
+    ) %}
+  {% endif %}
 {% endmacro %}
