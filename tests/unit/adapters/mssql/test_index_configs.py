@@ -328,3 +328,15 @@ def test_as_node_config_round_trips_through_parse():
     )
     reparsed = SQLServerIndexConfig.parse(config.as_node_config)
     assert reparsed == config
+
+
+def test_parse_normalizes_compression_case():
+    # mashumaro replaces custom from_dict overrides with a generated one, so
+    # normalization must happen in parse() (the raw-config entry point).
+    config = SQLServerIndexConfig.parse({"columns": ["a"], "data_compression": "PAGE"})
+    assert config.data_compression == "page"
+
+    config = SQLServerIndexConfig.parse({"columns": ["a"], "data_compression": "NONE"})
+    assert config.data_compression is None
+    # explicit 'NONE' hashes identically to omitting the key
+    assert config == SQLServerIndexConfig.parse({"columns": ["a"]})

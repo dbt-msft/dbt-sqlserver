@@ -159,23 +159,10 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         # same as omitting the key entirely.
         return None if value in (None, "none") else value
 
-    @classmethod
-    def from_dict(cls, config_dict) -> "SQLServerIndexConfig":
-        kwargs_dict = {
-            "name": config_dict.get("name"),
-            "columns": tuple(column for column in config_dict.get("columns", tuple())),
-            "unique": config_dict.get("unique"),
-            "type": config_dict.get("type"),
-            "included_columns": frozenset(
-                column for column in config_dict.get("included_columns", set())
-            ),
-            "data_compression": cls._normalize_data_compression(
-                config_dict.get("data_compression")
-            ),
-            "sort_in_tempdb": bool(config_dict.get("sort_in_tempdb") or False),
-        }
-        index: "SQLServerIndexConfig" = super().from_dict(kwargs_dict)  # type: ignore
-        return index
+    # NOTE: no custom from_dict override here - dbtClassMixin (mashumaro)
+    # generates from_dict during class creation and silently replaces any
+    # method defined in the class body, so an override would be dead code.
+    # Raw-input normalization therefore lives in parse() below.
 
     @classmethod
     def parse_model_node(cls, model_node_entry: dict) -> dict:
@@ -251,7 +238,12 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             if not isinstance(raw_index, dict):
                 raise IndexConfigNotDictError(raw_index)
             cls.validate(raw_index)
-            return cls.from_dict(raw_index)
+            normalized = dict(raw_index)
+            if "data_compression" in normalized:
+                normalized["data_compression"] = cls._normalize_data_compression(
+                    normalized.get("data_compression")
+                )
+            return cls.from_dict(normalized)
         except ValidationError as exc:
             raise IndexConfigError(exc)
         except TypeError:

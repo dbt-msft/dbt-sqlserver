@@ -193,3 +193,8 @@ def test_diff_clustered_columnstore_blocks_expected_clustered():
     existing = [existing_row("someschema_sometable_cci", type="clustered columnstore")]
     with pytest.raises(DbtRuntimeError, match="sometable_cci"):
         index_config_changes(existing, [CFG_CLUSTERED], RELATION, "true")
+
+
+def test_change_never_requires_full_refresh():
+    changes, _ = index_config_changes([], [CFG_A], RELATION, "false")
+    assert changes[0].requires_full_refresh is False
