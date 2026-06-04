@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import FrozenSet, Optional, Set, Tuple
+from typing import Any, Dict, FrozenSet, Optional, Set, Tuple
 
 import agate
 from dbt_common.dataclass_schema import StrEnum, ValidationError, dbtClassMixin
@@ -26,6 +26,21 @@ SQLSERVER_MANAGED_INDEX_PREFIX = "dbt_idx_"
 LEGACY_INDEX_PREFIXES = ("clustered_", "nonclustered_")
 
 VALID_DROP_UNMANAGED_MODES = ("false", "warn", "true")
+
+# CREATE INDEX WITH(...) options that only affect HOW the index is built, not
+# WHAT it is. They are excluded from the name hash and from equality, so
+# changing them never triggers a drop/recreate on reconcile.
+VALID_BUILD_OPTIONS = (
+    "online",
+    "maxdop",
+    "resumable",
+    "max_duration",
+    "allow_row_locks",
+    "allow_page_locks",
+    "statistics_norecompute",
+    "statistics_incremental",
+    "compression_delay",  # columnstore only
+)
 
 
 def _split_column_list(raw) -> Tuple[str, ...]:
@@ -104,6 +119,7 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     pad_index: bool = field(default=False, hash=True)
     ignore_dup_key: bool = field(default=False, hash=True)
     optimize_for_sequential_key: bool = field(default=False, hash=True)
+    build_options: Optional[Dict[str, Any]] = field(default=None, hash=False, compare=False)
 
     @property
     def validation_rules(self) -> Set[RelationConfigValidationRule]:
@@ -192,6 +208,15 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
                 or (self.unique and self.type != SQLServerIndexType.columnstore),
                 validation_error=DbtRuntimeError(
                     "ignore_dup_key is only valid for unique rowstore indexes"
+                ),
+            ),
+            RelationConfigValidationRule(
+                validation_check=not self.build_options
+                or all(key in VALID_BUILD_OPTIONS for key in self.build_options),
+                validation_error=DbtRuntimeError(
+                    "Invalid build_options key(s): "
+                    f"{sorted(set(self.build_options or {}) - set(VALID_BUILD_OPTIONS))}. "
+                    f"Valid keys: {', '.join(VALID_BUILD_OPTIONS)}"
                 ),
             ),
             RelationConfigValidationRule(
@@ -308,6 +333,7 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
             "pad_index": self.pad_index,
             "ignore_dup_key": self.ignore_dup_key,
             "optimize_for_sequential_key": self.optimize_for_sequential_key,
+            "build_options": dict(self.build_options) if self.build_options else None,
         }
         return node_config
 

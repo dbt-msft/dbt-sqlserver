@@ -53,7 +53,7 @@ def test_sqlserver_index_config_validation_rules():
         type=SQLServerIndexType.nonclustered,
         included_columns=frozenset(["col3", "col4"]),
     )
-    assert len(valid_config.validation_rules) == 11
+    assert len(valid_config.validation_rules) == 12
     for rule in valid_config.validation_rules:
         assert rule.validation_check is True
 
@@ -184,6 +184,7 @@ def test_sqlserver_index_config_as_node_config():
         "pad_index": False,
         "ignore_dup_key": False,
         "optimize_for_sequential_key": False,
+        "build_options": None,
     }
 
 
@@ -492,3 +493,37 @@ def test_hash_backward_compatible_when_new_fields_unset():
     )
     expected_string = "col1_col2_col3_col4_test_relation_True_nonclustered"
     assert config.render(make_relation()) == "dbt_idx_" + dbt_encoding.md5(expected_string)
+
+
+# --- build_options passthrough ---
+
+
+def test_build_options_round_trip():
+    config = SQLServerIndexConfig.parse(
+        {
+            "columns": ["col_a"],
+            "build_options": {"online": True, "maxdop": 4, "resumable": True},
+        }
+    )
+    assert config.build_options == {"online": True, "maxdop": 4, "resumable": True}
+
+
+def test_build_options_unknown_key_rejected():
+    with pytest.raises(DbtRuntimeError, match="build_options"):
+        SQLServerIndexConfig(columns=("col_a",), build_options={"dropp_existing": True})
+
+
+def test_build_options_excluded_from_hash_and_equality():
+    relation = make_relation()
+    plain = SQLServerIndexConfig(columns=("col_a",))
+    with_opts = SQLServerIndexConfig(columns=("col_a",), build_options={"online": True})
+    assert plain.render(relation) == with_opts.render(relation)
+    assert plain == with_opts
+
+
+def test_build_options_in_as_node_config_round_trip():
+    config = SQLServerIndexConfig(
+        columns=("col_a",), build_options={"maxdop": 2, "allow_page_locks": False}
+    )
+    reparsed = SQLServerIndexConfig.parse(config.as_node_config)
+    assert reparsed.build_options == {"maxdop": 2, "allow_page_locks": False}
