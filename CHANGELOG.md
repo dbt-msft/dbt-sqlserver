@@ -1,5 +1,25 @@
 # Changelog
 
+### v1.10.1
+
+#### Features
+
+- Add `dbt_sqlserver_enable_safe_type_expansion` behaviour flag to allow safe column type widening during schema expansion: `varchar` → `nvarchar`, integer family promotions (`bit` → `tinyint` → `smallint` → `int` → `bigint`), and `numeric`/`decimal` precision/scale upgrades. Gated by the per-model `column_type_expansion_max_rows` config (default 1,000,000 rows). See [#699](https://github.com/dbt-msft/dbt-sqlserver/issues/699).
+- Add `prefer_single_alter_column` model config to use a single `ALTER COLUMN` statement instead of the add+update+drop+rename pattern when altering column types on tables.
+- Add `string_type_instance()` to preserve the NVARCHAR/NCHAR type family during column expansion, fixing incorrect promotion of NVARCHAR/NCHAR to VARCHAR.
+- Add `tinyint` and `bit` to the `is_integer()` type list for correct type detection.
+
+#### Bugfixes
+
+- Fix catalog generation for NVARCHAR/NCHAR columns: use `user_type_id` instead of `system_type_id` in catalog.sql, preventing them from appearing as `SYSNAME` in `dbt docs`. [#637](https://github.com/dbt-msft/dbt-sqlserver/issues/637)
+- Fix `is_numeric()` to exclude `money`/`smallmoney` (now `is_fixed_numeric()`), preventing incorrect type expansion for fixed-precision money types.
+- Fix seed table ingestion of empty numeric cells by inlining `null` literals instead of binding parameters. [#425](https://github.com/dbt-msft/dbt-sqlserver/issues/425)
+- Fix integer-to-numeric safe expansion to require sufficient precision (e.g. `int` → `numeric(10,0)` minimum), avoiding data-loss risk.
+
+#### Migration note
+
+- `money` and `smallmoney` columns are no longer classified as `is_numeric()`. If you have custom code or macros that depend on `money` being numeric, use `is_number()` (which covers all numeric types) or `is_fixed_numeric()` for money types specifically.
+
 ### v1.10.0
 
 #### Features
