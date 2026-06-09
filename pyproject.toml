@@ -107,3 +107,6 @@ known-first-party = ["dbt"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+[tool.ty.environment]
+python = ".venv"

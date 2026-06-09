@@ -113,8 +113,7 @@
                 cast(ep.value as nvarchar(max)) as column_comment
             from sys.columns as c {{ information_schema_hints() }}
             left join sys.types as t {{ information_schema_hints() }}
-                on c.system_type_id = t.system_type_id
-               and c.user_type_id = t.user_type_id
+                on c.user_type_id = t.user_type_id
             left join sys.extended_properties as ep {{ information_schema_hints() }}
                 on ep.class = 1
                and ep.major_id = c.object_id

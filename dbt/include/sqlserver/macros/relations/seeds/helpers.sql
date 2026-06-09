@@ -22,27 +22,30 @@
 {% macro sqlserver__load_csv_rows(model, agate_table) %}
   {% set cols_sql = get_seed_column_quoted_csv(model, agate_table.column_names) %}
   {% set batch_size = calc_batch_size(agate_table.column_names|length) %}
-  {% set bindings = [] %}
   {% set statements = [] %}
 
   {{ log("Inserting batches of " ~ batch_size ~ " records") }}
 
   {% for chunk in agate_table.rows | batch(batch_size) %}
       {% set bindings = [] %}
+      {% set values_clause = [] %}
 
       {% for row in chunk %}
-          {% do bindings.extend(row) %}
+          {% set row_values = [] %}
+          {% for column in agate_table.column_names %}
+              {%- set val = row[loop.index0] -%}
+              {%- if val is none -%}
+                  {%- do row_values.append("null") -%}
+              {%- else -%}
+                  {%- do row_values.append(get_binding_char()) -%}
+                  {%- do bindings.append(val) -%}
+              {%- endif -%}
+          {% endfor %}
+          {% do values_clause.append("(" ~ row_values | join(", ") ~ ")") %}
       {% endfor %}
 
       {% set sql %}
-          insert into {{ this.render() }} ({{ cols_sql }}) values
-          {% for row in chunk -%}
-              ({%- for column in agate_table.column_names -%}
-                  {{ get_binding_char() }}
-                  {%- if not loop.last%},{%- endif %}
-              {%- endfor -%})
-              {%- if not loop.last%},{%- endif %}
-          {%- endfor %}
+          insert into {{ this.render() }} ({{ cols_sql }}) values {{ values_clause | join(", ") }}
       {% endset %}
 
       {% do adapter.add_query(sql, bindings=bindings, abridge_sql_log=True) %}
