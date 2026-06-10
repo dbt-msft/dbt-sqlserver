@@ -56,7 +56,13 @@
     {# Atomic DML swap — RCSI protects concurrent readers #}
     {# dbt-sqlserver uses autocommit=True and add_begin_query/add_commit_query #}
     {# are no-ops, so this creates a simple (non-nested) transaction. #}
+    {# SET XACT_ABORT ON makes the whole transaction roll back if any statement #}
+    {# fails. Without it, statement-aborting errors on the INSERT (e.g. NULL or #}
+    {# constraint violations) do not stop the batch: the DELETE stands and the #}
+    {# trailing COMMIT still executes, leaving the target committed-empty — #}
+    {# silent data loss. (Verified against SQL Server 2022.) #}
     {% call statement('dml_refresh_swap') -%}
+      SET XACT_ABORT ON;
       BEGIN TRANSACTION;
       DELETE FROM {{ target_relation }};
       INSERT INTO {{ target_relation }} ({{ column_list }})
