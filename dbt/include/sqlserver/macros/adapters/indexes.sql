@@ -340,24 +340,24 @@
         /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
            of this adapter's CI matrix */
         select string_agg(col.[name], ', ') within group (order by ic.key_ordinal) as cols
-        from sys.index_columns ic
-        inner join sys.columns col
+        from sys.index_columns ic {{ information_schema_hints() }}
+        inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
         where ic.object_id = i.object_id and ic.index_id = i.index_id
           and ic.is_included_column = 0
     ) key_cols
     outer apply (
         select string_agg(col.[name], ', ') as cols
-        from sys.index_columns ic
-        inner join sys.columns col
+        from sys.index_columns ic {{ information_schema_hints() }}
+        inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
         where ic.object_id = i.object_id and ic.index_id = i.index_id
           and ic.is_included_column = 1
     ) incl_cols
     outer apply (
         select string_agg(col.[name], ', ') as cols
-        from sys.index_columns ic
-        inner join sys.columns col
+        from sys.index_columns ic {{ information_schema_hints() }}
+        inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
         where ic.object_id = i.object_id and ic.index_id = i.index_id
           and ic.is_descending_key = 1
@@ -366,7 +366,7 @@
         /* MAX() rather than TOP 1: deterministic if partitions ever carry
            mixed compression (the adapter doesn't manage partitioning today) */
         select max(p.data_compression_desc) as data_compression_desc
-        from sys.partitions p
+        from sys.partitions p {{ information_schema_hints() }}
         where p.object_id = i.object_id and p.index_id = i.index_id
     ) part
     where i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')

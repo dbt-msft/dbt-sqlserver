@@ -11,6 +11,7 @@
 - Add Postgres-style `indexes` model config for tables, incrementals, seeds and snapshots, covering most `CREATE INDEX` options. [#535](https://github.com/dbt-msft/dbt-sqlserver/issues/535)
 - Index names are deterministic definition hashes (`dbt_idx_` prefix); creation is idempotent and unchanged definitions are never rebuilt.
 - Reconcile indexes against the config on incremental, DML-refresh and snapshot runs, applied as one atomic batch. Constraint-backing, legacy post-hook and `as_columnstore` indexes are never dropped.
+- Index introspection reads the catalog lock-free throughout (`NOLOCK` on every `sys` view, not just `sys.indexes`), so it no longer queues behind concurrent index DDL.
 - Add `drop_unmanaged_indexes` config (`false` (default) / `warn` / `true`) for indexes dbt didn't create.
 - Validate cross-index config conflicts (multiple clustered indexes, clustered vs `as_columnstore`).
 - Document the minimum supported SQL Server version (2017). Partitioning, `XML_COMPRESSION` and ordered columnstore are not yet expressible in the `indexes` config.
