@@ -90,3 +90,19 @@ namespaces = true
 
 [tool.uv]
 link-mode = "copy"
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/W = pycodestyle, F = pyflakes (together: flake8), I = isort,
+# TID252 = no relative imports (absolufy-imports); unused-import
+# removal (pycln) is F401, included in F
+select = ["E", "F", "W", "I", "TID252"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dbt"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
