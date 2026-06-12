@@ -61,6 +61,7 @@ server: ## Spins up a local MS SQL Server instance for development. Docker-compo
 	docker compose up -d
 
 .PHONY: clean
+clean: ## Removes ignored files and build artifacts from the repo.
 	@echo "cleaning repo"
 	@git clean -f -X
 

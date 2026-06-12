@@ -1,6 +1,7 @@
 {% macro get_query_options(parse_options=False) %}
     {{ log (config.get('query_tag','dbt-sqlserver'))}}
-    {%- set query_label = config.get('query_tag','dbt-sqlserver') -%}
+    {#- Escape single quotes so a query_tag like "it's" can't break out of the LABEL literal. -#}
+    {%- set query_label = escape_single_quotes(config.get('query_tag','dbt-sqlserver')) -%}
     {%- set query_options = config.get('query_options', {}) -%}
     {%- set query_options_raw = config.get('query_options_raw', []) -%}
 
@@ -77,7 +78,7 @@
     incremental, snapshot, unit_test), override get_query_options instead. -#}
 {% macro apply_label() %}
     {{ log (config.get('query_tag','dbt-sqlserver'))}}
-    {%- set query_label = config.get('query_tag','dbt-sqlserver') -%}
+    {%- set query_label = escape_single_quotes(config.get('query_tag','dbt-sqlserver')) -%}
     OPTION (LABEL = '{{query_label}}');
 {% endmacro %}
 

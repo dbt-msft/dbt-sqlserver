@@ -1,6 +1,6 @@
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
     {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
-    {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
+    {%- set relation_name = relation.include(database=False) -%}
     {%- set full_relation = '"' ~ relation.schema ~ '"."' ~ relation.identifier ~ '"' -%}
     use [{{ relation.database }}];
     if EXISTS (

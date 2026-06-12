@@ -102,7 +102,7 @@ datatypes = {
     "str": "varchar",
     "uuid.UUID": "uniqueidentifier",
     "uuid": "uniqueidentifier",
-    "float": "bigint",
+    "float": "float",
     "int": "int",
     "bytes": "varbinary",
     "bytearray": "varbinary",
