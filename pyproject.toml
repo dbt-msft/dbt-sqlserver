@@ -90,3 +90,4 @@ namespaces = true
 
 [tool.uv]
 link-mode = "copy"
+override-dependencies = ["pathspec>=0.9,<1.1"] # Remove on dbt-core v1.12 or migration to ty by astral
