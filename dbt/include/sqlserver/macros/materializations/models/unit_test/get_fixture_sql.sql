@@ -4,16 +4,29 @@
     (macros/unit_test_sql/get_fixture_sql.sql) - adapter package macros take
     precedence over the global project. Keep in sync with dbt-core when upgrading.
 
+    To ease a future transition if dbt-core adds adapter.dispatch for these macros,
+    the public wrappers below are intentionally thin. They delegate to the
+    SQL Server-specific implementations (sqlserver__get_fixture_sql and
+    sqlserver__get_expected_sql), which contain the copied/adapted upstream logic.
+
+    When upstream dispatches these macros, the public wrappers can be deleted and
+    the sqlserver__ implementations kept as the dispatched handlers.
+
     Changes from upstream (see dbt-msft/dbt-sqlserver#698):
-      - get_fixture_sql: the empty-rows branch emits "select top 0" instead of
-        "limit 0", which is not valid T-SQL.
-      - get_expected_sql: the empty-rows branch emits a "select top 0" of typed
-        nulls instead of "select * from dbt_internal_unit_test_actual limit 0".
-        Besides the invalid "limit", sqlserver__get_unit_test_sql wraps the
-        expected SQL in its own view, where that CTE name is out of scope.
+      - sqlserver__get_fixture_sql: the empty-rows branch emits "select top 0"
+        instead of "limit 0", which is not valid T-SQL.
+      - sqlserver__get_expected_sql: the empty-rows branch emits a "select top 0"
+        of typed nulls instead of "select * from dbt_internal_unit_test_actual limit 0".
+        Besides the invalid "limit", sqlserver__get_unit_test_sql wraps the expected
+        SQL in its own view, where that CTE name is out of scope.
 #}
 
 {% macro get_fixture_sql(rows, column_name_to_data_types) %}
+    {{ return(sqlserver__get_fixture_sql(rows, column_name_to_data_types)) }}
+{% endmacro %}
+
+
+{% macro sqlserver__get_fixture_sql(rows, column_name_to_data_types) %}
 -- Fixture for {{ model.name }}
 {% set default_row = {} %}
 
@@ -63,6 +76,11 @@ union all
 
 
 {% macro get_expected_sql(rows, column_name_to_data_types, column_name_to_quoted) %}
+    {{ return(sqlserver__get_expected_sql(rows, column_name_to_data_types, column_name_to_quoted)) }}
+{% endmacro %}
+
+
+{% macro sqlserver__get_expected_sql(rows, column_name_to_data_types, column_name_to_quoted) %}
 
 {%- if (rows | length) == 0 -%}
     select top 0
