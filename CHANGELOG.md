@@ -1,5 +1,11 @@
 # Changelog
 
+### v1.10.1
+
+#### Bugfixes
+
+- Fix unit tests with empty fixtures (`rows: []`) generating invalid `limit 0` syntax; emit `top 0` instead. Also fix `get_columns_in_query()` for queries starting with a CTE, which broke unit tests with an empty `expect` block; such queries are now described via `sp_describe_first_result_set` instead of being executed. [#698](https://github.com/dbt-msft/dbt-sqlserver/issues/698)
+
 ### v1.10.0
 
 #### Features
