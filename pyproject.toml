@@ -91,6 +91,9 @@ namespaces = true
 [tool.uv]
 link-mode = "copy"
 
+[tool.ty.environment]
+python = ".venv"
+
 [tool.ruff]
 line-length = 99
 target-version = "py310"

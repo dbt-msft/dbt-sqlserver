@@ -37,6 +37,23 @@ class SQLServerColumn(Column):
 
     @classmethod
     def string_type(cls, size: int) -> str:
+        """Class-level string_type used by SQLAdapter.expand_column_types.
+
+        Return a VARCHAR default for the SQLAdapter path; this keeps behaviour
+        consistent with the rest of dbt where class-level string_type is
+        generic and not instance-aware.
+        """
+        return f"varchar({size if size > 0 else '8000'})"
+
+    def string_type_instance(self, size: int) -> str:
+        """Instance-level string type selection that respects NVARCHAR/NCHAR."""
+        dtype = (self.dtype or "").lower()
+        if dtype == "nvarchar":
+            return f"nvarchar({size if size > 0 else '4000'})"
+        if dtype == "nchar":
+            return f"nchar({size if size > 0 else '1'})"
+        if dtype == "char":
+            return f"char({size if size > 0 else '1'})"
         return f"varchar({size if size > 0 else '8000'})"
 
     def literal(self, value: Any) -> str:
@@ -48,31 +65,31 @@ class SQLServerColumn(Column):
         if self.dtype.lower() == "datetime2":
             return "datetime2(6)"
         if self.is_string():
-            return self.string_type(self.string_size())
+            return self.string_type_instance(self.string_size())
         elif self.is_numeric():
             return self.numeric_type(self.dtype, self.numeric_precision, self.numeric_scale)
         else:
             return self.dtype
 
     def is_string(self) -> bool:
-        return self.dtype.lower() in ["varchar", "char"]
+        return self.dtype.lower() in ["varchar", "char", "nvarchar", "nchar"]
 
     def is_number(self):
-        return any([self.is_integer(), self.is_numeric(), self.is_float()])
+        return any(
+            [self.is_integer(), self.is_numeric(), self.is_float(), self.is_fixed_numeric()]
+        )
 
     def is_float(self):
         return self.dtype.lower() in ["float", "real"]
 
     def is_integer(self) -> bool:
         return self.dtype.lower() in [
-            # real types
             "smallint",
             "integer",
             "bigint",
             "smallserial",
             "serial",
             "bigserial",
-            # aliases
             "int2",
             "int4",
             "int8",
@@ -80,10 +97,15 @@ class SQLServerColumn(Column):
             "serial4",
             "serial8",
             "int",
+            "tinyint",
+            "bit",
         ]
 
     def is_numeric(self) -> bool:
-        return self.dtype.lower() in ["numeric", "decimal", "money", "smallmoney"]
+        return self.dtype.lower() in ["numeric", "decimal"]
+
+    def is_fixed_numeric(self) -> bool:
+        return self.dtype.lower() in ["money", "smallmoney"]
 
     def string_size(self) -> int:
         if not self.is_string():
@@ -93,10 +115,64 @@ class SQLServerColumn(Column):
         else:
             return int(self.char_size)
 
-    def can_expand_to(self, other_column: "SQLServerColumn") -> bool:
-        if not self.is_string() or not other_column.is_string():
+    def can_expand_to(self, other_column: "Column") -> bool:
+        self_dtype = self.dtype.lower()
+        other_dtype = other_column.dtype.lower()
+        if self.is_string() and other_column.is_string():
+            self_size = self.string_size()
+            other_size = other_column.string_size()
+            if other_size > self_size and self_dtype == other_dtype:
+                return True
+        return False
+
+    def can_expand_safe(self, other_column: "SQLServerColumn") -> bool:
+        self_dtype = self.dtype.lower()
+        other_dtype = other_column.dtype.lower()
+
+        if self.is_string() and other_column.is_string():
+            self_size = self.string_size()
+            other_size = other_column.string_size()
+            if self_dtype in ("varchar", "char") and other_dtype in ("nvarchar", "nchar"):
+                return other_size >= self_size
             return False
-        return other_column.string_size() > self.string_size()
+
+        if not self.is_number() or not other_column.is_number():
+            return False
+
+        int_family = ("bit", "tinyint", "smallint", "int", "bigint")
+        if self_dtype in int_family and other_dtype in int_family:
+            return int_family.index(other_dtype) > int_family.index(self_dtype)
+
+        self_prec = int(self.numeric_precision or 0)
+        other_prec = int(other_column.numeric_precision or 0)
+
+        if self.is_integer() and other_column.is_numeric():
+            minimum_int_precision: int
+            if self_dtype in ("tinyint",):
+                minimum_int_precision = 3
+            elif self_dtype in ("smallint", "int2"):
+                minimum_int_precision = 5
+            elif self_dtype in ("bigint", "int8", "bigserial", "serial8"):
+                minimum_int_precision = 19
+            elif self_dtype in ("bit",):
+                minimum_int_precision = 1
+            else:
+                minimum_int_precision = 10
+            effective_self_prec = max(self_prec, minimum_int_precision)
+            if other_prec >= effective_self_prec:
+                return True
+
+        if (self.is_numeric() or self.is_fixed_numeric()) and (
+            other_column.is_numeric() or other_column.is_fixed_numeric()
+        ):
+            self_scale = int(self.numeric_scale or 0)
+            other_scale = int(other_column.numeric_scale or 0)
+
+            if other_prec >= self_prec and other_scale >= self_scale:
+                if other_prec > self_prec or other_scale > self_scale or self_dtype != other_dtype:
+                    return True
+
+        return False
 
 
 class SQLServerColumnNative(SQLServerColumn):
