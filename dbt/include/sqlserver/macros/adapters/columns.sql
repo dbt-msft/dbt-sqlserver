@@ -1,6 +1,11 @@
-{% macro sqlserver__get_empty_subquery_sql(select_sql, select_sql_header=none) %}
+{% macro sqlserver__select_starts_with_cte(select_sql) %}
+    {#-- Strip comments first so a leading comment does not hide the CTE --#}
     {%- set select_sql_stripped = modules.re.sub('(?s)/\\*.*?\\*/|--[^\n]*\n', '', select_sql) -%}
-    {% if select_sql_stripped.strip().lower().startswith('with') %}
+    {{ return(select_sql_stripped.strip().lower().startswith('with')) }}
+{% endmacro %}
+
+{% macro sqlserver__get_empty_subquery_sql(select_sql, select_sql_header=none) %}
+    {% if sqlserver__select_starts_with_cte(select_sql) %}
         {{ select_sql }}
     {% else -%}
         select * from (
@@ -13,15 +18,22 @@
 
 {% macro sqlserver__get_columns_in_query(select_sql) %}
     {% set query_label = get_query_options() %}
-    {% call statement('get_columns_in_query', fetch_result=True, auto_begin=False) -%}
-        select TOP 0 * from (
-            {{ select_sql }}
-        ) as __dbt_sbq
-        where 0 = 1
-        {{ query_label }}
-    {% endcall %}
-
-    {{ return(load_result('get_columns_in_query').table.columns | map(attribute='name') | list) }}
+    {% if sqlserver__select_starts_with_cte(select_sql) %}
+        {#-- A query starting with a CTE cannot be wrapped in a subquery; describe its result set instead of executing it (dbt-msft/dbt-sqlserver#698) --#}
+        {% call statement('get_columns_in_query', fetch_result=True, auto_begin=False) -%}
+            exec sp_describe_first_result_set @tsql = N'{{ escape_single_quotes(select_sql) }}'
+        {% endcall %}
+        {{ return(load_result('get_columns_in_query').table.columns['name'].values() | list) }}
+    {% else %}
+        {% call statement('get_columns_in_query', fetch_result=True, auto_begin=False) -%}
+            select TOP 0 * from (
+                {{ select_sql }}
+            ) as __dbt_sbq
+            where 0 = 1
+            {{ query_label }}
+        {% endcall %}
+        {{ return(load_result('get_columns_in_query').table.columns | map(attribute='name') | list) }}
+    {% endif %}
 {% endmacro %}
 
 {% macro sqlserver__alter_column_type(relation, column_name, new_column_type) %}
