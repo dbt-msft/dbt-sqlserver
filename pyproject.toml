@@ -58,7 +58,7 @@ dev = [
     "flaky",
     "freezegun>=1.5.0,<2.0",
     "ipdb",
-    "mypy==1.11.2",
+    "mypy==2.1.0",
     "pre-commit",
     "pytest",
     "pytest-csv",
@@ -90,6 +90,7 @@ namespaces = true
 
 [tool.uv]
 link-mode = "copy"
+override-dependencies = ["pathspec>=0.9,<1.1"] # Remove on dbt-core v1.12 or migration to ty by astral
 
 [tool.ruff]
 line-length = 99
