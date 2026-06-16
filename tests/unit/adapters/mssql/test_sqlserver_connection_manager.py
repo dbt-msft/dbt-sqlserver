@@ -118,7 +118,7 @@ def test_get_pyodbc_attrs_before_active_directory_access_token_requires_expiry(
     credentials.access_token = "some-token"
 
     credentials.access_token_expires_on = None
-    with pytest.raises(ValueError, match="access token expiry"):
+    with pytest.raises(DbtRuntimeError, match="access token expiry"):
         get_pyodbc_attrs_before_credentials(credentials)
 
 
