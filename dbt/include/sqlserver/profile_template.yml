@@ -4,7 +4,7 @@ prompts:
   host:
     hint: "your host name"
   port:
-    default: 5432
+    default: 1433
     type: "int"
   user:
     hint: "dev username"

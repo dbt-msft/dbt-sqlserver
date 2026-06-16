@@ -98,51 +98,30 @@ See [the changelog](CHANGELOG.md)
 
 ## Configuration
 
-- `dbt_sqlserver_use_default_schema_concat`: *(default: `false`)* Controls schema name generation when a [custom schema](https://docs.getdbt.com/docs/build/custom-schemas) is set on a model.
-
-  | Flag value | `custom_schema_name` | Result |
-  |---|---|---|
-  | `false` (default, legacy) | *(none)* | `target.schema` |
-  | `false` (default, legacy) | `"reporting"` | `reporting` |
-  | `true` (dbt-core standard) | *(none)* | `target.schema` |
-  | `true` (dbt-core standard) | `"reporting"` | `target.schema_reporting` |
-
-  When `false` (the default), the adapter uses its legacy behaviour: `custom_schema_name` is used **as-is** without being prefixed by `target.schema`.  
-  When `true`, the adapter delegates to dbt-core's `default__generate_schema_name`, which concatenates `target.schema` + `_` + `custom_schema_name`.
-
-  **Example usage in `dbt_project.yml`:**
-
-  ```yaml
-  flags:
-    dbt_sqlserver_use_default_schema_concat: true  # Enable standard schema concatenation
-  ```
-
-  This adapter also supports the same setting via `vars:` for backwards compatibility, so either method works in the current release.
-
-  > **Note:** If you want to permanently customise schema generation and avoid any future changes, override the `sqlserver__generate_schema_name` macro directly in your project instead.
-
-
 ### `dbt_sqlserver_use_default_schema_concat`
 
 *(default: `false`)* Controls schema name generation when a [custom schema](https://docs.getdbt.com/docs/build/custom-schemas) is set on a model.
 
-| Value | `custom_schema_name` | Result |
+| Flag value | `custom_schema_name` | Result |
 |---|---|---|
-| `false` (default) | *(none)* | `target.schema` |
-| `false` (default) | `"reporting"` | `reporting` |
-| `true` | *(none)* | `target.schema` |
-| `true` | `"reporting"` | `target.schema_reporting` |
+| `false` (default, legacy) | *(none)* | `target.schema` |
+| `false` (default, legacy) | `"reporting"` | `reporting` |
+| `true` (dbt-core standard) | *(none)* | `target.schema` |
+| `true` (dbt-core standard) | `"reporting"` | `target.schema_reporting` |
 
-When `false`, `custom_schema_name` is used as-is without being prefixed by `target.schema`.  
-When `true`, the adapter delegates to dbt-core's `default__generate_schema_name`.
+When `false` (the default), the adapter uses its legacy behaviour: `custom_schema_name` is used **as-is** without being prefixed by `target.schema`.  
+When `true`, the adapter delegates to dbt-core's `default__generate_schema_name`, which concatenates `target.schema` + `_` + `custom_schema_name`.
+
+**Example usage in `dbt_project.yml`:**
 
 ```yaml
-# dbt_project.yml
-vars:
-  dbt_sqlserver_use_default_schema_concat: true
+flags:
+  dbt_sqlserver_use_default_schema_concat: true  # Enable standard schema concatenation
 ```
 
-> **Note:** To permanently customise schema generation without a flag dependency, override the `sqlserver__generate_schema_name` macro directly in your project.
+The same setting is also honoured via `vars:` for backwards compatibility; the behavior flag under `flags:` takes precedence when both are set.
+
+> **Note:** If you want to permanently customise schema generation and avoid any future changes, override the `sqlserver__generate_schema_name` macro directly in your project instead.
 
 ### `backend`
 
