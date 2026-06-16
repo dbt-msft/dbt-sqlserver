@@ -442,4 +442,15 @@
         ~ ";\ncommit transaction;"
     ) %}
   {% endif %}
+  {#- ONLINE / RESUMABLE creates cannot run inside the transaction above
+      (SQL Server forbids RESUMABLE in a user transaction, and an ONLINE build
+      wrapped in one holds its locks until commit, negating the non-blocking
+      intent). Apply them individually in autocommit. The drops above have
+      already committed, so a replacement index still builds after its
+      predecessor is gone; these are not part of the atomic batch, so there is
+      a brief window where the new index is absent for readers. -#}
+  {%- for index_dict in result['creates_no_txn'] %}
+    {% do log("Creating ONLINE/RESUMABLE index outside the reconcile transaction on " ~ relation, info=true) %}
+    {% do run_query(sqlserver__get_create_index_sql(relation, index_dict)) %}
+  {%- endfor %}
 {% endmacro %}

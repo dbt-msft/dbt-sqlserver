@@ -1,7 +1,6 @@
 import pytest
 
 from dbt.tests.util import get_connection, run_dbt
-
 from tests.functional.adapter.mssql.test_index_config import index_count, indexes_def
 
 # flake8: noqa: E501
@@ -68,6 +67,7 @@ drop_schema_model = """
 }}
 select * from {{ ref('raw_data') }}
 """
+
 
 class TestIndex:
     @pytest.fixture(scope="class")

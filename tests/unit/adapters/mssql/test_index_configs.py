@@ -78,30 +78,6 @@ def test_sqlserver_index_config_validation_rules():
         SQLServerIndexConfig(columns=("col1",), unique=True, type=SQLServerIndexType.columnstore)
 
 
-def test_sqlserver_index_config_parse_model_node():
-    model_node_entry = {
-        "columns": ["col1", "col2"],
-        "unique": True,
-        "type": "nonclustered",
-        "included_columns": ["col3", "col4"],
-    }
-    parsed_dict = SQLServerIndexConfig.parse_model_node(model_node_entry)
-    assert parsed_dict == {
-        "columns": ("col1", "col2"),
-        "unique": True,
-        "type": "nonclustered",
-        "included_columns": frozenset(["col3", "col4"]),
-        "data_compression": None,
-        "sort_in_tempdb": False,
-        "descending_columns": frozenset(),
-        "where": None,
-        "fillfactor": None,
-        "pad_index": False,
-        "ignore_dup_key": False,
-        "optimize_for_sequential_key": False,
-    }
-
-
 def test_sqlserver_index_config_parse_relation_results():
     relation_results_entry = {
         "name": "index_name",
@@ -260,14 +236,6 @@ def test_index_config_data_compression_round_trip():
     )
     assert config.data_compression == "row"
     assert config.sort_in_tempdb is True
-
-
-def test_parse_model_node_new_fields():
-    parsed = SQLServerIndexConfig.parse_model_node(
-        {"columns": ["col1"], "data_compression": "page", "sort_in_tempdb": True}
-    )
-    assert parsed["data_compression"] == "page"
-    assert parsed["sort_in_tempdb"] is True
 
 
 def test_as_node_config_new_fields():

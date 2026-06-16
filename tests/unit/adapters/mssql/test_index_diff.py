@@ -4,6 +4,7 @@ import pytest
 
 from dbt.adapters.sqlserver.relation_configs.index import (
     SQLServerIndexConfig,
+    create_needs_own_batch,
     index_config_changes,
 )
 from dbt.exceptions import DbtRuntimeError
@@ -198,3 +199,35 @@ def test_diff_clustered_columnstore_blocks_expected_clustered():
 def test_change_never_requires_full_refresh():
     changes, _ = index_config_changes([], [CFG_A], RELATION, "false")
     assert changes[0].requires_full_refresh is False
+
+
+def test_diff_raises_when_two_configs_collide_on_name():
+    # ("a_b",) and ("a", "b") flatten to the same name-hash input; without the
+    # collision guard one would silently overwrite the other in the diff.
+    one_col = SQLServerIndexConfig(columns=("a_b",))
+    two_col = SQLServerIndexConfig(columns=("a", "b"))
+    assert one_col.render(RELATION) == two_col.render(RELATION)
+    with pytest.raises(DbtRuntimeError, match="same managed name"):
+        index_config_changes([], [one_col, two_col], RELATION, "false")
+
+
+def test_diff_dedupes_identical_configs():
+    # Genuinely identical entries collide on name but must not raise.
+    changes, _ = index_config_changes([], [CFG_A, CFG_A], RELATION, "false")
+    assert len(changes) == 1
+
+
+@pytest.mark.parametrize(
+    "build_options,expected",
+    [
+        (None, False),
+        ({}, False),
+        ({"maxdop": 4}, False),
+        ({"online": True}, True),
+        ({"resumable": True}, True),
+        ({"online": False}, False),
+        ({"maxdop": 4, "resumable": True}, True),
+    ],
+)
+def test_create_needs_own_batch(build_options, expected):
+    assert create_needs_own_batch(build_options) is expected

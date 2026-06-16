@@ -42,6 +42,21 @@ VALID_BUILD_OPTIONS = (
     "compression_delay",  # columnstore only
 )
 
+# Build options whose CREATE INDEX must run on its own, outside the reconcile
+# transaction: SQL Server forbids RESUMABLE index operations inside an explicit
+# transaction, and an ONLINE build wrapped in one would hold its locks until the
+# COMMIT, defeating the non-blocking guarantee. These creates are applied as
+# standalone (autocommitted) statements instead.
+NON_TRANSACTIONAL_BUILD_OPTIONS = ("online", "resumable")
+
+
+def create_needs_own_batch(build_options) -> bool:
+    """True when an index's build_options (ONLINE / RESUMABLE) force its CREATE
+    to run outside the reconcile transaction."""
+    if not build_options:
+        return False
+    return any(bool(build_options.get(key)) for key in NON_TRANSACTIONAL_BUILD_OPTIONS)
+
 
 def normalize_drop_unmanaged(value) -> str:
     """Normalize/validate a drop_unmanaged_indexes config value. YAML supplies
@@ -275,35 +290,6 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
     # Raw-input normalization therefore lives in parse() below.
 
     @classmethod
-    def parse_model_node(cls, model_node_entry: dict) -> dict:
-        raw_columns = model_node_entry.get("columns", [])
-        if isinstance(raw_columns, list):
-            names, descending = cls._normalize_columns(raw_columns)
-        else:
-            names, descending = raw_columns, []
-        config_dict = {
-            "columns": tuple(names),
-            "unique": model_node_entry.get("unique"),
-            "type": model_node_entry.get("type"),
-            "included_columns": frozenset(model_node_entry.get("included_columns", set())),
-            "data_compression": cls._normalize_data_compression(
-                model_node_entry.get("data_compression")
-            ),
-            "sort_in_tempdb": bool(model_node_entry.get("sort_in_tempdb") or False),
-            "descending_columns": frozenset(
-                set(descending) | set(model_node_entry.get("descending_columns") or [])
-            ),
-            "where": model_node_entry.get("where"),
-            "fillfactor": model_node_entry.get("fillfactor"),
-            "pad_index": bool(model_node_entry.get("pad_index") or False),
-            "ignore_dup_key": bool(model_node_entry.get("ignore_dup_key") or False),
-            "optimize_for_sequential_key": bool(
-                model_node_entry.get("optimize_for_sequential_key") or False
-            ),
-        }
-        return config_dict
-
-    @classmethod
     def parse_relation_results(cls, relation_results_entry: agate.Row) -> dict:
         config_dict = {
             "name": relation_results_entry.get("name"),
@@ -511,7 +497,22 @@ def index_config_changes(
     """
     drop_unmanaged = normalize_drop_unmanaged(drop_unmanaged)
 
-    expected_by_name = {config.render(relation): config for config in expected_configs}
+    # Managed names are a deterministic hash of the definition, so two distinct
+    # definitions sharing a name (e.g. column names that collide under the name
+    # hash) would silently overwrite each other in this dict and drop one of the
+    # configured indexes. Fail loudly instead. Genuinely identical entries
+    # (build-time options differ but identity matches) dedupe harmlessly.
+    expected_by_name: Dict[str, "SQLServerIndexConfig"] = {}
+    for config in expected_configs:
+        name = config.render(relation)
+        collision = expected_by_name.get(name)
+        if collision is not None and collision != config:
+            raise DbtRuntimeError(
+                f"Two different indexes configured on {relation.render()} resolve to "
+                f"the same managed name ({name}); their column names likely collide "
+                "under name hashing. Adjust the index definitions so they differ."
+            )
+        expected_by_name[name] = config
     existing_names = set()
     drop_names = []
     warnings = []
