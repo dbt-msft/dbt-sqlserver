@@ -142,7 +142,7 @@ class SQLServerColumn(Column):
         else:
             return int(self.char_size)
 
-    def can_expand_to(self, other_column: "Column") -> bool:
+    def can_expand_to(self, other_column: "SQLServerColumn") -> bool:
         self_dtype = self.dtype.lower()
         other_dtype = other_column.dtype.lower()
         if self.is_string() and other_column.is_string():
@@ -211,7 +211,10 @@ class SQLServerColumn(Column):
 
         if self.is_string() and other_column.is_string():
             # Cross-family varchar/char -> nvarchar/nchar guarded expansion
-            if self_dtype in ("varchar", "char") and other_dtype in ("nvarchar", "nchar"):
+            # Also nchar -> nvarchar (fixed-width unicode to variable-width unicode)
+            if (self_dtype in ("varchar", "char") and other_dtype in ("nvarchar", "nchar")) or (
+                self_dtype == "nchar" and other_dtype == "nvarchar"
+            ):
                 self_max = self.is_max_string()
                 other_max = other_column.is_max_string()
 

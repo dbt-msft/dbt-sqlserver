@@ -14,11 +14,11 @@ def adapter():
     config.credentials.type = "sqlserver"
     mp_context = MagicMock()
     adapter = SQLServerAdapter(config, mp_context)
-    adapter._get_row_count = MagicMock(return_value=0)
+    adapter._get_row_count = MagicMock(return_value=0)  # type: ignore
     adapter.get_columns_in_relation = MagicMock(return_value=[])
     adapter.alter_column_type = MagicMock()
-    adapter.behavior = MagicMock()
-    adapter.behavior.dbt_sqlserver_enable_safe_type_expansion = True
+    # behavior is an available_property — override via the underlying Behavior object
+    adapter.behavior.dbt_sqlserver_enable_safe_type_expansion = True  # type: ignore[attr-defined]
     return adapter
 
 
@@ -34,7 +34,6 @@ class TestExpandColumnTypes:
         adapter._get_row_count.assert_not_called()
 
     def test_blocks_safe_expansion_when_max_rows_is_zero(self, adapter):
-        adapter._get_row_count.return_value = 0
         adapter.get_columns_in_relation = MagicMock(return_value=[])
         adapter.alter_column_type = MagicMock()
 
@@ -80,7 +79,6 @@ class TestExpandColumnTypes:
         logger.warning.assert_called_once()
 
     def test_expand_target_column_types_forwards_max_rows(self, adapter):
-        adapter._get_row_count.return_value = 0
         adapter.get_columns_in_relation = MagicMock(return_value=[])
         adapter.alter_column_type = MagicMock()
 
@@ -102,7 +100,6 @@ class TestExpandColumnTypes:
     )
     def test_bounded_to_max_emits_max(self, adapter, dtype, expected_type):
         """bounded {dtype}(100) -> {dtype}(max) should emit {dtype}(max)."""
-        adapter._get_row_count.return_value = 0
         adapter.get_columns_in_relation = MagicMock(return_value=[])
         adapter.alter_column_type = MagicMock()
 
@@ -140,7 +137,6 @@ class TestExpandColumnTypes:
 
     def test_varchar_max_to_bounded_does_not_expand(self, adapter):
         """varchar(max) current, varchar(100) goal should not call alter_column_type()."""
-        adapter._get_row_count.return_value = 0
         adapter.get_columns_in_relation = MagicMock(return_value=[])
         adapter.alter_column_type = MagicMock()
 
