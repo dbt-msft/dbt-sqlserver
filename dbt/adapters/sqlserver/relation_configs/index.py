@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, FrozenSet, Optional, Set, Tuple
 
@@ -351,26 +352,37 @@ class SQLServerIndexConfig(RelationConfigBase, RelationConfigValidationMixin, db
         # Build-time options (sort_in_tempdb, build_options) are deliberately
         # NOT hashed: they don't change the resulting index, so toggling them
         # must not produce a new name (which would drop/recreate on reconcile).
-        # Optional definition fields are appended ONLY when set, with a field
-        # prefix, so pre-existing managed index names stay stable as the
-        # adapter grows new options.
-        inputs = (
-            self.columns
-            + tuple(sorted(self.included_columns))
-            + (relation.render(), str(self.unique), str(self.type))
-            + ((str(self.data_compression),) if self.data_compression else ())
-            + (
-                ("desc:" + ",".join(sorted(self.descending_columns)),)
-                if self.descending_columns
-                else ()
+        # Optional definition fields are included ONLY when set, so
+        # pre-existing managed index names stay stable as the adapter grows
+        # new optional fields.
+        identity: Dict[str, Any] = {
+            "relation": relation.render(),
+            "columns": list(self.columns),
+        }
+        if self.included_columns:
+            identity["included_columns"] = sorted(self.included_columns)
+        if self.unique:
+            identity["unique"] = True
+        if self.type != SQLServerIndexType.default():
+            identity["type"] = (
+                self.type.value if isinstance(self.type, SQLServerIndexType) else str(self.type)
             )
-            + (("where:" + self.where,) if self.where else ())
-            + ((f"fillfactor:{self.fillfactor}",) if self.fillfactor else ())
-            + (("pad_index",) if self.pad_index else ())
-            + (("ignore_dup_key",) if self.ignore_dup_key else ())
-            + (("optimize_for_sequential_key",) if self.optimize_for_sequential_key else ())
-        )
-        return SQLSERVER_MANAGED_INDEX_PREFIX + dbt_encoding.md5("_".join(inputs))
+        if self.data_compression:
+            identity["data_compression"] = self.data_compression
+        if self.descending_columns:
+            identity["descending_columns"] = sorted(self.descending_columns)
+        if self.where:
+            identity["where"] = self.where
+        if self.fillfactor:
+            identity["fillfactor"] = self.fillfactor
+        if self.pad_index:
+            identity["pad_index"] = True
+        if self.ignore_dup_key:
+            identity["ignore_dup_key"] = True
+        if self.optimize_for_sequential_key:
+            identity["optimize_for_sequential_key"] = True
+        payload = json.dumps(identity, sort_keys=True, separators=(",", ":"), default=str)
+        return SQLSERVER_MANAGED_INDEX_PREFIX + dbt_encoding.md5(payload)
 
     @classmethod
     def parse(cls, raw_index) -> Optional["SQLServerIndexConfig"]:

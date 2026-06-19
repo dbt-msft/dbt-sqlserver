@@ -1074,3 +1074,144 @@ class TestSQLServerEarlyValidation:
         # snapshot config must be rejected with the clear cross-config error.
         _, output = run_dbt_and_capture(["snapshot"], expect_pass=False)
         assert "as_columnstore" in output
+
+
+models__online_table_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['column_a'], 'build_options': {'online': True}},
+      {'columns': ['column_b'], 'build_options': {'online': True, 'resumable': True}},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+"""
+
+
+models__online_incremental_sql = """
+{{
+  config(
+    materialized = "incremental",
+    as_columnstore = False,
+    indexes=[{'columns': ['column_a'], 'build_options': {'online': True}}],
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+{% if is_incremental() %} where 1 = 0 {% endif %}
+"""
+
+
+class TestSQLServerOnlineResumableIndexes:
+    """ONLINE/RESUMABLE indexes are built in the materialization's post-commit
+    phase (outside any transaction), so they build correctly on both the create
+    and reconcile paths. The same post-commit placement keeps them transaction-
+    safe once dbt-managed transactions land; that flag-on path is exercised
+    separately when the transactions feature is present. RESUMABLE requires
+    ONLINE, so they pair."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "online_table.sql": models__online_table_sql,
+            "online_incr.sql": models__online_incremental_sql,
+        }
+
+    def test_table_create_path_post_commit(self, project, unique_schema):
+        results = run_dbt(["run", "--models", "online_table"])
+        assert len(results) == 1
+        first = get_index_rows(project, unique_schema, "online_table")
+        assert index_summary(first) == [
+            ("column_a", "nonclustered"),
+            ("column_b", "nonclustered"),
+        ]
+        # Idempotent: rebuilding keeps the same indexes (no churn).
+        first_names = sorted(row[0] for row in first)
+        results = run_dbt(["run", "--models", "online_table"])
+        assert len(results) == 1
+        second = get_index_rows(project, unique_schema, "online_table")
+        assert sorted(row[0] for row in second) == first_names
+
+    def test_incremental_reconcile_path_post_commit(self, project, unique_schema):
+        # First run: create path (post-commit build).
+        run_dbt(["run", "--models", "online_incr"])
+        first = get_index_rows(project, unique_schema, "online_incr")
+        assert index_summary(first) == [("column_a", "nonclustered")]
+        # Second run: table persists -> reconcile path runs; the online index is
+        # (re)built post-commit and persists.
+        run_dbt(["run", "--models", "online_incr"])
+        second = get_index_rows(project, unique_schema, "online_incr")
+        assert index_summary(second) == [("column_a", "nonclustered")]
+
+
+models__managed_index_key_include_boundary_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes = var('managed_idx', [])
+  )
+}}
+
+select cast(1 as int) as a, cast(2 as int) as b, cast(3 as int) as c
+"""
+
+
+class TestSQLServerManagedNameKeyIncludeBoundary:
+    """Regression: columns=['a','b'] and columns=['a'] with
+    included_columns=['b'] must produce different managed names so that
+    reconciliation drops and recreates the index when the definition
+    changes."""
+
+    MODEL = "managed_index_key_include_boundary"
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {f"{self.MODEL}.sql": models__managed_index_key_include_boundary_sql}
+
+    def _managed_index_rows(self, project, unique_schema):
+        """Return only dbt_idx_ rows for the test table."""
+        sql = indexes_def.format(schema_name=unique_schema, table_name=self.MODEL)
+        all_rows = project.run_sql(sql, fetch="all")
+        return [r for r in all_rows if r[0] and r[0].startswith("dbt_idx_")]
+
+    def test_managed_name_changes_when_columns_moved_to_included(self, project, unique_schema):
+        # ---- Step 1: create with key-only index (columns: ["a", "b"]) ----
+        run_dbt(
+            [
+                "run",
+                "--vars",
+                "managed_idx: [{'columns': ['a', 'b']}]",
+            ]
+        )
+        rows1 = self._managed_index_rows(project, unique_schema)
+        assert len(rows1) == 1, f"Expected exactly one managed index, got {len(rows1)}"
+        name1, cols1, inc1 = rows1[0][0], rows1[0][1], rows1[0][2]
+        assert cols1 == "a, b", f"Expected key columns 'a, b' after first run, got {cols1!r}"
+        assert inc1 is None, f"Expected no included columns after first run, got {inc1!r}"
+
+        # ---- Step 2: change config to key+include index ----
+        run_dbt(
+            [
+                "run",
+                "--vars",
+                "managed_idx: [{'columns': ['a'], 'included_columns': ['b']}]",
+            ]
+        )
+        rows2 = self._managed_index_rows(project, unique_schema)
+        assert len(rows2) == 1, f"Expected exactly one managed index, got {len(rows2)}"
+        name2, cols2, inc2 = rows2[0][0], rows2[0][1], rows2[0][2]
+        assert cols2 == "a", f"Expected key column 'a' after second run, got {cols2!r}"
+        assert inc2 == "b", f"Expected included column 'b' after second run, got {inc2!r}"
+
+        # ---- Step 3: verify managed names differ ----
+        assert name1 != name2, (
+            "Managed index name must change when the definition changes: "
+            "columns=['a','b'] -> columns=['a'] with included_columns=['b']. "
+            "If this assertion fails the hash/name generation does not "
+            "distinguish key columns from included columns."
+        )

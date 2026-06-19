@@ -201,14 +201,19 @@ def test_change_never_requires_full_refresh():
     assert changes[0].requires_full_refresh is False
 
 
-def test_diff_raises_when_two_configs_collide_on_name():
-    # ("a_b",) and ("a", "b") flatten to the same name-hash input; without the
-    # collision guard one would silently overwrite the other in the diff.
-    one_col = SQLServerIndexConfig(columns=("a_b",))
-    two_col = SQLServerIndexConfig(columns=("a", "b"))
-    assert one_col.render(RELATION) == two_col.render(RELATION)
+def test_diff_raises_when_two_different_configs_collide_on_name(monkeypatch):
+    # Force two different configs to render the same managed name so the
+    # collision guard in index_config_changes fires.
+    one = SQLServerIndexConfig(columns=("a",))
+    two = SQLServerIndexConfig(columns=("b",))
+
+    def fake_render(self, relation):
+        return "dbt_idx_forced_collision"
+
+    monkeypatch.setattr(SQLServerIndexConfig, "render", fake_render)
+
     with pytest.raises(DbtRuntimeError, match="same managed name"):
-        index_config_changes([], [one_col, two_col], RELATION, "false")
+        index_config_changes([], [one, two], RELATION, "false")
 
 
 def test_diff_dedupes_identical_configs():
