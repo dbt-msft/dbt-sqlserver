@@ -77,7 +77,7 @@ class SQLServerColumn(Column):
             return "datetime2(6)"
         if self.is_string():
             return self.string_type_instance(self.string_size())
-        elif self.is_numeric():
+        elif self.is_decimal_type():
             return self.numeric_type(self.dtype, self.numeric_precision, self.numeric_scale)
         else:
             return self.dtype
@@ -96,9 +96,7 @@ class SQLServerColumn(Column):
         return dtype in ("varchar", "nvarchar") and int(self.char_size or 0) == -1
 
     def is_number(self):
-        return any(
-            [self.is_integer(), self.is_numeric(), self.is_float(), self.is_fixed_numeric()]
-        )
+        return any([self.is_integer(), self.is_numeric(), self.is_float()])
 
     def is_float(self):
         return self.dtype.lower() in ["float", "real"]
@@ -123,6 +121,14 @@ class SQLServerColumn(Column):
         ]
 
     def is_numeric(self) -> bool:
+        return self.dtype.lower() in ["numeric", "decimal", "money", "smallmoney"]
+
+    def is_decimal_type(self) -> bool:
+        """Return True for true arbitrary-precision numeric/decimal types only.
+
+        This excludes fixed-scale money/smallmoney which are still classified
+        as numeric by is_numeric() for backward compatibility.
+        """
         return self.dtype.lower() in ["numeric", "decimal"]
 
     def is_fixed_numeric(self) -> bool:
@@ -166,7 +172,7 @@ class SQLServerColumn(Column):
         For fixed-money types: precision - scale of their effective representation.
         """
         dtype = col.dtype.lower()
-        if col.is_numeric():
+        if col.is_decimal_type():
             prec = int(col.numeric_precision or 0)
             scale = int(col.numeric_scale or 0)
             return prec - scale
@@ -192,7 +198,7 @@ class SQLServerColumn(Column):
     @staticmethod
     def _scale(col: "SQLServerColumn") -> int:
         """Return the scale for numeric / fixed-money columns."""
-        if col.is_numeric():
+        if col.is_decimal_type():
             return int(col.numeric_scale or 0)
         if col.is_fixed_numeric():
             # smallmoney and money both have scale 4
@@ -231,16 +237,16 @@ class SQLServerColumn(Column):
         if self_dtype in int_family and other_dtype in int_family:
             return int_family.index(other_dtype) > int_family.index(self_dtype)
 
-        # Integer -> numeric/decimal expansion
-        if self.is_integer() and other_column.is_numeric():
+        # Integer -> decimal/numeric expansion
+        if self.is_integer() and other_column.is_decimal_type():
             source_int_digits = self._integer_digits(self)
             target_scale = self._scale(other_column)
             target_int_digits = self._integer_digits(other_column)
             return target_scale >= 0 and target_int_digits >= source_int_digits
 
-        # Numeric/decimal -> numeric/decimal or fixed-money, or fixed-money -> numeric
-        if (self.is_numeric() or self.is_fixed_numeric()) and (
-            other_column.is_numeric() or other_column.is_fixed_numeric()
+        # Numeric/decimal <-> fixed-money type expansion
+        if (self.is_decimal_type() or self.is_fixed_numeric()) and (
+            other_column.is_decimal_type() or other_column.is_fixed_numeric()
         ):
             source_scale = self._scale(self)
             target_scale = self._scale(other_column)

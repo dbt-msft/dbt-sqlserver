@@ -139,9 +139,31 @@ class TestSQLServerColumnIsNumeric:
         col = SQLServerColumn("c", "decimal")
         assert col.is_numeric() is True
 
-    def test_money_is_not_numeric(self):
+    def test_money_is_numeric(self):
         col = SQLServerColumn("c", "money")
-        assert col.is_numeric() is False
+        assert col.is_numeric() is True
+
+    def test_smallmoney_is_numeric(self):
+        col = SQLServerColumn("c", "smallmoney")
+        assert col.is_numeric() is True
+
+
+class TestSQLServerColumnIsDecimalType:
+    def test_numeric_is_decimal(self):
+        col = SQLServerColumn("c", "numeric")
+        assert col.is_decimal_type() is True
+
+    def test_decimal_is_decimal(self):
+        col = SQLServerColumn("c", "decimal")
+        assert col.is_decimal_type() is True
+
+    def test_money_is_not_decimal(self):
+        col = SQLServerColumn("c", "money")
+        assert col.is_decimal_type() is False
+
+    def test_smallmoney_is_not_decimal(self):
+        col = SQLServerColumn("c", "smallmoney")
+        assert col.is_decimal_type() is False
 
 
 class TestSQLServerColumnStringSize:
