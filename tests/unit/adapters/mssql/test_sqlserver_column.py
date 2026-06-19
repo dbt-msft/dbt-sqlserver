@@ -29,6 +29,22 @@ class TestSQLServerColumnIsString:
         col = SQLServerColumn("c", "numeric")
         assert col.is_string() is False
 
+    def test_varchar_max_is_max_string(self):
+        col = SQLServerColumn("c", "varchar", char_size=-1)
+        assert col.is_max_string() is True
+
+    def test_nvarchar_max_is_max_string(self):
+        col = SQLServerColumn("c", "nvarchar", char_size=-1)
+        assert col.is_max_string() is True
+
+    def test_char_is_not_max_string(self):
+        col = SQLServerColumn("c", "char", char_size=-1)
+        assert col.is_max_string() is False
+
+    def test_nchar_is_not_max_string(self):
+        col = SQLServerColumn("c", "nchar", char_size=-1)
+        assert col.is_max_string() is False
+
 
 class TestSQLServerColumnStringTypeInstance:
     def test_varchar_default(self):
@@ -36,7 +52,7 @@ class TestSQLServerColumnStringTypeInstance:
         result = col.string_type_instance(100)
         assert result == "varchar(100)"
 
-    def test_varchar_max(self):
+    def test_varchar_max_bounded(self):
         col = SQLServerColumn("c", "varchar")
         result = col.string_type_instance(0)
         assert result == "varchar(8000)"
@@ -46,7 +62,7 @@ class TestSQLServerColumnStringTypeInstance:
         result = col.string_type_instance(200)
         assert result == "nvarchar(200)"
 
-    def test_nvarchar_max(self):
+    def test_nvarchar_max_bounded(self):
         col = SQLServerColumn("c", "nvarchar")
         result = col.string_type_instance(0)
         assert result == "nvarchar(4000)"
@@ -56,7 +72,7 @@ class TestSQLServerColumnStringTypeInstance:
         result = col.string_type_instance(50)
         assert result == "nchar(50)"
 
-    def test_nchar_max(self):
+    def test_nchar_max_bounded(self):
         col = SQLServerColumn("c", "nchar")
         result = col.string_type_instance(0)
         assert result == "nchar(1)"
@@ -68,6 +84,26 @@ class TestSQLServerColumnStringTypeInstance:
 
         result = col.string_type_instance(0)
         assert result == "char(1)"
+
+    def test_varchar_max_emits_varchar_max(self):
+        col = SQLServerColumn("c", "varchar")
+        result = col.string_type_instance(-1)
+        assert result == "varchar(max)"
+
+    def test_nvarchar_max_emits_nvarchar_max(self):
+        col = SQLServerColumn("c", "nvarchar")
+        result = col.string_type_instance(-1)
+        assert result == "nvarchar(max)"
+
+    def test_char_max_raises(self):
+        col = SQLServerColumn("c", "char")
+        with pytest.raises(DbtRuntimeError, match=r"char\(max\) is not a valid SQL Server type"):
+            col.string_type_instance(-1)
+
+    def test_nchar_max_raises(self):
+        col = SQLServerColumn("c", "nchar")
+        with pytest.raises(DbtRuntimeError, match=r"nchar\(max\) is not a valid SQL Server type"):
+            col.string_type_instance(-1)
 
 
 class TestSQLServerColumnDataType:

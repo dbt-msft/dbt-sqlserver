@@ -325,7 +325,7 @@ class SQLServerAdapter(SQLAdapter):
             if max_rows == 0:
                 row_count_exceeds = True
                 logger.info(
-                    "Safe type expansion skipped for %s: " "column_type_expansion_max_rows is 0.",
+                    "Safe type expansion skipped for %s: column_type_expansion_max_rows is 0.",
                     current,
                 )
             else:
@@ -395,14 +395,6 @@ class SQLServerAdapter(SQLAdapter):
                 expected_type=self.Relation,
             )
         self.expand_column_types(from_relation, to_relation, max_rows)
-
-    def alter_column_type(self, relation, column_name, new_column_type):
-        kwargs = {
-            "relation": relation,
-            "column_name": column_name,
-            "new_column_type": new_column_type,
-        }
-        self.execute_macro("alter_column_type", kwargs=kwargs)
 
 
 COLUMNS_EQUAL_SQL = """

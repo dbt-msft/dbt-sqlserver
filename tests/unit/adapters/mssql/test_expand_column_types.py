@@ -92,3 +92,81 @@ class TestExpandColumnTypes:
             adapter.expand_target_column_types(goal, current, max_rows=max_rows)
 
         mock_expand.assert_called_once_with(goal, current, max_rows)
+
+    @pytest.mark.parametrize(
+        "dtype,expected_type",
+        [
+            ("varchar", "varchar(max)"),
+            ("nvarchar", "nvarchar(max)"),
+        ],
+    )
+    def test_bounded_to_max_emits_max(self, adapter, dtype, expected_type):
+        """bounded {dtype}(100) -> {dtype}(max) should emit {dtype}(max)."""
+        adapter._get_row_count.return_value = 0
+        adapter.get_columns_in_relation = MagicMock(return_value=[])
+        adapter.alter_column_type = MagicMock()
+
+        goal = make_rel("goal")
+        goal_col = MagicMock()
+        goal_col.name = "c"
+        goal_col.dtype = dtype
+        goal_col.data_type = expected_type
+        goal_col.is_string = MagicMock(return_value=True)
+        goal_col.is_number = MagicMock(return_value=False)
+        goal_col.string_size = MagicMock(return_value=-1)
+        goal_col.string_type_instance = MagicMock(return_value=expected_type)
+
+        current = make_rel("current")
+        current.database = "test_db"
+        current.schema = "test_schema"
+        current.identifier = "current"
+        current_col = MagicMock()
+        current_col.name = "c"
+        current_col.dtype = dtype
+        current_col.data_type = f"{dtype}(100)"
+        current_col.is_string = MagicMock(return_value=True)
+        current_col.is_number = MagicMock(return_value=False)
+        current_col.can_expand_to = MagicMock(return_value=True)
+        current_col.can_expand_safe = MagicMock(return_value=False)
+
+        adapter.get_columns_in_relation.side_effect = lambda r: (
+            [goal_col] if r is goal else [current_col]
+        )
+
+        adapter.expand_column_types(goal, current, max_rows=-1)
+
+        goal_col.string_type_instance.assert_called_once_with(-1)
+        adapter.alter_column_type.assert_called_once_with(current, "c", expected_type)
+
+    def test_varchar_max_to_bounded_does_not_expand(self, adapter):
+        """varchar(max) current, varchar(100) goal should not call alter_column_type()."""
+        adapter._get_row_count.return_value = 0
+        adapter.get_columns_in_relation = MagicMock(return_value=[])
+        adapter.alter_column_type = MagicMock()
+
+        goal = make_rel("goal")
+        goal_col = MagicMock()
+        goal_col.name = "c"
+        goal_col.dtype = "varchar"
+        goal_col.data_type = "varchar(100)"
+        goal_col.is_string = MagicMock(return_value=True)
+        goal_col.is_number = MagicMock(return_value=False)
+
+        current = make_rel("current")
+        current_col = MagicMock()
+        current_col.name = "c"
+        current_col.dtype = "varchar"
+        current_col.data_type = "varchar(max)"
+        current_col.is_string = MagicMock(return_value=True)
+        current_col.is_number = MagicMock(return_value=False)
+        current_col.string_size = MagicMock(return_value=-1)
+        current_col.can_expand_to = MagicMock(return_value=False)
+        current_col.can_expand_safe = MagicMock(return_value=False)
+
+        adapter.get_columns_in_relation.side_effect = lambda r: (
+            [goal_col] if r is goal else [current_col]
+        )
+
+        adapter.expand_column_types(goal, current, max_rows=-1)
+
+        adapter.alter_column_type.assert_not_called()

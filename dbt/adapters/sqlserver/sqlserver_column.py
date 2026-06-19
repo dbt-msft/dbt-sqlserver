@@ -46,8 +46,19 @@ class SQLServerColumn(Column):
         return f"varchar({size if size > 0 else '8000'})"
 
     def string_type_instance(self, size: int) -> str:
-        """Instance-level string type selection that respects NVARCHAR/NCHAR."""
+        """Instance-level string type selection that respects NVARCHAR/NCHAR.
+
+        Handles MAX strings (size == -1) by emitting the appropriate
+        varchar(max) or nvarchar(max) DDL. Fixed-length char/nchar do not
+        support MAX and raise if queried with size == -1.
+        """
         dtype = (self.dtype or "").lower()
+        if size == -1:
+            if dtype == "varchar":
+                return "varchar(max)"
+            if dtype == "nvarchar":
+                return "nvarchar(max)"
+            raise DbtRuntimeError(f"{dtype}(max) is not a valid SQL Server type")
         if dtype == "nvarchar":
             return f"nvarchar({size if size > 0 else '4000'})"
         if dtype == "nchar":
@@ -73,6 +84,16 @@ class SQLServerColumn(Column):
 
     def is_string(self) -> bool:
         return self.dtype.lower() in ["varchar", "char", "nvarchar", "nchar"]
+
+    def is_max_string(self) -> bool:
+        """Return True if this is a MAX string column (char_size == -1).
+
+        In SQL Server, MAX is represented as -1 in the catalog views.
+        This applies to varchar(max) and nvarchar(max). char/nchar do not
+        support MAX.
+        """
+        dtype = (self.dtype or "").lower()
+        return dtype in ("varchar", "nvarchar") and int(self.char_size or 0) == -1
 
     def is_number(self):
         return any(
@@ -119,21 +140,88 @@ class SQLServerColumn(Column):
         self_dtype = self.dtype.lower()
         other_dtype = other_column.dtype.lower()
         if self.is_string() and other_column.is_string():
-            self_size = self.string_size()
-            other_size = other_column.string_size()
-            if other_size > self_size and self_dtype == other_dtype:
+            if self_dtype != other_dtype:
+                return False
+            self_max = self.is_max_string()
+            other_max = other_column.is_max_string()
+            # MAX -> MAX: not an expansion
+            if self_max and other_max:
+                return False
+            # MAX -> bounded: rejected (would be a shrink)
+            if self_max and not other_max:
+                return False
+            # bounded -> MAX: always an expansion
+            if not self_max and other_max:
                 return True
+            # bounded -> bounded: normal numeric size comparison
+            return other_column.string_size() > self.string_size()
         return False
+
+    @staticmethod
+    def _integer_digits(col: "SQLServerColumn") -> int:
+        """Return the number of integer digits for a numeric/integer column.
+
+        For numeric/decimal columns: precision - scale.
+        For integer types: the maximum decimal precision required.
+        For fixed-money types: precision - scale of their effective representation.
+        """
+        dtype = col.dtype.lower()
+        if col.is_numeric():
+            prec = int(col.numeric_precision or 0)
+            scale = int(col.numeric_scale or 0)
+            return prec - scale
+        if col.is_fixed_numeric():
+            # Treat money/smallmoney as fixed-scale numerics
+            if dtype == "smallmoney":
+                return 10 - 4  # effectively numeric(10,4)
+            elif dtype == "money":
+                return 19 - 4  # effectively numeric(19,4)
+        if col.is_integer():
+            if dtype in ("bit",):
+                return 1
+            if dtype in ("tinyint",):
+                return 3
+            if dtype in ("smallint", "int2"):
+                return 5
+            if dtype in ("bigint", "int8", "bigserial", "serial8"):
+                return 19
+            # int, integer, int4, serial, serial4, etc.
+            return 10
+        return 0
+
+    @staticmethod
+    def _scale(col: "SQLServerColumn") -> int:
+        """Return the scale for numeric / fixed-money columns."""
+        if col.is_numeric():
+            return int(col.numeric_scale or 0)
+        if col.is_fixed_numeric():
+            # smallmoney and money both have scale 4
+            return 4
+        return 0
 
     def can_expand_safe(self, other_column: "SQLServerColumn") -> bool:
         self_dtype = self.dtype.lower()
         other_dtype = other_column.dtype.lower()
 
         if self.is_string() and other_column.is_string():
-            self_size = self.string_size()
-            other_size = other_column.string_size()
+            # Cross-family varchar/char -> nvarchar/nchar guarded expansion
             if self_dtype in ("varchar", "char") and other_dtype in ("nvarchar", "nchar"):
-                return other_size >= self_size
+                self_max = self.is_max_string()
+                other_max = other_column.is_max_string()
+
+                # varchar(max) -> nvarchar(max): allowed behind safe flag
+                if self_max and other_max:
+                    return True
+                # varchar(max) -> nvarchar(n): rejected for every bounded n
+                if self_max and not other_max:
+                    return False
+                # varchar(n) -> nvarchar(max): allowed
+                if not self_max and other_max:
+                    return True
+                # varchar(n) -> nvarchar(m): normal bounded comparison
+                return other_column.string_size() >= self.string_size()
+
+            # Same-family string handled by can_expand_to
             return False
 
         if not self.is_number() or not other_column.is_number():
@@ -143,33 +231,26 @@ class SQLServerColumn(Column):
         if self_dtype in int_family and other_dtype in int_family:
             return int_family.index(other_dtype) > int_family.index(self_dtype)
 
-        self_prec = int(self.numeric_precision or 0)
-        other_prec = int(other_column.numeric_precision or 0)
-
+        # Integer -> numeric/decimal expansion
         if self.is_integer() and other_column.is_numeric():
-            minimum_int_precision: int
-            if self_dtype in ("tinyint",):
-                minimum_int_precision = 3
-            elif self_dtype in ("smallint", "int2"):
-                minimum_int_precision = 5
-            elif self_dtype in ("bigint", "int8", "bigserial", "serial8"):
-                minimum_int_precision = 19
-            elif self_dtype in ("bit",):
-                minimum_int_precision = 1
-            else:
-                minimum_int_precision = 10
-            effective_self_prec = max(self_prec, minimum_int_precision)
-            if other_prec >= effective_self_prec:
-                return True
+            source_int_digits = self._integer_digits(self)
+            target_scale = self._scale(other_column)
+            target_int_digits = self._integer_digits(other_column)
+            return target_scale >= 0 and target_int_digits >= source_int_digits
 
+        # Numeric/decimal -> numeric/decimal or fixed-money, or fixed-money -> numeric
         if (self.is_numeric() or self.is_fixed_numeric()) and (
             other_column.is_numeric() or other_column.is_fixed_numeric()
         ):
-            self_scale = int(self.numeric_scale or 0)
-            other_scale = int(other_column.numeric_scale or 0)
+            source_scale = self._scale(self)
+            target_scale = self._scale(other_column)
+            source_int_digits = self._integer_digits(self)
+            target_int_digits = self._integer_digits(other_column)
 
-            if other_prec >= self_prec and other_scale >= self_scale:
-                if other_prec > self_prec or other_scale > self_scale or self_dtype != other_dtype:
+            if target_scale >= source_scale and target_int_digits >= source_int_digits:
+                # Must be a real widening — a pure type rename without
+                # increasing integer digits or scale is not an expansion.
+                if target_int_digits > source_int_digits or target_scale > source_scale:
                     return True
 
         return False
