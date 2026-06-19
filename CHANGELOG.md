@@ -13,13 +13,10 @@
 
 - Fix unit tests with empty fixtures (`rows: []`) generating invalid `limit 0` syntax; emit `top 0` instead. Also fix `get_columns_in_query()` for queries starting with a CTE, which broke unit tests with an empty `expect` block; such queries are now described via `sp_describe_first_result_set` instead of being executed. [#698](https://github.com/dbt-msft/dbt-sqlserver/issues/698)
 - Fix catalog generation for NVARCHAR/NCHAR columns: use `user_type_id` instead of `system_type_id` in catalog.sql, preventing them from appearing as `SYSNAME` in `dbt docs`. [#637](https://github.com/dbt-msft/dbt-sqlserver/issues/637)
-- Fix `is_numeric()` to exclude `money`/`smallmoney` (now `is_fixed_numeric()`), preventing incorrect type expansion for fixed-precision money types.
+- Fix `varchar(max)` / `nvarchar(max)` columns being incorrectly treated as size `-1` during type expansion, preventing `varchar(max)` → `varchar(100)` narrowing and properly allowing `varchar(100)` → `varchar(max)` expansion.
+- Fix integer-to-numeric safe expansion to compare integer digits (`precision - scale`) instead of raw precision, rejecting unsafe expansions like `int` → `numeric(10,5)` where integer capacity would shrink.
+- Fix safe expansion for `money`/`smallmoney` columns: now compared as fixed-scale numeric types (`numeric(19,4)` / `numeric(10,4)`) during type expansion, preventing data-loss conversions like `money` → `numeric(19,5)`.
 - Fix seed table ingestion of empty numeric cells by inlining `null` literals instead of binding parameters. [#425](https://github.com/dbt-msft/dbt-sqlserver/issues/425)
-- Fix integer-to-numeric safe expansion to require sufficient precision (e.g. `int` → `numeric(10,0)` minimum), avoiding data-loss risk.
-
-#### Migration note
-
-- `money` and `smallmoney` columns are no longer classified as `is_numeric()`. If you have custom code or macros that depend on `money` being numeric, use `is_number()` (which covers all numeric types) or `is_fixed_numeric()` for money types specifically.
 
 ### v1.10.0
 
