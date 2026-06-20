@@ -402,6 +402,7 @@ class SQLServerAdapter(SQLAdapter):
                 expected_type=self.Relation,
             )
         self.expand_column_types(from_relation, to_relation, max_rows)
+
     @available
     def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
         return SQLServerIndexConfig.parse(raw_index)
