@@ -54,8 +54,12 @@
     {%- set column_list = target_columns | map(attribute='quoted') | join(', ') -%}
 
     {# Atomic DML swap — RCSI protects concurrent readers #}
-    {# dbt-sqlserver uses autocommit=True and add_begin_query/add_commit_query #}
-    {# are no-ops, so this creates a simple (non-nested) transaction. #}
+    {# When dbt_sqlserver_use_dbt_transactions is off (default), autocommit #}
+    {# ensures only this explicit transaction exists. When the flag is on, #}
+    {# the statement call auto-begins an outer transaction first. SQL Server #}
+    {# increments @@TRANCOUNT for nested BEGIN TRANSACTION statements. #}
+    {# Inner COMMIT only decrements @@TRANCOUNT; durability occurs when the outermost #}
+    {# transaction commits. A ROLLBACK rolls back the full transaction. #}
     {% call statement('dml_refresh_swap') -%}
       BEGIN TRANSACTION;
       DELETE FROM {{ target_relation }};

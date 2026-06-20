@@ -1,5 +1,6 @@
 import datetime as dt
 import time
+import traceback
 from contextlib import contextmanager
 from typing import (
     Any,
@@ -25,6 +26,7 @@ from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.events.types import (
     AdapterEventDebug,
     ConnectionUsed,
+    RollbackFailed,
     SQLQuery,
     SQLQueryStatus,
 )
@@ -62,6 +64,8 @@ logger = AdapterLogger("sqlserver")
 
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
+
+    _dbt_sqlserver_use_dbt_transactions: bool = False
 
     @contextmanager
     def exception_handler(self, sql):
@@ -142,10 +146,42 @@ class SQLServerConnectionManager(SQLConnectionManager):
         logger.debug("Cancel query")
 
     def add_begin_query(self):
-        pass
+        if self._dbt_sqlserver_use_dbt_transactions:
+            return self.add_query("BEGIN TRANSACTION", auto_begin=False)
 
     def add_commit_query(self):
-        pass
+        if self._dbt_sqlserver_use_dbt_transactions:
+            return self.add_query("IF @@TRANCOUNT > 0 COMMIT TRANSACTION", auto_begin=False)
+
+    @classmethod
+    def _rollback_handle(cls, connection: Connection) -> None:
+        if cls._dbt_sqlserver_use_dbt_transactions:
+            cursor = None
+            try:
+                cursor = connection.handle.cursor()
+                cursor.execute("IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION")
+            except Exception:
+                fire_event(
+                    RollbackFailed(
+                        conn_name=cast_to_str(connection.name),
+                        exc_info=traceback.format_exc(),
+                        node_info=get_node_info(),
+                    )
+                )
+            finally:
+                if cursor is not None:
+                    cursor.close()
+        else:
+            try:
+                connection.handle.rollback()
+            except Exception:
+                fire_event(
+                    RollbackFailed(
+                        conn_name=cast_to_str(connection.name),
+                        exc_info=traceback.format_exc(),
+                        node_info=get_node_info(),
+                    )
+                )
 
     def add_query(
         self,
