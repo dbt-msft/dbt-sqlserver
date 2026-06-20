@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import agate
 import dbt_common.exceptions
@@ -17,7 +17,14 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.events.types import SchemaCreation
 from dbt.adapters.reference_keys import _make_ref_key_dict
+from dbt.adapters.relation_configs import RelationConfigChangeAction
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
+from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig, SQLServerIndexType
+from dbt.adapters.sqlserver.relation_configs.index import (
+    create_needs_own_batch,
+    index_config_changes,
+    normalize_drop_unmanaged,
+)
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
@@ -287,6 +294,88 @@ class SQLServerAdapter(SQLAdapter):
             return f"{constraint_prefix} {constraint.name} {constraint.expression}"
         else:
             return None
+
+    @available
+    def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
+        return SQLServerIndexConfig.parse(raw_index)
+
+    @available
+    def validate_indexes(
+        self, raw_indexes: Any, as_columnstore: Any = False, drop_unmanaged: Any = False
+    ) -> None:
+        """Cross-config checks that individual index validation can't see.
+        Also fail-fast validates drop_unmanaged_indexes so a bad value errors
+        on the first build, not only when reconciliation first runs."""
+        normalize_drop_unmanaged(drop_unmanaged)
+        configs = []
+        for raw_index in raw_indexes or []:
+            parsed = self.parse_index(raw_index)
+            if parsed:
+                configs.append(parsed)
+
+        clustered = [config for config in configs if config.type == SQLServerIndexType.clustered]
+        if len(clustered) > 1:
+            raise dbt_common.exceptions.DbtRuntimeError(
+                f"A table can have at most one clustered index; "
+                f"{len(clustered)} declared in the indexes config: "
+                f"{[list(config.columns) for config in clustered]}"
+            )
+        if clustered and as_columnstore:
+            raise dbt_common.exceptions.DbtRuntimeError(
+                "A clustered rowstore index in the indexes config conflicts with "
+                "as_columnstore=true (the default), which builds the table with a "
+                "clustered columnstore index. Set as_columnstore: false on the "
+                "model, or remove the clustered entry."
+            )
+
+    @available
+    def index_changes(
+        self,
+        existing_indexes: Any,
+        raw_indexes: Any,
+        relation: BaseRelation,
+        drop_unmanaged: Any = False,
+    ) -> dict:
+        """Diff existing indexes (agate table from sqlserver__describe_indexes)
+        against the model's `indexes` config. Returns plain lists for jinja:
+        drops (index names), creates (index config dicts to build inside the
+        reconcile transaction), creates_no_txn (ONLINE/RESUMABLE creates that
+        must run as standalone autocommitted statements), warnings (strings).
+        Drops must be applied before creates (a replacement clustered index
+        needs its predecessor gone first)."""
+        rows = []
+        if existing_indexes is not None:
+            column_names = existing_indexes.column_names
+            for row in existing_indexes.rows:
+                rows.append(dict(zip(column_names, row)))
+
+        expected = []
+        for raw_index in raw_indexes or []:
+            parsed = self.parse_index(raw_index)
+            if parsed:
+                expected.append(parsed)
+
+        changes, warnings = index_config_changes(rows, expected, relation, drop_unmanaged)
+
+        drops = []
+        creates = []
+        creates_no_txn = []
+        for change in changes:
+            if change.action == RelationConfigChangeAction.drop:
+                drops.append(change.context.name)
+            elif change.action == RelationConfigChangeAction.create:
+                node_config = change.context.as_node_config
+                if create_needs_own_batch(node_config.get("build_options")):
+                    creates_no_txn.append(node_config)
+                else:
+                    creates.append(node_config)
+
+        return {
+            "drops": drops,
+            "creates": creates,
+            "creates_no_txn": creates_no_txn,
+            "warnings": warnings,
+        }
 
 
 COLUMNS_EQUAL_SQL = """

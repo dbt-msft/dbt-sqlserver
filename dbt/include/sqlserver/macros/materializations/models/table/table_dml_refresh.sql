@@ -69,6 +69,10 @@
       DROP TABLE IF EXISTS {{ refresh_relation }};
     {%- endcall %}
 
+    {# The target table persisted (no rebuild), so converge its indexes on
+       the config. Runs after the swap's self-contained transaction. #}
+    {% do sqlserver__reconcile_indexes(target_relation) %}
+
   {% else %}
     {# Schema changed — fall back to rename-swap for this run #}
     {{ log("Schema change detected for " ~ target_relation ~ " — falling back to rename-swap", info=true) }}
