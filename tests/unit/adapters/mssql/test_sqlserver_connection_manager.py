@@ -2,7 +2,7 @@ import builtins
 import importlib
 from types import SimpleNamespace
 from typing import Any, Dict, List
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from azure.identity import AzureCliCredential
@@ -1460,3 +1460,137 @@ def test_open_with_pyodbc_backend_enables_driver_pooling(
     assert captured["autocommit"] is True
     assert captured["timeout"] == credentials.login_timeout
     assert "Pooling=true" in captured["connection_string"]
+
+
+@pytest.mark.parametrize("flag_value", [True, False])
+def test_add_begin_query_respects_dbt_sqlserver_use_dbt_transactions(
+    monkeypatch: pytest.MonkeyPatch,
+    flag_value: bool,
+) -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    manager._dbt_sqlserver_use_dbt_transactions = flag_value
+
+    add_query_calls: list[tuple[str, bool]] = []
+
+    def fake_add_query(sql, auto_begin=True):
+        add_query_calls.append((sql, auto_begin))
+        return None, None
+
+    monkeypatch.setattr(manager, "add_query", fake_add_query)
+
+    result = manager.add_begin_query()
+
+    if flag_value:
+        assert add_query_calls == [("BEGIN TRANSACTION", False)]
+        assert result == (None, None)
+    else:
+        assert result is None
+        assert add_query_calls == []
+
+
+@pytest.mark.parametrize("flag_value", [True, False])
+def test_add_commit_query_respects_dbt_sqlserver_use_dbt_transactions(
+    monkeypatch: pytest.MonkeyPatch,
+    flag_value: bool,
+) -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    manager._dbt_sqlserver_use_dbt_transactions = flag_value
+
+    add_query_calls: list[tuple[str, bool]] = []
+
+    def fake_add_query(sql, auto_begin=True):
+        add_query_calls.append((sql, auto_begin))
+        return None, None
+
+    monkeypatch.setattr(manager, "add_query", fake_add_query)
+
+    result = manager.add_commit_query()
+
+    if flag_value:
+        assert add_query_calls == [("IF @@TRANCOUNT > 0 COMMIT TRANSACTION", False)]
+        assert result == (None, None)
+    else:
+        assert result is None
+        assert add_query_calls == []
+
+
+def test_rollback_handle_enabled_executes_tsql_rollback(monkeypatch: pytest.MonkeyPatch) -> None:
+    handle = MagicMock()
+    connection = MagicMock(spec=Connection, handle=handle)
+    connection.name = "test_conn"
+
+    monkeypatch.setattr(
+        SQLServerConnectionManager,
+        "_dbt_sqlserver_use_dbt_transactions",
+        True,
+    )
+
+    SQLServerConnectionManager._rollback_handle(connection)
+
+    cursor = handle.cursor.return_value
+    cursor.execute.assert_called_once_with("IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION")
+    cursor.close.assert_called_once()
+    handle.rollback.assert_not_called()
+
+
+def test_rollback_handle_disabled_calls_handle_rollback(monkeypatch: pytest.MonkeyPatch) -> None:
+    handle = MagicMock()
+    connection = MagicMock(spec=Connection, handle=handle)
+    connection.name = "test_conn"
+
+    monkeypatch.setattr(
+        SQLServerConnectionManager,
+        "_dbt_sqlserver_use_dbt_transactions",
+        False,
+    )
+
+    SQLServerConnectionManager._rollback_handle(connection)
+
+    handle.rollback.assert_called_once()
+    handle.cursor.assert_not_called()
+
+
+def test_rollback_handle_enabled_exception_fires_rollback_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = MagicMock()
+    handle.cursor.side_effect = RuntimeError("connection lost")
+    connection = MagicMock(spec=Connection, handle=handle)
+    connection.name = "test_conn"
+
+    monkeypatch.setattr(
+        SQLServerConnectionManager,
+        "_dbt_sqlserver_use_dbt_transactions",
+        True,
+    )
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event") as mock_fire_event:
+        SQLServerConnectionManager._rollback_handle(connection)
+
+    mock_fire_event.assert_called_once()
+    args, _ = mock_fire_event.call_args
+    fired_event = args[0]
+    from dbt.adapters.events.types import RollbackFailed
+
+    assert isinstance(fired_event, RollbackFailed)
+    assert fired_event.conn_name == "test_conn"
+
+
+def test_rollback_handle_disabled_exception_fires_rollback_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = MagicMock()
+    handle.rollback.side_effect = RuntimeError("rollback failed")
+    connection = MagicMock(spec=Connection, handle=handle)
+    connection.name = "test_conn"
+
+    monkeypatch.setattr(
+        SQLServerConnectionManager,
+        "_dbt_sqlserver_use_dbt_transactions",
+        False,
+    )
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event") as mock_fire_event:
+        SQLServerConnectionManager._rollback_handle(connection)
+
+    mock_fire_event.assert_called_once()
