@@ -141,10 +141,21 @@ The same setting is also honoured via `vars:` for backwards compatibility; the b
 
 Safe expansions are further gated by `column_type_expansion_max_rows` (default 1,000,000 rows) to avoid long-running operations on large tables.
 
+### `dbt_sqlserver_use_dbt_transactions`
+
+_(default: `false`)_ When enabled, makes dbt's transaction hooks real at the SQL Server level by emitting `BEGIN TRANSACTION` / `COMMIT TRANSACTION` through the adapter's `add_begin_query` and `add_commit_query` methods. 
+
+The default is `false`, preserving existing behavior where `begin`/`commit` hooks are logical no-ops and the ODBC driver auto-commits each statement. When `dbt_sqlserver_use_dbt_transactions: true`, the adapter emits real T-SQL transaction statements, and rollback uses `IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION`.
+
+The driver connection remains in autocommit mode (`autocommit=true`) in both modes.
+
+This mode is opt-in and should be tested carefully with project-specific materializations and hooks.
+
 ```yaml
 # dbt_project.yml
 flags:
   dbt_sqlserver_enable_safe_type_expansion: true
+  dbt_sqlserver_use_dbt_transactions: true # <-- opt-in; default is false
 ```
 
 ### `column_type_expansion_max_rows`
@@ -166,6 +177,8 @@ flags:
 {{ config(materialized='incremental', unique_key='id',
            prefer_single_alter_column=true) }}
 ```
+
+**Compatibility notes:** Enabling `dbt_sqlserver_use_dbt_transactions: true` may expose transaction-state assumptions hidden by autocommit-only mode. Explicit transaction macros may interact with dbt-managed transactions, and cleanup after failed DDL/DML may differ. Review pre/post hooks for in-transaction vs out-of-transaction semantics.
 
 ## Contributing
 

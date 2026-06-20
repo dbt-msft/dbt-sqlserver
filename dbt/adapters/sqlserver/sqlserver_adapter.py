@@ -65,6 +65,11 @@ class SQLServerAdapter(SQLAdapter):
         )
         if self.behavior.dbt_sqlserver_use_native_string_types:
             self.Column = SQLServerColumnNative
+        # add_begin_query/add_commit_query read the instance flag, while dbt-core
+        # rollback handling is classmethod-based and reads the class flag.
+        use_dbt_transactions = bool(self.behavior.dbt_sqlserver_use_dbt_transactions)
+        SQLServerConnectionManager._dbt_sqlserver_use_dbt_transactions = use_dbt_transactions
+        self.connections._dbt_sqlserver_use_dbt_transactions = use_dbt_transactions
 
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
@@ -117,6 +122,18 @@ class SQLServerAdapter(SQLAdapter):
                     "This enables promotions like varchar -> nvarchar, "
                     "bit -> tinyint -> smallint -> int -> bigint, "
                     "and numeric(p,s) -> numeric(p2,s2) using alter column."
+                ),
+            },
+            {
+                "name": "dbt_sqlserver_use_dbt_transactions",
+                "default": False,
+                "description": (
+                    "When True, dbt transaction hooks (begin/commit) emit real T-SQL "
+                    "BEGIN TRANSACTION / COMMIT TRANSACTION statements. "
+                    "When False (default and legacy), begin/commit are no-ops and each statement "
+                    "is auto-committed by the driver. This means earlier successful statements "
+                    "are not rolled back if a later statement fails. "
+                    "This behavior is intended to become the default in a future release."
                 ),
             },
         ]
