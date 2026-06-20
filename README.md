@@ -5,6 +5,8 @@
 The adapter supports dbt-core 0.14 or newer and follows the same versioning scheme.
 E.g. version 1.1.x of the adapter will be compatible with dbt-core 1.1.x.
 
+The minimum supported SQL Server version is SQL Server 2017.
+
 ## Documentation
 
 We've bundled all documentation on the dbt docs site:

@@ -111,6 +111,9 @@
 
   {% if not target_relation_exists %}
     {% do create_indexes(target_relation) %}
+  {% else %}
+    {# Snapshot table persisted: converge its indexes on the config. #}
+    {% do sqlserver__reconcile_indexes(target_relation) %}
   {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}
