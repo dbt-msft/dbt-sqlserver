@@ -55,17 +55,18 @@
 
     {# Atomic DML swap — RCSI protects concurrent readers #}
     {# When dbt_sqlserver_use_dbt_transactions is off (default), autocommit #}
-    {# ensures only this explicit transaction exists. When the flag is on, #}
-    {# the statement call auto-begins an outer transaction first. SQL Server #}
-    {# increments @@TRANCOUNT for nested BEGIN TRANSACTION statements. #}
-    {# Inner COMMIT only decrements @@TRANCOUNT; durability occurs when the outermost #}
-    {# transaction commits. A ROLLBACK rolls back the full transaction. #}
+    {# means we need the explicit BEGIN/COMMIT. When the flag is on, dbt #}
+    {# already wraps the statement call in a transaction, so skip it. #}
     {% call statement('dml_refresh_swap') -%}
+      {% if not adapter.behavior.dbt_sqlserver_use_dbt_transactions %}
       BEGIN TRANSACTION;
+      {% endif %}
       DELETE FROM {{ target_relation }};
       INSERT INTO {{ target_relation }} ({{ column_list }})
         SELECT {{ column_list }} FROM {{ refresh_relation }};
+      {% if not adapter.behavior.dbt_sqlserver_use_dbt_transactions %}
       COMMIT TRANSACTION;
+      {% endif %}
     {%- endcall %}
 
     {# Cleanup scratch table #}

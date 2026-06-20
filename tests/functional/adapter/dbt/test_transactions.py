@@ -174,3 +174,48 @@ select 1/0 as boom
         rows = project.run_sql("select id from {schema}.good_model", fetch="all")
         assert len(rows) == 1
         assert rows[0][0] == 1
+
+
+_snapshot_seed_csv = """id,name,updated_at
+1,alice,2024-01-01 00:00:00
+2,bob,2024-01-01 00:00:00
+"""
+
+_snapshot_sql = """
+{% snapshot snap %}
+{{ config(
+    target_schema=schema,
+    unique_key='id',
+    strategy='timestamp',
+    updated_at='updated_at',
+) }}
+select * from {{ ref('snap_seed') }}
+{% endsnapshot %}
+"""
+
+
+class TestSnapshotTransactionsOn(BaseTransactionsEnabled):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"snap_seed.csv": _snapshot_seed_csv}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {"snap.sql": _snapshot_sql}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {}
+
+    def test_snapshot_create_and_merge(self, project):
+        run_dbt(["seed"])
+        results = run_dbt(["snapshot"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        rows = project.run_sql("select count(*) from {schema}.snap", fetch="one")
+        assert rows[0] == 2
+
+        results = run_dbt(["snapshot"])
+        assert len(results) == 1
+        assert results[0].status == "success"
