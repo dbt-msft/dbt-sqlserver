@@ -12,6 +12,7 @@ This exercises the exact reported scenario: a passing test configured with
 ``store_failures`` materialized as a ``table``. It asserts the audit relation
 exists, is a base table (not a view), is empty, and survives idempotent re-runs.
 """
+
 import pytest
 
 from dbt.tests.util import run_dbt
