@@ -15,6 +15,7 @@
 - Add `drop_unmanaged_indexes` config (`false` (default) / `warn` / `true`) for indexes dbt didn't create.
 - Validate cross-index config conflicts (multiple clustered indexes, clustered vs `as_columnstore`).
 - Document the minimum supported SQL Server version (2017). Partitioning, `XML_COMPRESSION` and ordered columnstore are not yet expressible in the `indexes` config.
+- Add SQL Server 2025 to the integration-test matrix (pyodbc and `mssql-python` backends, ODBC Driver 18) and document it as a supported version.
 
 ### v1.10.0
 

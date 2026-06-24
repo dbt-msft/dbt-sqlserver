@@ -82,7 +82,19 @@ jobs:
             sqlserver_version: "2019"
             msodbc_version: "17"
             collation: SQL_Latin1_General_CP1_CI_AS
-          # Add the case-sensitive collation only on the latest SQL Server
+          # SQL Server 2025 (newest): cover both backends on the latest
+          # Python and ODBC driver (18).
+          - backend: pyodbc
+            python_version: "3.13"
+            sqlserver_version: "2025"
+            msodbc_version: "18"
+            collation: SQL_Latin1_General_CP1_CI_AS
+          - backend: mssql-python
+            python_version: "3.13"
+            sqlserver_version: "2025"
+            msodbc_version: "18"
+            collation: SQL_Latin1_General_CP1_CI_AS
+          # Add the case-sensitive collation on the SQL Server 2022 baseline
           # and latest Python/backend rows.
           - backend: pyodbc
             python_version: "3.13"

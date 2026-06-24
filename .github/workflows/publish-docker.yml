@@ -44,7 +44,7 @@ jobs:
   publish-docker-server:
     strategy:
       matrix:
-        mssql_version: ["2017", "2019", "2022"]
+        mssql_version: ["2017", "2019", "2022", "2025"]
     runs-on: ubuntu-latest
     permissions:
       contents: read

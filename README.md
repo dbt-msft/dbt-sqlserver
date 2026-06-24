@@ -2,10 +2,24 @@
 
 [dbt](https://www.getdbt.com) adapter for Microsoft SQL Server and Azure SQL services.
 
-The adapter supports dbt-core 0.14 or newer and follows the same versioning scheme.
-E.g. version 1.1.x of the adapter will be compatible with dbt-core 1.1.x.
+The adapter supports dbt-core 1.10 or newer and follows the same versioning scheme.
+E.g. version 1.10.x of the adapter will be compatible with dbt-core 1.10.x.
 
-The minimum supported SQL Server version is SQL Server 2017.
+## Supported SQL Server versions
+
+The adapter is tested against the following SQL Server versions:
+
+| SQL Server version | Supported |
+|---|---|
+| SQL Server 2017 | ✅ (minimum supported version) |
+| SQL Server 2019 | ✅ |
+| SQL Server 2022 | ✅ |
+| SQL Server 2025 | ✅ |
+| Azure SQL Database | ✅ |
+| Azure SQL Managed Instance | ✅ |
+
+The minimum supported SQL Server version is SQL Server 2017; older versions are not supported.
+SQL Server 2017, 2019, 2022, and 2025 are covered by the integration test suite, and Azure SQL services are tested separately.
 
 ## Documentation
 
