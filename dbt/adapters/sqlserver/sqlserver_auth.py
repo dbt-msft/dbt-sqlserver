@@ -11,6 +11,8 @@ import time
 from itertools import chain, repeat
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Optional, cast
 
+import dbt_common.exceptions
+
 from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.sqlserver.sqlserver_constants import (
     AAD_TOKEN_AUTHENTICATIONS,
@@ -292,11 +294,9 @@ def get_pyodbc_attrs_before_credentials(credentials: SQLServerCredentials) -> Di
 
     if authentication == "activedirectoryaccesstoken":
         if credentials.access_token is None or credentials.access_token_expires_on is None:
-            raise ValueError(
-                (
-                    "Access token and a non-zero access token expiry epoch timestamp are "
-                    "required for ActiveDirectoryAccessToken authentication."
-                )
+            raise dbt_common.exceptions.DbtRuntimeError(
+                "Access token and a non-zero access token expiry epoch timestamp are "
+                "required for ActiveDirectoryAccessToken authentication."
             )
 
         if credentials.access_token_expires_on == 0:

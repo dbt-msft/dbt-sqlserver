@@ -16,9 +16,6 @@
         CREATE OR ALTER VIEW {{ relation.include(database=False) }} AS {{ sql }};
     {% endset %}
 
-    {% set tst %}
-    SELECT '1' as col
-    {% endset %}
     USE [{{ relation.database }}];
     EXEC('{{- escape_single_quotes(query) -}}')
 
