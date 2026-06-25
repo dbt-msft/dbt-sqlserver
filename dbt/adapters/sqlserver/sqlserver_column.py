@@ -102,22 +102,17 @@ class SQLServerColumn(Column):
         return self.dtype.lower() in ["float", "real"]
 
     def is_integer(self) -> bool:
+        # SQL Server exact numeric integer types per MS docs (all versions back to 2017).
+        # bit is classified as "an integer data type" by Microsoft in the Transact-SQL docs
+        # (https://learn.microsoft.com/en-us/sql/t-sql/data-types/bit-transact-sql).
+        # integer is a standard SQL synonym for int kept for ODBC compatibility.
         return self.dtype.lower() in [
+            "bit",
+            "tinyint",
             "smallint",
+            "int",
             "integer",
             "bigint",
-            "smallserial",
-            "serial",
-            "bigserial",
-            "int2",
-            "int4",
-            "int8",
-            "serial2",
-            "serial4",
-            "serial8",
-            "int",
-            "tinyint",
-            "bit",
         ]
 
     def is_numeric(self) -> bool:
@@ -187,11 +182,11 @@ class SQLServerColumn(Column):
                 return 1
             if dtype in ("tinyint",):
                 return 3
-            if dtype in ("smallint", "int2"):
+            if dtype in ("smallint",):
                 return 5
-            if dtype in ("bigint", "int8", "bigserial", "serial8"):
+            if dtype in ("bigint",):
                 return 19
-            # int, integer, int4, serial, serial4, etc.
+            # int, integer
             return 10
         return 0
 
