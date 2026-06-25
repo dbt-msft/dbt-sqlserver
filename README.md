@@ -19,7 +19,9 @@ The adapter is tested against the following SQL Server versions:
 | Azure SQL Managed Instance | ✅ |
 
 The minimum supported SQL Server version is SQL Server 2017; older versions are not supported.
-SQL Server 2017, 2019, 2022, and 2025 are covered by the integration test suite, and Azure SQL services are tested separately.
+## Supported SQL Server versions
+
+SQL Server 2017, 2019, 2022, and 2025 are covered by the integration test suite. Azure SQL Database and Azure SQL Managed Instance are not covered by the integration test suite, but are expected to be compatible.
 
 ## Documentation
 
