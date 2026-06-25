@@ -1,5 +1,11 @@
 set -euo pipefail
 
+# Persist for all shell sessions (Zed uses devcontainer exec, no VS Code server for remoteEnv)
+if ! grep -qF 'SQLSERVER_TEST_DRIVER' ~/.bashrc 2>/dev/null; then
+  echo 'export SQLSERVER_TEST_DRIVER="ODBC Driver 18 for SQL Server"' >> ~/.bashrc
+fi
+export SQLSERVER_TEST_DRIVER="ODBC Driver 18 for SQL Server"
+
 cp test.env.sample test.env
 
 sudo apt-get update
