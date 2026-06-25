@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import agate
 import dbt_common.exceptions
@@ -15,18 +15,28 @@ from dbt.adapters.base.impl import ConstraintSupport
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
-from dbt.adapters.events.types import SchemaCreation
+from dbt.adapters.events.logging import AdapterLogger
+from dbt.adapters.events.types import ColTypeChange, SchemaCreation
 from dbt.adapters.reference_keys import _make_ref_key_dict
+from dbt.adapters.relation_configs import RelationConfigChangeAction
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
+from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig, SQLServerIndexType
+from dbt.adapters.sqlserver.relation_configs.index import (
+    create_needs_own_batch,
+    index_config_changes,
+    normalize_drop_unmanaged,
+)
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
+logger = AdapterLogger("SQLServer")
+
 
 class SQLServerAdapter(SQLAdapter):
     """
-    Controls actual implmentation of adapter, and ability to override certain methods.
+    Controls actual implementation of adapter, and ability to override certain methods.
     """
 
     ConnectionManager = SQLServerConnectionManager
@@ -55,6 +65,11 @@ class SQLServerAdapter(SQLAdapter):
         )
         if self.behavior.dbt_sqlserver_use_native_string_types:
             self.Column = SQLServerColumnNative
+        # add_begin_query/add_commit_query read the instance flag, while dbt-core
+        # rollback handling is classmethod-based and reads the class flag.
+        use_dbt_transactions = bool(self.behavior.dbt_sqlserver_use_dbt_transactions)
+        SQLServerConnectionManager._dbt_sqlserver_use_dbt_transactions = use_dbt_transactions
+        self.connections._dbt_sqlserver_use_dbt_transactions = use_dbt_transactions
 
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
@@ -97,6 +112,28 @@ class SQLServerAdapter(SQLAdapter):
                     "When False (default), preserves legacy mappings: "
                     "STRING and NVARCHAR -> VARCHAR(8000), NCHAR -> CHAR(1). "
                     "The new behaviour is intended to become the default in a future release."
+                ),
+            },
+            {
+                "name": "dbt_sqlserver_enable_safe_type_expansion",
+                "default": False,
+                "description": (
+                    "Allow the SQL Server adapter to widen column types during schema expansion. "
+                    "This enables promotions like varchar -> nvarchar, "
+                    "bit -> tinyint -> smallint -> int -> bigint, "
+                    "and numeric(p,s) -> numeric(p2,s2) using alter column."
+                ),
+            },
+            {
+                "name": "dbt_sqlserver_use_dbt_transactions",
+                "default": False,
+                "description": (
+                    "When True, dbt transaction hooks (begin/commit) emit real T-SQL "
+                    "BEGIN TRANSACTION / COMMIT TRANSACTION statements. "
+                    "When False (default and legacy), begin/commit are no-ops and each statement "
+                    "is auto-committed by the driver. This means earlier successful statements "
+                    "are not rolled back if a later statement fails. "
+                    "This behavior is intended to become the default in a future release."
                 ),
             },
         ]
@@ -193,7 +230,7 @@ class SQLServerAdapter(SQLAdapter):
         except_operator: str = "EXCEPT",
     ) -> str:
         """
-        note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjsuted
+        note: using is not supported on Synapse so COLUMNS_EQUAL_SQL is adjusted
         Generate SQL for a query that returns a single row with a two
         columns: the number of rows that are different between the two
         relations and the number of mismatched rows.
@@ -287,6 +324,183 @@ class SQLServerAdapter(SQLAdapter):
             return f"{constraint_prefix} {constraint.name} {constraint.expression}"
         else:
             return None
+
+    def _get_row_count(self, relation) -> int:
+        """Return the number of rows in the given relation."""
+        sql = f"SELECT COUNT_BIG(*) FROM {relation}"
+        _, cursor = self.connections.add_select_query(sql)
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    def expand_column_types(self, goal, current, max_rows: int = 1000000):
+        """Override to ensure we preserve nvarchar/nchar type family during
+        column expansion. Necessary same-family resizes (e.g. varchar size)
+        always proceed. Safe type expansions (cross-family promotions like
+        varchar -> nvarchar) are guarded by column_type_expansion_max_rows.
+        enable_safe_type_expansion is the future approach for widening."""
+
+        reference_columns = {c.name: c for c in self.get_columns_in_relation(goal)}
+        target_columns = {c.name: c for c in self.get_columns_in_relation(current)}
+
+        enable_safe = self.behavior.dbt_sqlserver_enable_safe_type_expansion
+
+        row_count_exceeds = False
+        if enable_safe and max_rows != -1:
+            if max_rows == 0:
+                row_count_exceeds = True
+                logger.info(
+                    "Safe type expansion skipped for %s: column_type_expansion_max_rows is 0.",
+                    current,
+                )
+            else:
+                row_count = self._get_row_count(current)
+                if row_count > max_rows:
+                    row_count_exceeds = True
+                    logger.warning(
+                        "Safe type expansion skipped for %s: "
+                        "%s rows exceeds column_type_expansion_max_rows (%s). "
+                        "Set column_type_expansion_max_rows=-1 to disable "
+                        "this check, or increase the limit.",
+                        current,
+                        row_count,
+                        max_rows,
+                    )
+
+        for column_name, reference_column in reference_columns.items():
+            target_column = target_columns.get(column_name)
+            if target_column is None:
+                continue
+
+            if target_column.can_expand_to(reference_column):
+                pass
+            elif (
+                enable_safe
+                and not row_count_exceeds
+                and target_column.can_expand_safe(reference_column)
+            ):
+                pass
+            else:
+                continue
+
+            if reference_column.is_string():
+                col_string_size = reference_column.string_size()
+                new_type = reference_column.string_type_instance(col_string_size)
+            else:
+                new_type = reference_column.data_type
+            fire_event(
+                ColTypeChange(
+                    orig_type=target_column.data_type,
+                    new_type=new_type,
+                    table=_make_ref_key_dict(current),
+                )
+            )
+            self.alter_column_type(current, column_name, new_type)
+
+    @available.parse_none
+    def expand_target_column_types(
+        self, from_relation: BaseRelation, to_relation: BaseRelation, max_rows: int = 1000000
+    ) -> None:
+        if not isinstance(from_relation, self.Relation):
+            from dbt.adapters.base.impl import MacroArgTypeError
+
+            raise MacroArgTypeError(
+                method_name="expand_target_column_types",
+                arg_name="from_relation",
+                got_value=from_relation,
+                expected_type=self.Relation,
+            )
+        if not isinstance(to_relation, self.Relation):
+            from dbt.adapters.base.impl import MacroArgTypeError
+
+            raise MacroArgTypeError(
+                method_name="expand_target_column_types",
+                arg_name="to_relation",
+                got_value=to_relation,
+                expected_type=self.Relation,
+            )
+        self.expand_column_types(from_relation, to_relation, max_rows)
+
+    @available
+    def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:
+        return SQLServerIndexConfig.parse(raw_index)
+
+    @available
+    def validate_indexes(
+        self, raw_indexes: Any, as_columnstore: Any = False, drop_unmanaged: Any = False
+    ) -> None:
+        """Cross-config checks that individual index validation can't see.
+        Also fail-fast validates drop_unmanaged_indexes so a bad value errors
+        on the first build, not only when reconciliation first runs."""
+        normalize_drop_unmanaged(drop_unmanaged)
+        configs = []
+        for raw_index in raw_indexes or []:
+            parsed = self.parse_index(raw_index)
+            if parsed:
+                configs.append(parsed)
+
+        clustered = [config for config in configs if config.type == SQLServerIndexType.clustered]
+        if len(clustered) > 1:
+            raise dbt_common.exceptions.DbtRuntimeError(
+                f"A table can have at most one clustered index; "
+                f"{len(clustered)} declared in the indexes config: "
+                f"{[list(config.columns) for config in clustered]}"
+            )
+        if clustered and as_columnstore:
+            raise dbt_common.exceptions.DbtRuntimeError(
+                "A clustered rowstore index in the indexes config conflicts with "
+                "as_columnstore=true (the default), which builds the table with a "
+                "clustered columnstore index. Set as_columnstore: false on the "
+                "model, or remove the clustered entry."
+            )
+
+    @available
+    def index_changes(
+        self,
+        existing_indexes: Any,
+        raw_indexes: Any,
+        relation: BaseRelation,
+        drop_unmanaged: Any = False,
+    ) -> dict:
+        """Diff existing indexes (agate table from sqlserver__describe_indexes)
+        against the model's `indexes` config. Returns plain lists for jinja:
+        drops (index names), creates (index config dicts to build inside the
+        reconcile transaction), creates_no_txn (ONLINE/RESUMABLE creates that
+        must run as standalone autocommitted statements), warnings (strings).
+        Drops must be applied before creates (a replacement clustered index
+        needs its predecessor gone first)."""
+        rows = []
+        if existing_indexes is not None:
+            column_names = existing_indexes.column_names
+            for row in existing_indexes.rows:
+                rows.append(dict(zip(column_names, row)))
+
+        expected = []
+        for raw_index in raw_indexes or []:
+            parsed = self.parse_index(raw_index)
+            if parsed:
+                expected.append(parsed)
+
+        changes, warnings = index_config_changes(rows, expected, relation, drop_unmanaged)
+
+        drops = []
+        creates = []
+        creates_no_txn = []
+        for change in changes:
+            if change.action == RelationConfigChangeAction.drop:
+                drops.append(change.context.name)
+            elif change.action == RelationConfigChangeAction.create:
+                node_config = change.context.as_node_config
+                if create_needs_own_batch(node_config.get("build_options")):
+                    creates_no_txn.append(node_config)
+                else:
+                    creates.append(node_config)
+
+        return {
+            "drops": drops,
+            "creates": creates,
+            "creates_no_txn": creates_no_txn,
+            "warnings": warnings,
+        }
 
 
 COLUMNS_EQUAL_SQL = """

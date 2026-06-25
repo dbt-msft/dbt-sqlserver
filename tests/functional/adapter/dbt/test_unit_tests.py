@@ -28,6 +28,41 @@ unit_tests:
         - {{ tested_column: {yaml_value} }}
 """
 
+my_union_model_sql = """
+select tested_column from {{ ref('my_upstream_model') }}
+union all
+select tested_column from {{ ref('my_other_upstream_model') }}
+"""
+
+upstream_model_sql = """
+select 1 as tested_column
+"""
+
+# `rows: []` must not generate `limit 0`, which is invalid T-SQL (issue #698)
+test_empty_fixture_yml = """
+unit_tests:
+  - name: test_empty_given
+    model: my_union_model
+    given:
+      - input: ref('my_upstream_model')
+        rows:
+          - {tested_column: 1}
+      - input: ref('my_other_upstream_model')
+        rows: []
+    expect:
+      rows:
+        - {tested_column: 1}
+  - name: test_empty_expect
+    model: my_union_model
+    given:
+      - input: ref('my_upstream_model')
+        rows: []
+      - input: ref('my_other_upstream_model')
+        rows: []
+    expect:
+      rows: []
+"""
+
 
 class TestUnitTestCaseInsensitivity(BaseUnitTestCaseInsensivity):
     pass
@@ -35,6 +70,24 @@ class TestUnitTestCaseInsensitivity(BaseUnitTestCaseInsensivity):
 
 class TestUnitTestInvalidInput(BaseUnitTestInvalidInput):
     pass
+
+
+class TestUnitTestEmptyFixture:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "my_upstream_model.sql": upstream_model_sql,
+            "my_other_upstream_model.sql": upstream_model_sql,
+            "my_union_model.sql": my_union_model_sql,
+            "schema.yml": test_empty_fixture_yml,
+        }
+
+    def test_empty_fixture_rows(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 3
+
+        results = run_dbt(["test", "--select", "my_union_model"])
+        assert len(results) == 2
 
 
 class TestUnitTestingTypes(BaseUnitTestingTypes):

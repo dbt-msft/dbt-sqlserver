@@ -19,7 +19,7 @@
   -- BEGIN, in a separate transaction
   {%- set preexisting_intermediate_relation = load_cached_relation(intermediate_relation)-%}
   {%- set preexisting_backup_relation = load_cached_relation(backup_relation) -%}
-   -- grab current tables grants config for comparision later on
+   -- grab current tables grants config for comparison later on
   {% set grant_config = config.get('grants') %}
   {{ drop_relation_if_exists(preexisting_intermediate_relation) }}
   {{ drop_relation_if_exists(preexisting_backup_relation) }}
@@ -42,9 +42,11 @@
 
     {% set contract_config = config.get('contract') %}
     {% if not contract_config or not contract_config.enforced %}
+      {% set expansion_max_rows = config.get('column_type_expansion_max_rows', 1000000) %}
       {% do adapter.expand_target_column_types(
                from_relation=temp_relation,
-               to_relation=target_relation) %}
+               to_relation=target_relation,
+               max_rows=expansion_max_rows) %}
     {% endif %}
     {#-- Process schema changes. Returns dict of changes if successful. Use source columns for upserting/merging --#}
     {% set dest_columns = process_schema_changes(on_schema_change, temp_relation, existing_relation) %}
@@ -79,6 +81,9 @@
 
   {% if existing_relation is none or existing_relation.is_view or should_full_refresh() %}
     {% do create_indexes(target_relation) %}
+  {% else %}
+    {# Table persisted across this run: converge its indexes on the config. #}
+    {% do sqlserver__reconcile_indexes(target_relation) %}
   {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}

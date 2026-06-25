@@ -1,6 +1,6 @@
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
     {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
-    {%- set relation_name = relation.schema ~ '_' ~ relation.identifier -%}
+    {%- set relation_name = relation.include(database=False) -%}
     {%- set full_relation = '"' ~ relation.schema ~ '"."' ~ relation.identifier ~ '"' -%}
     use [{{ relation.database }}];
     if EXISTS (
@@ -235,4 +235,222 @@
 
   {% endcall %}
   {{ return(load_result('list_nonclustered_rowstore_indexes').table) }}
+{% endmacro %}
+
+
+{% macro sqlserver__get_create_index_sql(relation, index_dict) -%}
+  {%- set index_config = adapter.parse_index(index_dict) -%}
+  {%- set index_name = index_config.render(relation) -%}
+
+  {# Validations are made on the adapter class SQLServerIndexConfig to control resulting sql #}
+  {# Names are a deterministic hash of the full definition, so an existing #}
+  {# index with this name is already the index we want: skip, don't fail.  #}
+  if not exists(select *
+                  from sys.indexes {{ information_schema_hints() }}
+                  where name = '{{ index_name }}'
+                  and object_id = OBJECT_ID('{{ relation }}')
+  )
+  begin
+  {# key columns: bracket-quoted (with ]] escaping) plus per-column direction #}
+  {%- set key_columns = [] -%}
+  {%- for column in index_config.columns -%}
+    {%- do key_columns.append(
+        '[' ~ column | replace(']', ']]') ~ ']'
+        ~ (' desc' if column in index_config.descending_columns else '')
+    ) -%}
+  {%- endfor -%}
+  {%- set include_columns = [] -%}
+  {%- for column in index_config.included_columns -%}
+    {%- do include_columns.append('[' ~ column | replace(']', ']]') ~ ']') -%}
+  {%- endfor %}
+  create
+  {% if index_config.unique -%} unique {% endif %}{{ index_config.type }}
+  index [{{ index_name }}]
+  on {{ relation }}
+  ({{ key_columns | join(', ') }})
+    {% if include_columns -%}
+        include ({{ include_columns | join(', ') }})
+    {% endif %}
+    {% if index_config.where -%}
+        where {{ index_config.where }}
+    {% endif %}
+    {%- set with_options = [] -%}
+    {%- if index_config.data_compression -%}
+        {%- do with_options.append('data_compression = ' ~ index_config.data_compression | upper) -%}
+    {%- endif -%}
+    {%- if index_config.fillfactor -%}
+        {%- do with_options.append('fillfactor = ' ~ index_config.fillfactor) -%}
+    {%- endif -%}
+    {%- if index_config.pad_index -%}
+        {%- do with_options.append('pad_index = on') -%}
+    {%- endif -%}
+    {%- if index_config.ignore_dup_key -%}
+        {%- do with_options.append('ignore_dup_key = on') -%}
+    {%- endif -%}
+    {%- if index_config.optimize_for_sequential_key -%}
+        {%- do with_options.append('optimize_for_sequential_key = on') -%}
+    {%- endif -%}
+    {%- if index_config.sort_in_tempdb -%}
+        {%- do with_options.append('sort_in_tempdb = on') -%}
+    {%- endif -%}
+    {%- for option_key, option_value in (index_config.build_options or {}).items() -%}
+        {%- if option_value is sameas true -%}
+            {%- do with_options.append(option_key ~ ' = on') -%}
+        {%- elif option_value is sameas false -%}
+            {%- do with_options.append(option_key ~ ' = off') -%}
+        {%- elif option_key == 'max_duration' -%}
+            {%- do with_options.append('max_duration = ' ~ option_value ~ ' minutes') -%}
+        {%- else -%}
+            {%- do with_options.append(option_key ~ ' = ' ~ option_value) -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {% if with_options %}
+        with ({{ with_options | join(', ') }})
+    {% endif %}
+  end
+{%- endmacro %}
+
+
+{% macro sqlserver__describe_indexes(relation) %}
+  {% call statement('describe_indexes', fetch_result=True) -%}
+    select
+        i.[name] as [name],
+        case when i.[type] = 1 then 'clustered'
+             when i.[type] = 2 then 'nonclustered'
+             when i.[type] = 5 then 'clustered columnstore'
+             when i.[type] = 6 then 'columnstore'
+        end as [type],
+        i.is_unique as [unique],
+        i.is_primary_key as is_primary_key,
+        i.is_unique_constraint as is_unique_constraint,
+        isnull(key_cols.cols, '') as [columns],
+        isnull(incl_cols.cols, '') as included_columns,
+        case when i.[type] in (1, 2, 6)
+             then isnull(part.data_compression_desc, 'NONE')
+        end as data_compression,
+        isnull(desc_cols.cols, '') as descending_columns,
+        i.filter_definition as [where],
+        i.fill_factor as [fillfactor],
+        i.ignore_dup_key as [ignore_dup_key]
+        /* optimize_for_sequential_key is deliberately not selected: the
+           sys.indexes column only exists on SQL Server 2019+ and managed
+           comparisons are name-based, so it isn't needed here */
+    from sys.indexes i {{ information_schema_hints() }}
+    outer apply (
+        /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
+           of this adapter's CI matrix */
+        select string_agg(col.[name], ', ') within group (order by ic.key_ordinal) as cols
+        from sys.index_columns ic {{ information_schema_hints() }}
+        inner join sys.columns col {{ information_schema_hints() }}
+            on col.object_id = ic.object_id and col.column_id = ic.column_id
+        where ic.object_id = i.object_id and ic.index_id = i.index_id
+          and ic.is_included_column = 0
+    ) key_cols
+    outer apply (
+        select string_agg(col.[name], ', ') as cols
+        from sys.index_columns ic {{ information_schema_hints() }}
+        inner join sys.columns col {{ information_schema_hints() }}
+            on col.object_id = ic.object_id and col.column_id = ic.column_id
+        where ic.object_id = i.object_id and ic.index_id = i.index_id
+          and ic.is_included_column = 1
+    ) incl_cols
+    outer apply (
+        select string_agg(col.[name], ', ') as cols
+        from sys.index_columns ic {{ information_schema_hints() }}
+        inner join sys.columns col {{ information_schema_hints() }}
+            on col.object_id = ic.object_id and col.column_id = ic.column_id
+        where ic.object_id = i.object_id and ic.index_id = i.index_id
+          and ic.is_descending_key = 1
+    ) desc_cols
+    outer apply (
+        /* MAX() rather than TOP 1: deterministic if partitions ever carry
+           mixed compression (the adapter doesn't manage partitioning today) */
+        select max(p.data_compression_desc) as data_compression_desc
+        from sys.partitions p {{ information_schema_hints() }}
+        where p.object_id = i.object_id and p.index_id = i.index_id
+    ) part
+    where i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+      and i.index_id > 0
+      and i.[type] not in (3, 4, 7)  /* xml, spatial, memory-optimized hash */
+  {%- endcall %}
+  {{ return(load_result('describe_indexes').table) }}
+{% endmacro %}
+
+
+{% macro sqlserver__get_drop_index_sql(relation, index_name) -%}
+    drop index [{{ index_name }}] on {{ relation }}
+{%- endmacro %}
+
+
+{% macro sqlserver__create_indexes(relation) %}
+  {#-
+    Override of the dbt-adapters default to validate the index set as a whole
+    (at most one clustered; clustered rowstore vs as_columnstore conflict)
+    before creating anything. as_columnstore is only honored by
+    create_table_as, so it is irrelevant for seeds despite defaulting true.
+  -#}
+  {%- set raw_indexes = config.get('indexes', default=[]) -%}
+  {%- set materialized = config.get('materialized') -%}
+  {%- set as_columnstore = config.get('as_columnstore', default=true)
+      if materialized in ('table', 'incremental', 'snapshot') else false -%}
+  {%- do adapter.validate_indexes(
+      raw_indexes, as_columnstore, config.get('drop_unmanaged_indexes', default=false)
+  ) -%}
+  {%- for _index_dict in raw_indexes %}
+    {%- set create_index_sql = get_create_index_sql(relation, _index_dict) -%}
+    {% if create_index_sql %}
+      {% do run_query(create_index_sql) %}
+    {% endif %}
+  {%- endfor %}
+{% endmacro %}
+
+
+{% macro sqlserver__reconcile_indexes(relation) %}
+  {#-
+    Converge an existing relation on its configured index set. Called on the
+    paths where the relation persists across runs (incremental non-full-
+    refresh, dml table refresh, snapshot updates), where create_indexes alone
+    would let config changes drift.
+  -#}
+  {%- set raw_indexes = config.get('indexes', default=[]) -%}
+  {%- set drop_unmanaged = config.get('drop_unmanaged_indexes', default=false) -%}
+  {#- all three callers (incremental, dml refresh, snapshot) honor as_columnstore -#}
+  {%- do adapter.validate_indexes(
+      raw_indexes, config.get('as_columnstore', default=true), drop_unmanaged
+  ) -%}
+  {%- set existing = sqlserver__describe_indexes(relation) -%}
+  {%- set result = adapter.index_changes(existing, raw_indexes, relation, drop_unmanaged) -%}
+  {%- for warning in result['warnings'] %}
+    {% do log("Index reconcile on " ~ relation ~ ": " ~ warning, info=true) %}
+  {%- endfor %}
+  {#- Apply all drops and creates in ONE transactional batch: a definition
+      change is then atomic, with no window where a replacement index (or the
+      uniqueness it enforces) is missing for concurrent readers. xact_abort
+      guarantees rollback if any statement fails mid-batch. -#}
+  {%- set reconcile_statements = [] -%}
+  {%- for index_name in result['drops'] %}
+    {% do log("Dropping index " ~ index_name ~ " on " ~ relation, info=true) %}
+    {%- do reconcile_statements.append(sqlserver__get_drop_index_sql(relation, index_name)) -%}
+  {%- endfor %}
+  {%- for index_dict in result['creates'] %}
+    {%- do reconcile_statements.append(sqlserver__get_create_index_sql(relation, index_dict)) -%}
+  {%- endfor %}
+  {% if reconcile_statements %}
+    {% do run_query(
+        "set xact_abort on;\nbegin transaction;\n"
+        ~ reconcile_statements | join(";\n")
+        ~ ";\ncommit transaction;"
+    ) %}
+  {% endif %}
+  {#- ONLINE / RESUMABLE creates cannot run inside the transaction above
+      (SQL Server forbids RESUMABLE in a user transaction, and an ONLINE build
+      wrapped in one holds its locks until commit, negating the non-blocking
+      intent). Apply them individually in autocommit. The drops above have
+      already committed, so a replacement index still builds after its
+      predecessor is gone; these are not part of the atomic batch, so there is
+      a brief window where the new index is absent for readers. -#}
+  {%- for index_dict in result['creates_no_txn'] %}
+    {% do log("Creating ONLINE/RESUMABLE index outside the reconcile transaction on " ~ relation, info=true) %}
+    {% do run_query(sqlserver__get_create_index_sql(relation, index_dict)) %}
+  {%- endfor %}
 {% endmacro %}

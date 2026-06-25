@@ -1,7 +1,7 @@
 {% macro sqlserver__get_incremental_default_sql(arg_dict) %}
 
     {% if arg_dict["unique_key"] %}
-        -- Delete + Insert Strategy, calls get_delete_insert_merge_sql
+        -- Merge strategy: emits a MERGE statement via get_incremental_merge_sql
         {% do return(get_incremental_merge_sql(arg_dict)) %}
     {% else %}
         -- Incremental Append will insert data into target table.

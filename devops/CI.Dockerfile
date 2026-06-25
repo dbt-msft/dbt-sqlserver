@@ -1,13 +1,12 @@
 ARG PYTHON_VERSION="3.10"
 FROM python:${PYTHON_VERSION}-bullseye as base
 
-# Setup dependencies for pyodbc
+# Shared CI tooling used by both backends.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       apt-transport-https \
       curl  \
       gnupg2 \
-      unixodbc-dev \
       lsb-release && \
     apt-get autoremove -yqq --purge && \
     apt-get clean &&  \
@@ -28,12 +27,26 @@ RUN apt-get update && \
     apt-get clean &&  \
     rm -rf /var/lib/apt/lists/*
 
+FROM base as mssql
+
+# System libraries required by the mssql-python backend.
+ENV ACCEPT_EULA=Y
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libgssapi-krb5-2 \
+      libkrb5-3 \
+      libltdl7 && \
+    apt-get autoremove -yqq --purge && \
+    apt-get clean &&  \
+    rm -rf /var/lib/apt/lists/*
+
 FROM base as msodbc17
 
 # install ODBC driver 17
 ENV ACCEPT_EULA=Y
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+      unixodbc-dev \
       msodbcsql17 \
       mssql-tools && \
     apt-get autoremove -yqq --purge && \
@@ -49,6 +62,7 @@ FROM base as msodbc18
 ENV ACCEPT_EULA=Y
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+      unixodbc-dev \
       msodbcsql18 \
       mssql-tools18 && \
     apt-get autoremove -yqq --purge && \

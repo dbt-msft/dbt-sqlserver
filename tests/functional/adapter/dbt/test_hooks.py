@@ -232,3 +232,28 @@ class BaseHookRefs(BaseTestPrePost):
 
 class TestHookRefs(BaseHookRefs):
     pass
+
+
+class BaseAfterCommitModelHook(BaseTestPrePost):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "test": {
+                    "post-hook": [
+                        {"sql": "select 1", "transaction": False},
+                    ],
+                }
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"after_commit_hook_model.sql": "select 1 as id"}
+
+    def test_after_commit_post_hook_does_not_double_commit(self, project):
+        run_dbt()
+
+
+class TestAfterCommitModelHook(BaseAfterCommitModelHook):
+    pass

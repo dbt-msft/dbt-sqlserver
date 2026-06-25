@@ -4,7 +4,7 @@
   {%- set target_table = model.get('alias', model.get('name')) -%}
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
-  -- grab current tables grants config for comparision later on
+  -- grab current tables grants config for comparison later on
   {%- set grant_config = config.get('grants') -%}
 
   {% set target_relation_exists, target_relation = get_or_create_relation(
@@ -65,8 +65,10 @@
       {% set build_or_select_sql = snapshot_staging_table(strategy, temp_snapshot_relation, target_relation) %}
       {% set staging_table = build_snapshot_staging_table(strategy, temp_snapshot_relation, target_relation) %}
       -- this may no-op if the database does not require column expansion
+      {% set expansion_max_rows = config.get('column_type_expansion_max_rows', 1000000) %}
       {% do adapter.expand_target_column_types(from_relation=staging_table,
-                                               to_relation=target_relation) %}
+                                               to_relation=target_relation,
+                                               max_rows=expansion_max_rows) %}
 
       {% set remove_columns = ['dbt_change_type', 'DBT_CHANGE_TYPE', 'dbt_unique_key', 'DBT_UNIQUE_KEY'] %}
       {% if unique_key | is_list %}
@@ -109,6 +111,9 @@
 
   {% if not target_relation_exists %}
     {% do create_indexes(target_relation) %}
+  {% else %}
+    {# Snapshot table persisted: converge its indexes on the config. #}
+    {% do sqlserver__reconcile_indexes(target_relation) %}
   {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}
