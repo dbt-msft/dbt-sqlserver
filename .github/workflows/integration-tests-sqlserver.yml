@@ -43,31 +43,31 @@ jobs:
       matrix:
         python_version: ["3.10", "3.11", "3.12", "3.13"]
         backend: [pyodbc, mssql-python]
-        # Baseline on 2022
-        sqlserver_version: ["2022"]
+        # Baseline on 2025 (newest)
+        sqlserver_version: ["2025"]
         msodbc_version: ["18"]
         collation: [SQL_Latin1_General_CP1_CI_AS]
         exclude:
           - backend: mssql-python
             python_version: "3.10"
-            sqlserver_version: "2022"
+            sqlserver_version: "2025"
           - backend: mssql-python
             python_version: "3.11"
-            sqlserver_version: "2022"
+            sqlserver_version: "2025"
           - backend: mssql-python
             python_version: "3.12"
-            sqlserver_version: "2022"
+            sqlserver_version: "2025"
         include:
           # Keep pyodbc on every supported Python version, but retain
           # SQL Server ODBC 17 coverage for the oldest and newest Python.
           - backend: pyodbc
             python_version: "3.10"
-            sqlserver_version: "2022"
+            sqlserver_version: "2025"
             msodbc_version: "17"
             collation: SQL_Latin1_General_CP1_CI_AS
           - backend: pyodbc
             python_version: "3.13"
-            sqlserver_version: "2022"
+            sqlserver_version: "2025"
             msodbc_version: "17"
             collation: SQL_Latin1_General_CP1_CI_AS
           # Older SQL Server versions stay on pyodbc only, with a single
@@ -82,17 +82,22 @@ jobs:
             sqlserver_version: "2019"
             msodbc_version: "17"
             collation: SQL_Latin1_General_CP1_CI_AS
-          # Add the case-sensitive collation only on the latest SQL Server
-          # and latest Python/backend rows.
           - backend: pyodbc
             python_version: "3.13"
             sqlserver_version: "2022"
+            msodbc_version: "17"
+            collation: SQL_Latin1_General_CP1_CI_AS
+          # Add the case-sensitive collation on the SQL Server 2025 baseline
+          # and latest Python/backend rows.
+          - backend: pyodbc
+            python_version: "3.13"
+            sqlserver_version: "2025"
             msodbc_version: "17"
             collation: SQL_Latin1_General_CP1_CS_AS
           # mssql-python stays on the latest Python only.
           - backend: mssql-python
             python_version: "3.13"
-            sqlserver_version: "2022"
+            sqlserver_version: "2025"
             msodbc_version: "18"
             collation: SQL_Latin1_General_CP1_CS_AS
     runs-on: ubuntu-latest
