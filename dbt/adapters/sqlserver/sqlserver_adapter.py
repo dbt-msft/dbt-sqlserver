@@ -15,7 +15,8 @@ from dbt.adapters.base.impl import ConstraintSupport
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
-from dbt.adapters.events.types import SchemaCreation
+from dbt.adapters.events.logging import AdapterLogger
+from dbt.adapters.events.types import ColTypeChange, SchemaCreation
 from dbt.adapters.reference_keys import _make_ref_key_dict
 from dbt.adapters.relation_configs import RelationConfigChangeAction
 from dbt.adapters.sql.impl import CREATE_SCHEMA_MACRO_NAME, SQLAdapter
@@ -29,6 +30,8 @@ from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerCo
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
+
+logger = AdapterLogger("SQLServer")
 
 
 class SQLServerAdapter(SQLAdapter):
@@ -109,6 +112,16 @@ class SQLServerAdapter(SQLAdapter):
                     "When False (default), preserves legacy mappings: "
                     "STRING and NVARCHAR -> VARCHAR(8000), NCHAR -> CHAR(1). "
                     "The new behaviour is intended to become the default in a future release."
+                ),
+            },
+            {
+                "name": "dbt_sqlserver_enable_safe_type_expansion",
+                "default": False,
+                "description": (
+                    "Allow the SQL Server adapter to widen column types during schema expansion. "
+                    "This enables promotions like varchar -> nvarchar, "
+                    "bit -> tinyint -> smallint -> int -> bigint, "
+                    "and numeric(p,s) -> numeric(p2,s2) using alter column."
                 ),
             },
             {
@@ -311,6 +324,101 @@ class SQLServerAdapter(SQLAdapter):
             return f"{constraint_prefix} {constraint.name} {constraint.expression}"
         else:
             return None
+
+    def _get_row_count(self, relation) -> int:
+        """Return the number of rows in the given relation."""
+        sql = f"SELECT COUNT_BIG(*) FROM {relation}"
+        _, cursor = self.connections.add_select_query(sql)
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    def expand_column_types(self, goal, current, max_rows: int = 1000000):
+        """Override to ensure we preserve nvarchar/nchar type family during
+        column expansion. Necessary same-family resizes (e.g. varchar size)
+        always proceed. Safe type expansions (cross-family promotions like
+        varchar -> nvarchar) are guarded by column_type_expansion_max_rows.
+        enable_safe_type_expansion is the future approach for widening."""
+
+        reference_columns = {c.name: c for c in self.get_columns_in_relation(goal)}
+        target_columns = {c.name: c for c in self.get_columns_in_relation(current)}
+
+        enable_safe = self.behavior.dbt_sqlserver_enable_safe_type_expansion
+
+        row_count_exceeds = False
+        if enable_safe and max_rows != -1:
+            if max_rows == 0:
+                row_count_exceeds = True
+                logger.info(
+                    "Safe type expansion skipped for %s: column_type_expansion_max_rows is 0.",
+                    current,
+                )
+            else:
+                row_count = self._get_row_count(current)
+                if row_count > max_rows:
+                    row_count_exceeds = True
+                    logger.warning(
+                        "Safe type expansion skipped for %s: "
+                        "%s rows exceeds column_type_expansion_max_rows (%s). "
+                        "Set column_type_expansion_max_rows=-1 to disable "
+                        "this check, or increase the limit.",
+                        current,
+                        row_count,
+                        max_rows,
+                    )
+
+        for column_name, reference_column in reference_columns.items():
+            target_column = target_columns.get(column_name)
+            if target_column is None:
+                continue
+
+            if target_column.can_expand_to(reference_column):
+                pass
+            elif (
+                enable_safe
+                and not row_count_exceeds
+                and target_column.can_expand_safe(reference_column)
+            ):
+                pass
+            else:
+                continue
+
+            if reference_column.is_string():
+                col_string_size = reference_column.string_size()
+                new_type = reference_column.string_type_instance(col_string_size)
+            else:
+                new_type = reference_column.data_type
+            fire_event(
+                ColTypeChange(
+                    orig_type=target_column.data_type,
+                    new_type=new_type,
+                    table=_make_ref_key_dict(current),
+                )
+            )
+            self.alter_column_type(current, column_name, new_type)
+
+    @available.parse_none
+    def expand_target_column_types(
+        self, from_relation: BaseRelation, to_relation: BaseRelation, max_rows: int = 1000000
+    ) -> None:
+        if not isinstance(from_relation, self.Relation):
+            from dbt.adapters.base.impl import MacroArgTypeError
+
+            raise MacroArgTypeError(
+                method_name="expand_target_column_types",
+                arg_name="from_relation",
+                got_value=from_relation,
+                expected_type=self.Relation,
+            )
+        if not isinstance(to_relation, self.Relation):
+            from dbt.adapters.base.impl import MacroArgTypeError
+
+            raise MacroArgTypeError(
+                method_name="expand_target_column_types",
+                arg_name="to_relation",
+                got_value=to_relation,
+                expected_type=self.Relation,
+            )
+        self.expand_column_types(from_relation, to_relation, max_rows)
 
     @available
     def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:

@@ -154,3 +154,49 @@ models:
             assert "id" in other_node["columns"]
         finally:
             self.cleanup_secondary_database(project)
+
+
+CATALOG_COLUMN_TYPES_SQL = """
+{{ config(materialized='table') }}
+select
+    cast('hello' as nvarchar(50)) as nv_col,
+    cast('h' as nchar(1)) as nc_col,
+    cast(1 as int) as int_col
+"""
+
+
+class TestCatalogColumnTypes:
+    """
+    This test addresses: https://github.com/dbt-msft/dbt-sqlserver/issues/637
+    catalog.sql used system_type_id instead of user_type_id causing
+    NVARCHAR/NCHAR columns to appear as SYSNAME in dbt docs.
+    """
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"name": "catalog_column_types_test"}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"catalog_model.sql": CATALOG_COLUMN_TYPES_SQL}
+
+    @pytest.fixture(scope="class")
+    def docs(self, project):
+        run_dbt(["run"])
+        yield run_dbt(["docs", "generate"])
+
+    def test_catalog_does_not_return_sysname(self, project, docs):
+        catalog_path = os.path.join(project.project_root, "target", "catalog.json")
+        with open(catalog_path) as f:
+            catalog = json.load(f)
+
+        nodes = catalog.get("nodes", {})
+        for node_name, node in nodes.items():
+            if "catalog_model" not in node_name:
+                continue
+            for col_name, col in node.get("columns", {}).items():
+                col_type = col.get("type", "").lower()
+                assert "sysname" not in col_type, (
+                    f"Column '{col_name}' has type '{col_type}' "
+                    f"which contains SYSNAME instead of NVARCHAR/NCHAR"
+                )
