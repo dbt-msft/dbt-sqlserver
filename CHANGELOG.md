@@ -4,20 +4,6 @@
 
 #### Features
 
-- Add `dbt_sqlserver_enable_safe_type_expansion` behaviour flag to allow safe column type widening during schema expansion: `varchar` → `nvarchar`, integer family promotions (`bit` → `tinyint` → `smallint` → `int` → `bigint`), and `numeric`/`decimal` precision/scale upgrades. Gated by the per-model `column_type_expansion_max_rows` config (default 1,000,000 rows). See [#699](https://github.com/dbt-msft/dbt-sqlserver/issues/699).
-- Add `prefer_single_alter_column` model config to use a single `ALTER COLUMN` statement instead of the add+update+drop+rename pattern when altering column types on tables.
-- Add `string_type_instance()` to preserve the NVARCHAR/NCHAR type family during column expansion, fixing incorrect promotion of NVARCHAR/NCHAR to VARCHAR.
-- Add `tinyint` and `bit` to the `is_integer()` type list for correct type detection.
-
-#### Bugfixes
-
-- Fix unit tests with empty fixtures (`rows: []`) generating invalid `limit 0` syntax; emit `top 0` instead. Also fix `get_columns_in_query()` for queries starting with a CTE, which broke unit tests with an empty `expect` block; such queries are now described via `sp_describe_first_result_set` instead of being executed. [#698](https://github.com/dbt-msft/dbt-sqlserver/issues/698)
-- Fix catalog generation for NVARCHAR/NCHAR columns: use `user_type_id` instead of `system_type_id` in catalog.sql, preventing them from appearing as `SYSNAME` in `dbt docs`. [#637](https://github.com/dbt-msft/dbt-sqlserver/issues/637)
-- Fix `varchar(max)` / `nvarchar(max)` columns being incorrectly treated as size `-1` during type expansion, preventing `varchar(max)` → `varchar(100)` narrowing and properly allowing `varchar(100)` → `varchar(max)` expansion.
-- Fix seed table ingestion of empty numeric cells by inlining `null` literals instead of binding parameters. [#425](https://github.com/dbt-msft/dbt-sqlserver/issues/425)
-
-#### Features
-
 - Add Postgres-style `indexes` model config for tables, incrementals, seeds and snapshots, covering most `CREATE INDEX` options. [#535](https://github.com/dbt-msft/dbt-sqlserver/issues/535)
 - Index names are deterministic definition hashes (`dbt_idx_` prefix); creation is idempotent and unchanged definitions are never rebuilt.
 - Reconcile indexes against the config on incremental, DML-refresh and snapshot runs, applied as one atomic batch. Constraint-backing, legacy post-hook and `as_columnstore` indexes are never dropped.
@@ -25,6 +11,37 @@
 - Add `drop_unmanaged_indexes` config (`false` (default) / `warn` / `true`) for indexes dbt didn't create.
 - Validate cross-index config conflicts (multiple clustered indexes, clustered vs `as_columnstore`).
 - Document the minimum supported SQL Server version (2017). Partitioning, `XML_COMPRESSION` and ordered columnstore are not yet expressible in the `indexes` config.
+- Add `dbt_sqlserver_enable_safe_type_expansion` behaviour flag to allow safe column type widening during schema expansion: `varchar` → `nvarchar`, integer family promotions (`bit` → `tinyint` → `smallint` → `int` → `bigint`), and `numeric`/`decimal` precision/scale upgrades. Gated by the per-model `column_type_expansion_max_rows` config (default 1,000,000 rows). [#699](https://github.com/dbt-msft/dbt-sqlserver/issues/699).
+- Add `prefer_single_alter_column` model config to use a single `ALTER COLUMN` statement instead of the add+update+drop+rename pattern when altering column types on tables.
+- Add `string_type_instance()` to preserve the NVARCHAR/NCHAR type family during column expansion, fixing incorrect promotion of NVARCHAR/NCHAR to VARCHAR.
+- Add `tinyint` and `bit` to the `is_integer()` type list for correct type detection.
+- Add `dbt_sqlserver_use_dbt_transactions` flag for proper T-SQL `BEGIN TRAN`/`COMMIT`/`ROLLBACK` transaction handling. When enabled, operations use real server-side transactions instead of the default autocommit mode. [#708](https://github.com/dbt-msft/dbt-sqlserver/issues/708)
+- Implement relation and column comment persistence via `persist_docs`. [#289](https://github.com/dbt-msft/dbt-sqlserver/issues/289)
+- Add optional `mssql-python` connection backend alongside the default `pyodbc` backend. [#681](https://github.com/dbt-msft/dbt-sqlserver/issues/681)
+
+#### Bugfixes
+
+- Fix unit tests with empty fixtures (`rows: []`) generating invalid `limit 0` syntax; emit `top 0` instead. Also fix `get_columns_in_query()` for queries starting with a CTE, which broke unit tests with an empty `expect` block; such queries are now described via `sp_describe_first_result_set` instead of being executed. [#698](https://github.com/dbt-msft/dbt-sqlserver/issues/698)
+- Fix catalog generation for NVARCHAR/NCHAR columns: use `user_type_id` instead of `system_type_id` in catalog.sql, preventing them from appearing as `SYSNAME` in `dbt docs`. [#637](https://github.com/dbt-msft/dbt-sqlserver/issues/637)
+- Fix `varchar(max)` / `nvarchar(max)` columns being incorrectly treated as size `-1` during type expansion, preventing `varchar(max)` → `varchar(100)` narrowing and properly allowing `varchar(100)` → `varchar(max)` expansion.
+- Fix seed table ingestion of empty numeric cells by inlining `null` literals instead of binding parameters. [#425](https://github.com/dbt-msft/dbt-sqlserver/issues/425)
+- Guard `run_hooks` commit with `@@trancount` check for autocommit safety when running post-hooks. [#444](https://github.com/dbt-msft/dbt-sqlserver/issues/444)
+- Fix `columnstore IF EXISTS` guard to check `object_id('schema.table')` correctly.
+- Escape single quotes in `query_tag` before building `OPTION (LABEL)` clause.
+- Map Python `float` to SQL Server `float`, not `bigint`.
+- Set default port to `1433` (instead of Postgres `5432`) in `dbt init` profile template.
+- Make `drop_schema_name` usable again. [#563](https://github.com/dbt-msft/dbt-sqlserver/issues/563)
+- Raise `DbtRuntimeError` instead of `ValueError` for missing access token.
+
+#### Under the hood
+
+- Consolidate linting tooling (isort, flake8, pycln, absolufy-imports) into Ruff. [#707](https://github.com/dbt-msft/dbt-sqlserver/issues/707)
+- Drop Python 3.9 from publish-docker CI matrix.
+- Remove dead clone macro and unused view scaffolding variable.
+- Standardise devcontainer ODBC environment setup. [#722](https://github.com/dbt-msft/dbt-sqlserver/issues/722)
+- Disable dbt telemetry and version check in test environment.
+- Add `pytest-cov` and fix dead `from_dict` override found by coverage.
+- Bump pip and GitHub Actions dependencies.
 
 ### v1.10.0
 
