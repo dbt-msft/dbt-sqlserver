@@ -4,7 +4,7 @@ THREADS ?= auto
 .PHONY: dev
 dev: ## Installs adapter in develop mode along with development dependencies
 	@\
-	uv pip install -e . --group dev && pre-commit install
+	uv sync --all-extras && pre-commit install
 
 .PHONY: mypy
 mypy: ## Runs mypy against staged changes for static type checking.
@@ -35,17 +35,17 @@ all: ## Runs all checks against staged changes.
 .PHONY: unit
 unit: ## Runs unit tests.
 	@\
-	pytest -n auto -ra -v tests/unit
+	uv run pytest -n auto -ra -v tests/unit
 
 .PHONY: functional
 functional: ## Runs functional tests.
 	@\
-	pytest -n $(THREADS) -ra -v tests/functional
+	uv run pytest -n $(THREADS) -ra -v tests/functional
 
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
 	@\
-	pytest -n auto -ra -v tests/unit; \
+	uv run pytest -n auto -ra -v tests/unit; \
 	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run ruff-check-manual --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"

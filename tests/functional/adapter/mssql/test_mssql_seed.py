@@ -40,3 +40,41 @@ class TestLargeSeed:
 
     def test_large_seed(self, project):
         run_dbt(["seed"])
+
+
+seed_empty_numeric_csv = """x
+123
+
+456
+"""
+
+seed_empty_numeric_yml = """
+version: 2
+seeds:
+  - name: seed_empty_numeric
+    config:
+      column_types:
+        x: numeric(18, 0)
+"""
+
+
+class TestSeedNumericColumnWithEmptyRows:
+    """
+    This test addresses: https://github.com/dbt-msft/dbt-sqlserver/issues/425
+    """
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"name": "seed_empty_numeric_test"}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "seed_empty_numeric.csv": seed_empty_numeric_csv,
+            "schema.yml": seed_empty_numeric_yml,
+        }
+
+    def test_seed_numeric_column_with_empty_rows(self, project):
+        results = run_dbt(["seed"])
+        assert len(results) == 1
+        assert results[0].status == "success"

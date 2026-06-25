@@ -145,6 +145,18 @@ The same setting is also honoured via `vars:` for backwards compatibility; the b
 
 *(default: `pyodbc`)* Set to `mssql-python` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required backend package (Python dependency), such as `pyodbc` or `mssql-python`, is not installed.
 
+### `dbt_sqlserver_enable_safe_type_expansion`
+
+*(default: `false`)* When enabled, allows the adapter to widen column types during incremental model schema expansion beyond same-family string resizes. Supported safe expansions include:
+
+- **Cross-family string**: `varchar`/`char` → `nvarchar`/`nchar` (same or larger size)
+- **Integer family**: `bit` → `tinyint` → `smallint` → `int` → `bigint`
+- **Integer → numeric**: `int` → `numeric` (with sufficient precision to hold the integer range)
+- **Numeric precision/scale**: `numeric(p,s)` → `numeric(p2,s2)` where precision and scale both increase
+- **Fixed-money**: `smallmoney` → `money`, `money` → `numeric` (with sufficient precision)
+
+Safe expansions are further gated by `column_type_expansion_max_rows` (default 1,000,000 rows) to avoid long-running operations on large tables.
+
 ### `dbt_sqlserver_use_dbt_transactions`
 
 _(default: `false`)_ When enabled, makes dbt's transaction hooks real at the SQL Server level by emitting `BEGIN TRANSACTION` / `COMMIT TRANSACTION` through the adapter's `add_begin_query` and `add_commit_query` methods. 
@@ -158,7 +170,28 @@ This mode is opt-in and should be tested carefully with project-specific materia
 ```yaml
 # dbt_project.yml
 flags:
-    dbt_sqlserver_use_dbt_transactions: true # <-- opt-in; default is false
+  dbt_sqlserver_enable_safe_type_expansion: true
+  dbt_sqlserver_use_dbt_transactions: true # <-- opt-in; default is false
+```
+
+### `column_type_expansion_max_rows`
+
+*(default: `1000000`)* Per-model config that limits when safe type expansion runs. When the target table exceeds this row count, safe type expansion is skipped (basic same-family string resizes still proceed). Set to `-1` to disable the check entirely.
+
+```sql
+-- In an incremental model
+{{ config(materialized='incremental', unique_key='id',
+           column_type_expansion_max_rows=500000) }}
+```
+
+### `prefer_single_alter_column`
+
+*(default: `false`)* Model-level config that controls how `alter_column_type` changes column types on tables. When `false` (default), the adapter uses the safer approach: add a temporary column, copy data, drop the original, and rename. When `true`, the adapter uses a single `ALTER COLUMN` statement, which is faster on small, medium tables and instant on safe type expansions but may fail for types that cannot be implicitly converted.
+
+```sql
+-- In an incremental model
+{{ config(materialized='incremental', unique_key='id',
+           prefer_single_alter_column=true) }}
 ```
 
 **Compatibility notes:** Enabling `dbt_sqlserver_use_dbt_transactions: true` may expose transaction-state assumptions hidden by autocommit-only mode. Explicit transaction macros may interact with dbt-managed transactions, and cleanup after failed DDL/DML may differ. Review pre/post hooks for in-transaction vs out-of-transaction semantics.

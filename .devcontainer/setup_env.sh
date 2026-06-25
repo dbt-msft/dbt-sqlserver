@@ -1,5 +1,11 @@
 set -euo pipefail
 
+# Persist for all shell sessions (Zed uses devcontainer exec, no VS Code server for remoteEnv)
+if ! grep -qF 'SQLSERVER_TEST_DRIVER' ~/.bashrc 2>/dev/null; then
+  echo 'export SQLSERVER_TEST_DRIVER="ODBC Driver 18 for SQL Server"' >> ~/.bashrc
+fi
+export SQLSERVER_TEST_DRIVER="ODBC Driver 18 for SQL Server"
+
 cp test.env.sample test.env
 
 sudo apt-get update
@@ -16,5 +22,5 @@ command -v uv >/dev/null 2>&1 || pip install uv
 source .venv/bin/activate
 
 # Install both backend extras so the devcontainer can exercise either connection path.
-uv sync --group dev --extra pyodbc --extra mssql
+uv sync --all-extras
 pre-commit install
