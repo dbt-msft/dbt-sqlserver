@@ -238,6 +238,20 @@
 {% endmacro %}
 
 
+{% macro sqlserver__server_major_version() -%}
+  {#- Detected engine major version: 13 = 2016, 14 = 2017, 15 = 2019,
+      16 = 2022, 17 = 2025. parsename() on the always-4-part productversion
+      works on every supported release, unlike
+      SERVERPROPERTY('ProductMajorVersion') which is 2014+ only. Returns none
+      outside an executing context (e.g. parse time). -#}
+  {%- if not execute -%}{{ return(none) }}{%- endif -%}
+  {%- set result = run_query(
+      "select cast(parsename(cast(serverproperty('productversion') as varchar(128)), 4) as int) as major_version"
+  ) -%}
+  {{ return(result.columns[0].values()[0]) }}
+{%- endmacro %}
+
+
 {% macro sqlserver__get_create_index_sql(relation, index_dict) -%}
   {%- set index_config = adapter.parse_index(index_dict) -%}
   {%- set index_name = index_config.render(relation) -%}
@@ -274,6 +288,30 @@
     {% if index_config.where -%}
         where {{ index_config.where }}
     {% endif %}
+    {#- optimize_for_sequential_key, RESUMABLE and RESUMABLE's MAX_DURATION are
+        CREATE INDEX options that SQL Server only recognizes on 2019 (major 15)
+        and newer. This adapter still supports 2017/2016, so on older engines
+        they are dropped (with a warning) and the index is built without them,
+        rather than failing with "is not a recognized CREATE INDEX option".
+        ONLINE is intentionally kept: it is recognized on 2017 (edition-gated,
+        not version-gated). The server version is only queried when one of these
+        options is actually requested, so the common path adds no round-trip. -#}
+    {%- set v2019_only_build_options = ['resumable', 'max_duration'] -%}
+    {%- set _build_options = index_config.build_options or {} -%}
+    {%- set _wants_v2019_option = index_config.optimize_for_sequential_key
+          or _build_options.get('resumable') or _build_options.get('max_duration') -%}
+    {%- set drop_v2019_options = false -%}
+    {%- if _wants_v2019_option -%}
+        {%- set _major = sqlserver__server_major_version() -%}
+        {%- if _major is not none and _major < 15 -%}
+            {%- set drop_v2019_options = true -%}
+            {%- do log(
+                "Index [" ~ index_name ~ "] on " ~ relation ~ ": optimize_for_sequential_key"
+                ~ " / resumable require SQL Server 2019 (15.x) or newer; building the index"
+                ~ " without them on detected major version " ~ _major ~ ".", info=true
+            ) -%}
+        {%- endif -%}
+    {%- endif -%}
     {%- set with_options = [] -%}
     {%- if index_config.data_compression -%}
         {%- do with_options.append('data_compression = ' ~ index_config.data_compression | upper) -%}
@@ -287,14 +325,16 @@
     {%- if index_config.ignore_dup_key -%}
         {%- do with_options.append('ignore_dup_key = on') -%}
     {%- endif -%}
-    {%- if index_config.optimize_for_sequential_key -%}
+    {%- if index_config.optimize_for_sequential_key and not drop_v2019_options -%}
         {%- do with_options.append('optimize_for_sequential_key = on') -%}
     {%- endif -%}
     {%- if index_config.sort_in_tempdb -%}
         {%- do with_options.append('sort_in_tempdb = on') -%}
     {%- endif -%}
-    {%- for option_key, option_value in (index_config.build_options or {}).items() -%}
-        {%- if option_value is sameas true -%}
+    {%- for option_key, option_value in _build_options.items() -%}
+        {%- if drop_v2019_options and option_key in v2019_only_build_options -%}
+            {#- skipped: not recognized before SQL Server 2019 -#}
+        {%- elif option_value is sameas true -%}
             {%- do with_options.append(option_key ~ ' = on') -%}
         {%- elif option_value is sameas false -%}
             {%- do with_options.append(option_key ~ ' = off') -%}

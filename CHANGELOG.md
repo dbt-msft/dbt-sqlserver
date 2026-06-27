@@ -28,6 +28,7 @@
 - Fix seed table ingestion of empty numeric cells by inlining `null` literals instead of binding parameters. [#425](https://github.com/dbt-msft/dbt-sqlserver/issues/425)
 - Guard `run_hooks` commit with `@@trancount` check for autocommit safety when running post-hooks. [#444](https://github.com/dbt-msft/dbt-sqlserver/issues/444)
 - Fix `columnstore IF EXISTS` guard to check `object_id('schema.table')` correctly.
+- Gate the `optimize_for_sequential_key` and `resumable` index options on the detected engine version: they require SQL Server 2019+, so on 2017/2016 the index is now built without them (with a warning) instead of failing with "is not a recognized CREATE INDEX option".
 - Escape single quotes in `query_tag` before building `OPTION (LABEL)` clause.
 - Map Python `float` to SQL Server `float`, not `bigint`.
 - Set default port to `1433` (instead of Postgres `5432`) in `dbt init` profile template.
