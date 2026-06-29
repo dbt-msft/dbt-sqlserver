@@ -106,7 +106,6 @@ All CI/CD pipelines are using GitHub Actions. The following pipelines are availa
 
 * `publish-docker`: publishes the image we use in all other pipelines.
 * `unit-tests`: runs the unit tests for each supported Python version.
-* `integration-tests-azure`: runs the integration tests for Azure SQL Server.
 * `integration-tests-sqlserver`: runs the integration tests for SQL Server.
 * `release-version`: publishes the adapter to PyPI.
 
@@ -128,7 +127,7 @@ The following environment variables are available:
 
 ## Releasing a new version
 
-Make sure the version number is bumped in `__version__.py`. Then, create a git tag named `v<version>` and push it to GitHub.
-A GitHub Actions workflow will be triggered to build the package and push it to PyPI. 
+Make sure the version number is bumped in `dbt/adapters/sqlserver/__version__.py`. Then publish a GitHub Release with a tag named `v<version>`.
+A GitHub Actions workflow will be triggered to build the package and push it to PyPI.
 
-If you're releasing support for a new version of `dbt-core`, also bump the `dbt_version` in `setup.py`.
+If you're releasing support for a new version of `dbt-core`, also bump the `dbt-core` constraint in `dependencies` in `pyproject.toml`.
