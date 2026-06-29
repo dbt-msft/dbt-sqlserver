@@ -224,8 +224,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
                     raise e
 
                 fire_event(
+                    # NB: the field is ``base_msg`` (as in dbt-core's base
+                    # ``add_query``); ``message=`` raises a protobuf ParseError
+                    # at event construction, which previously crashed the first
+                    # retry instead of retrying.
                     AdapterEventDebug(
-                        message=(
+                        base_msg=(
                             f"Got a retryable error {type(e)}. {retry_limit - attempt} "
                             "retries left. Retrying in 1 second.\n"
                             f"Error:\n{e}"
@@ -277,7 +281,13 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 sql=sql,
                 bindings=bindings,
                 retryable_exceptions=retryable_exceptions,
-                retry_limit=(credentials.retries if credentials.retries > 3 else retry_limit),
+                # The connection's configured ``retries`` is authoritative for
+                # query retries, mirroring ``open()`` which passes
+                # ``credentials.retries`` to ``retry_connection``. A previous
+                # ``credentials.retries > 3`` guard silently ignored configured
+                # values of 1-3 and used the hardcoded ``retry_limit`` of 2, so
+                # even the default ``retries: 3`` only attempted a query twice.
+                retry_limit=credentials.retries,
                 attempt=1,
             )
 
