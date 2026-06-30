@@ -5,7 +5,20 @@
 The adapter supports dbt-core 1.10 or newer and follows the same versioning scheme.
 E.g. version 1.10.x of the adapter is compatible with dbt-core 1.10.x.
 
-The minimum supported SQL Server version is SQL Server 2017.
+## Supported SQL Server versions
+
+The adapter is tested against the following SQL Server versions:
+
+| SQL Server version | Supported |
+|---|---|
+| SQL Server 2017 | ✅ (minimum supported version) |
+| SQL Server 2019 | ✅ |
+| SQL Server 2022 | ✅ |
+| SQL Server 2025 | ✅ |
+
+The minimum supported SQL Server version is SQL Server 2017; older versions are not supported.
+
+SQL Server 2017, 2019, 2022, and 2025 are covered by the integration test suite. Azure SQL Database and Azure SQL Managed Instance are not covered by the integration test suite, but are expected to be compatible.
 
 ## Documentation
 
@@ -179,6 +192,29 @@ flags:
 ```
 
 **Compatibility notes:** Enabling `dbt_sqlserver_use_dbt_transactions: true` may expose transaction-state assumptions hidden by autocommit-only mode. Explicit transaction macros may interact with dbt-managed transactions, and cleanup after failed DDL/DML may differ. Review pre/post hooks for in-transaction vs out-of-transaction semantics.
+
+### `as_columnstore`
+
+*(default: `true`)* When building a table, the adapter creates a [clustered columnstore index](https://learn.microsoft.com/en-us/sql/relational-databases/indexes/columnstore-indexes-overview) (CCI) on it. Set `as_columnstore: false` to build a plain rowstore table instead.
+
+This matters for any table containing a `(n)varchar(max)` or other LOB column, because SQL Server does not allow those data types to participate in a columnstore index. The table build fails with:
+
+> Column '...' has a data type that cannot participate in a columnstore index.
+
+A common case is dbt's [test failure storage](https://docs.getdbt.com/reference/resource-configs/store_failures): the audit tables can contain `VARCHAR(MAX)` columns (dbt's `STRING` type maps to `VARCHAR(MAX)`), so disable the CCI on those resources:
+
+```yaml
+# dbt_project.yml
+data_tests:
+  +store_failures: true
+  +as_columnstore: false  # avoids CCI on (n)varchar(max) audit columns
+```
+
+You can also set it per model:
+
+```sql
+{{ config(materialized="table", as_columnstore=false) }}
+```
 
 ## Contributing
 
