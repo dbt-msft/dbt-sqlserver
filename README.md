@@ -3,7 +3,7 @@
 [dbt](https://www.getdbt.com) adapter for Microsoft SQL Server and Azure SQL services.
 
 The adapter supports dbt-core 1.10 or newer and follows the same versioning scheme.
-E.g. version 1.10.x of the adapter will be compatible with dbt-core 1.10.x.
+E.g. version 1.10.x of the adapter is compatible with dbt-core 1.10.x.
 
 ## Supported SQL Server versions
 
