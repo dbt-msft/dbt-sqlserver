@@ -8,6 +8,33 @@ from dbt.tests.adapter.incremental.test_incremental_predicates import (
     TestIncrementalPredicatesDeleteInsert,
     TestPredicatesDeleteInsert,
 )
+from dbt.tests.util import run_dbt, write_file
+
+
+def _column_metadata(project, schema, table, column):
+    rows = project.run_sql(
+        f"""
+        select
+            t.name,
+            c.max_length,
+            c.precision,
+            c.scale
+        from [{project.database}].sys.columns c
+        inner join [{project.database}].sys.types t
+            on c.user_type_id = t.user_type_id
+        where c.object_id = object_id('[{project.database}].[{schema}].[{table}]')
+          and c.name = '{column}'
+        """,
+        fetch="all",
+    )
+    assert rows, f"Missing column metadata for {schema}.{table}.{column}"
+
+    data_type, max_length, numeric_precision, numeric_scale = rows[0]
+    if data_type in ("nchar", "nvarchar", "sysname") and max_length is not None:
+        max_length //= 2
+        return data_type, max_length, None, None
+    return data_type, None, numeric_precision, numeric_scale
+
 
 _MODELS__INCREMENTAL_IGNORE_SQLServer = """
 {{
@@ -99,3 +126,84 @@ class TestIncrementalPredicatesDeleteInsert(TestIncrementalPredicatesDeleteInser
 
 class TestPredicatesDeleteInsert(TestPredicatesDeleteInsert):
     pass
+
+
+_INCREMENTAL__WIDEN_TYPES_SQLServer = """
+{{
+    config(
+        materialized='incremental',
+        unique_key='id',
+        on_schema_change='append_new_columns'
+    )
+}}
+
+{% if is_incremental() %}
+-- incremental branch: uses larger types and values that would fail if table types were not widened
+select
+  2 as id,
+  cast(40000 as int) as num_int,
+  cast('abcdef' as nvarchar(10)) as field1,
+  cast(100.25 as decimal(10,4)) as num_decimal,
+  cast(999999999999998.9999 as decimal(20,4)) as num_money
+{% else %}
+-- full-refresh branch: creates the table with smaller types
+select
+  1 as id,
+  cast(1 as smallint) as num_int,
+  cast('abc' as varchar(5)) as field1,
+  cast(10.5 as decimal(5,2)) as num_decimal,
+  cast(1240.14 as money) as num_money
+{% endif %}
+"""
+
+
+class TestIncrementalOnSchemaChangeExpands:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"dbt_sqlserver_enable_safe_type_expansion": True}}
+
+    def test_run_incremental_widen_types(self, project):
+        """Full-refresh to create small types, then incremental to widen types."""
+        write_file(_INCREMENTAL__WIDEN_TYPES_SQLServer, "models", "incremental_change_widen.sql")
+
+        # Full-refresh to create table with smallint and varchar(5)
+        run_dbt(
+            ["run", "--models", "incremental_change_widen", "--full-refresh"]
+        )  # creates small types
+
+        # Run again to trigger incremental insert which requires widened types
+        # incremental branch inserts larger values
+        run_dbt(["run", "--models", "incremental_change_widen"])
+
+        assert _column_metadata(
+            project, project.test_schema, "incremental_change_widen", "field1"
+        ) == (
+            "nvarchar",
+            10,
+            None,
+            None,
+        )
+        assert _column_metadata(
+            project, project.test_schema, "incremental_change_widen", "num_int"
+        ) == (
+            "int",
+            None,
+            10,
+            0,
+        )
+        assert _column_metadata(
+            project, project.test_schema, "incremental_change_widen", "num_decimal"
+        ) == (
+            "decimal",
+            None,
+            10,
+            4,
+        )
+        assert _column_metadata(
+            project, project.test_schema, "incremental_change_widen", "num_money"
+        ) == (
+            "decimal",
+            None,
+            20,
+            4,
+        )
