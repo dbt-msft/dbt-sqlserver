@@ -38,6 +38,7 @@ from dbt.adapters.sqlserver.sqlserver_credentials import (
 from dbt.adapters.sqlserver.sqlserver_helpers import (
     bool_to_connection_string_arg,
     escape_connection_string_value,
+    format_connection_string_value,
     is_mssql_python_backend,
     sanitize_connection_string_for_logging,
     validate_connection_requirements,
@@ -347,6 +348,18 @@ def test_escape_connection_string_value_quotes_only_when_needed() -> None:
     assert escape_connection_string_value("brace}") == "{brace}}}"
     assert escape_connection_string_value(" leading") == "{ leading}"
     assert escape_connection_string_value("trailing ") == "{trailing }"
+
+
+def test_format_connection_string_value_doubles_braces_for_pyodbc() -> None:
+    assert format_connection_string_value("plain", mssql_python_backend=False) == "{plain}"
+    assert format_connection_string_value("pa}ss", mssql_python_backend=False) == "{pa}}ss}"
+    assert format_connection_string_value("}{", mssql_python_backend=False) == "{}}{}"
+    assert format_connection_string_value(None, mssql_python_backend=False) == "{}"
+
+
+def test_format_connection_string_value_delegates_for_mssql_python() -> None:
+    assert format_connection_string_value("plain", mssql_python_backend=True) == "plain"
+    assert format_connection_string_value("pa}ss", mssql_python_backend=True) == "{pa}}ss}"
 
 
 def test_sanitize_connection_string_for_logging_redacts_common_secret_fields() -> None:
