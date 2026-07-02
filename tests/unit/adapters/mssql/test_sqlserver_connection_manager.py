@@ -1,5 +1,6 @@
 import builtins
 import importlib
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
@@ -1594,3 +1595,127 @@ def test_rollback_handle_disabled_exception_fires_rollback_failed(
         SQLServerConnectionManager._rollback_handle(connection)
 
     mock_fire_event.assert_called_once()
+
+
+class _FakeRetryableError(Exception):
+    """Stand-in for a backend retryable exception in add_query retry tests."""
+
+
+def _make_add_query_manager(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    retries: int,
+    execute_side_effect: Any,
+):
+    """Build a manager + thread connection wired for add_query retry tests.
+
+    Uses ``object.__new__`` (the pattern used elsewhere in this module) so no
+    real connection pool is constructed; only the collaborators add_query
+    touches are stubbed.
+    """
+
+    manager = object.__new__(SQLServerConnectionManager)
+
+    cursor = MagicMock()
+    cursor.execute.side_effect = execute_side_effect
+    cursor.rowcount = 0
+
+    handle = MagicMock()
+    handle.cursor.return_value = cursor
+
+    credentials = MagicMock()
+    credentials.retries = retries
+
+    connection = MagicMock()
+    connection.handle = handle
+    connection.credentials = credentials
+    connection.transaction_open = True
+    connection.name = "retry-test"
+
+    monkeypatch.setattr(manager, "get_thread_connection", lambda: connection)
+
+    # Isolate the retry loop from error translation / connection release, which
+    # have their own tests and otherwise depend on global runtime state.
+    @contextmanager
+    def _passthrough_exception_handler(_sql):
+        yield
+
+    monkeypatch.setattr(manager, "exception_handler", _passthrough_exception_handler)
+
+    return manager, cursor
+
+
+def test_add_query_retries_retryable_errors_until_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager, cursor = _make_add_query_manager(
+        monkeypatch,
+        retries=3,
+        execute_side_effect=[_FakeRetryableError(), _FakeRetryableError(), None],
+    )
+
+    with (
+        patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"),
+        patch("dbt.adapters.sqlserver.sqlserver_connections.time.sleep") as mock_sleep,
+    ):
+        _conn, result_cursor = manager.add_query(
+            "select 1", auto_begin=False, retryable_exceptions=(_FakeRetryableError,)
+        )
+
+    assert cursor.execute.call_count == 3
+    assert result_cursor is cursor
+    assert mock_sleep.call_count == 2
+
+
+@pytest.mark.parametrize(
+    ("retries", "execute_side_effect", "expected_exception", "expected_attempts"),
+    [
+        pytest.param(
+            3,
+            _FakeRetryableError(),
+            _FakeRetryableError,
+            3,
+            id="retryable-error-exhausts-attempt-cap",
+        ),
+        pytest.param(
+            1,
+            _FakeRetryableError(),
+            _FakeRetryableError,
+            1,
+            id="retries-one-means-single-attempt",
+        ),
+        pytest.param(
+            3,
+            ValueError("not retryable"),
+            ValueError,
+            1,
+            id="non-retryable-error-not-retried",
+        ),
+    ],
+)
+def test_add_query_raises_after_expected_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+    retries: int,
+    execute_side_effect: Exception,
+    expected_exception: type,
+    expected_attempts: int,
+) -> None:
+    # ``retries`` caps the total number of execute attempts: ``retries: 3``
+    # tries a persistently failing query three times, ``retries: 1`` never
+    # retries, and errors outside ``retryable_exceptions`` raise immediately.
+    manager, cursor = _make_add_query_manager(
+        monkeypatch,
+        retries=retries,
+        execute_side_effect=execute_side_effect,
+    )
+
+    with (
+        patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"),
+        patch("dbt.adapters.sqlserver.sqlserver_connections.time.sleep"),
+    ):
+        with pytest.raises(expected_exception):
+            manager.add_query(
+                "select 1", auto_begin=False, retryable_exceptions=(_FakeRetryableError,)
+            )
+
+    assert cursor.execute.call_count == expected_attempts

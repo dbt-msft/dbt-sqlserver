@@ -225,7 +225,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
                 fire_event(
                     AdapterEventDebug(
-                        message=(
+                        base_msg=(
                             f"Got a retryable error {type(e)}. {retry_limit - attempt} "
                             "retries left. Retrying in 1 second.\n"
                             f"Error:\n{e}"
@@ -277,7 +277,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 sql=sql,
                 bindings=bindings,
                 retryable_exceptions=retryable_exceptions,
-                retry_limit=(credentials.retries if credentials.retries > 3 else retry_limit),
+                # ``retries`` caps total execute attempts, so ``retries: 1``
+                # means a single attempt with no retry.
+                retry_limit=credentials.retries,
                 attempt=1,
             )
 
