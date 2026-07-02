@@ -1642,13 +1642,13 @@ def _make_add_query_manager(
 
     monkeypatch.setattr(manager, "exception_handler", _passthrough_exception_handler)
 
-    return manager, connection, cursor
+    return manager, cursor
 
 
 def test_add_query_retries_retryable_errors_until_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manager, _connection, cursor = _make_add_query_manager(
+    manager, cursor = _make_add_query_manager(
         monkeypatch,
         retries=3,
         execute_side_effect=[_FakeRetryableError(), _FakeRetryableError(), None],
@@ -1667,68 +1667,55 @@ def test_add_query_retries_retryable_errors_until_success(
     assert mock_sleep.call_count == 2
 
 
-def test_add_query_honors_configured_retries_over_method_default(
+@pytest.mark.parametrize(
+    ("retries", "execute_side_effect", "expected_exception", "expected_attempts"),
+    [
+        pytest.param(
+            3,
+            _FakeRetryableError(),
+            _FakeRetryableError,
+            3,
+            id="retryable-error-exhausts-attempt-cap",
+        ),
+        pytest.param(
+            1,
+            _FakeRetryableError(),
+            _FakeRetryableError,
+            1,
+            id="retries-one-means-single-attempt",
+        ),
+        pytest.param(
+            3,
+            ValueError("not retryable"),
+            ValueError,
+            1,
+            id="non-retryable-error-not-retried",
+        ),
+    ],
+)
+def test_add_query_raises_after_expected_attempts(
     monkeypatch: pytest.MonkeyPatch,
+    retries: int,
+    execute_side_effect: Exception,
+    expected_exception: type,
+    expected_attempts: int,
 ) -> None:
-    # Regression guard: a `credentials.retries > 3` branch used to ignore
-    # configured values of 1-3 and fall back to a hardcoded limit of 2, so the
-    # default `retries: 3` attempted a query only twice. It must now attempt
-    # the query three times before giving up.
-    manager, _connection, cursor = _make_add_query_manager(
+    # ``retries`` caps the total number of execute attempts: ``retries: 3``
+    # tries a persistently failing query three times, ``retries: 1`` never
+    # retries, and errors outside ``retryable_exceptions`` raise immediately.
+    manager, cursor = _make_add_query_manager(
         monkeypatch,
-        retries=3,
-        execute_side_effect=_FakeRetryableError(),
+        retries=retries,
+        execute_side_effect=execute_side_effect,
     )
 
     with (
         patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"),
         patch("dbt.adapters.sqlserver.sqlserver_connections.time.sleep"),
     ):
-        with pytest.raises(_FakeRetryableError):
+        with pytest.raises(expected_exception):
             manager.add_query(
                 "select 1", auto_begin=False, retryable_exceptions=(_FakeRetryableError,)
             )
 
-    assert cursor.execute.call_count == 3
-
-
-def test_add_query_does_not_retry_when_retries_is_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    manager, _connection, cursor = _make_add_query_manager(
-        monkeypatch,
-        retries=1,
-        execute_side_effect=_FakeRetryableError(),
-    )
-
-    with (
-        patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"),
-        patch("dbt.adapters.sqlserver.sqlserver_connections.time.sleep"),
-    ):
-        with pytest.raises(_FakeRetryableError):
-            manager.add_query(
-                "select 1", auto_begin=False, retryable_exceptions=(_FakeRetryableError,)
-            )
-
-    assert cursor.execute.call_count == 1
-
-
-def test_add_query_does_not_retry_non_retryable_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    manager, _connection, cursor = _make_add_query_manager(
-        monkeypatch,
-        retries=3,
-        execute_side_effect=ValueError("not retryable"),
-    )
-
-    with (
-        patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"),
-        patch("dbt.adapters.sqlserver.sqlserver_connections.time.sleep"),
-    ):
-        with pytest.raises(ValueError):
-            manager.add_query(
-                "select 1", auto_begin=False, retryable_exceptions=(_FakeRetryableError,)
-            )
-
-    assert cursor.execute.call_count == 1
+    assert cursor.execute.call_count == expected_attempts
