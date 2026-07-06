@@ -1732,3 +1732,122 @@ def test_add_query_raises_after_expected_attempts(
             )
 
     assert cursor.execute.call_count == expected_attempts
+
+
+@contextmanager
+def _passthrough_exception_handler(_sql):
+    """Stand-in for add_query's exception_handler in in-flight-cursor tests.
+
+    The real exception_handler has its own tests and depends on global runtime
+    state; here we only care about cursor tracking, so we let exceptions pass
+    straight through.
+    """
+
+    yield
+
+
+def _build_cancel_test_manager(monkeypatch: pytest.MonkeyPatch, cursor: MagicMock):
+    """Manager + thread connection wired for add_query in-flight-cursor tests."""
+
+    manager = object.__new__(SQLServerConnectionManager)
+
+    handle = MagicMock()
+    handle.cursor.return_value = cursor
+
+    credentials = MagicMock()
+    credentials.retries = 1
+
+    connection = MagicMock()
+    connection.handle = handle
+    connection.credentials = credentials
+    connection.transaction_open = True
+    connection.name = "cancel-test"
+
+    monkeypatch.setattr(manager, "get_thread_connection", lambda: connection)
+    monkeypatch.setattr(manager, "exception_handler", _passthrough_exception_handler)
+
+    return manager, connection
+
+
+def test_cancel_cancels_in_flight_cursor() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    cursor = MagicMock()
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=cursor)
+
+    manager.cancel(connection)
+
+    cursor.cancel.assert_called_once_with()
+
+
+def test_cancel_is_noop_without_in_flight_cursor() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=None)
+
+    # Must not raise when nothing is in flight.
+    manager.cancel(connection)
+
+
+def test_cancel_is_noop_when_attribute_absent() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    # A connection that never ran a query has no in-flight cursor attribute.
+    connection = SimpleNamespace(name="conn-1")
+
+    manager.cancel(connection)
+
+
+def test_cancel_handles_cursor_without_cancel_support() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    # object() has no .cancel attribute, so cancellation is skipped gracefully.
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=object())
+
+    manager.cancel(connection)
+
+
+def test_cancel_swallows_errors_from_cursor_cancel() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    cursor = MagicMock()
+    cursor.cancel.side_effect = RuntimeError("statement already completed")
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=cursor)
+
+    # Best-effort: a failure to cancel must not propagate.
+    manager.cancel(connection)
+
+    cursor.cancel.assert_called_once_with()
+
+
+def test_add_query_registers_then_clears_in_flight_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cursor = MagicMock()
+    cursor.rowcount = 0
+    captured: Dict[str, Any] = {}
+
+    manager, connection = _build_cancel_test_manager(monkeypatch, cursor)
+
+    def _record_in_flight(*_args, **_kwargs):
+        captured["during"] = connection._dbt_sqlserver_in_flight_cursor
+
+    cursor.execute.side_effect = _record_in_flight
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"):
+        manager.add_query("select 1", auto_begin=False)
+
+    # Registered while the statement runs, so cancel() can reach it...
+    assert captured["during"] is cursor
+    # ...and cleared once execution completes.
+    assert connection._dbt_sqlserver_in_flight_cursor is None
+
+
+def test_add_query_clears_in_flight_cursor_after_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cursor = MagicMock()
+    cursor.execute.side_effect = ValueError("boom")  # not a retryable exception
+
+    manager, connection = _build_cancel_test_manager(monkeypatch, cursor)
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"):
+        with pytest.raises(ValueError):
+            manager.add_query("select 1", auto_begin=False)
+
+    assert connection._dbt_sqlserver_in_flight_cursor is None
