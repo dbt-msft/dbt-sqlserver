@@ -379,7 +379,7 @@
     outer apply (
         /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
            of this adapter's CI matrix */
-        select string_agg(col.[name], ', ') within group (order by ic.key_ordinal) as cols
+        select string_agg(cast(col.[name] as nvarchar(max)), ', ') within group (order by ic.key_ordinal) as cols
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
@@ -387,7 +387,7 @@
           and ic.is_included_column = 0
     ) key_cols
     outer apply (
-        select string_agg(col.[name], ', ') as cols
+        select string_agg(cast(col.[name] as nvarchar(max)), ', ') as cols
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
@@ -395,7 +395,7 @@
           and ic.is_included_column = 1
     ) incl_cols
     outer apply (
-        select string_agg(col.[name], ', ') as cols
+        select string_agg(cast(col.[name] as nvarchar(max)), ', ') as cols
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
