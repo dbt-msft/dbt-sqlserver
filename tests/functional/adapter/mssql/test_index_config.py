@@ -682,6 +682,27 @@ from (
 
 SET_B = "[{'columns': ['column_b'], 'type': 'nonclustered'}]"
 
+# A wide table whose clustered columnstore index (as_columnstore defaults True)
+# spans every column. With ~200 columns of ~45 chars each, the column-name list
+# aggregated by sqlserver__describe_indexes is ~18 KB as nvarchar, past
+# STRING_AGG's 8000-byte result cap.
+WIDE_COLUMNSTORE_COLUMN_COUNT = 200
+_wide_columnstore_columns = ",\n  ".join(
+    f"{i} as wide_column_{i:03d}_with_a_reasonably_long_name"
+    for i in range(WIDE_COLUMNSTORE_COLUMN_COUNT)
+)
+models__wide_columnstore_sql = f"""
+{{{{
+  config(
+    materialized = "incremental",
+    as_columnstore = True,
+  )
+}}}}
+
+select
+  {_wide_columnstore_columns}
+"""
+
 
 def get_index_rows(project, unique_schema, table_name):
     sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)
@@ -753,6 +774,36 @@ class TestSQLServerIndexReconciliationDML:
         run_dbt(["run", "--models", "reconcile_dml", "--vars", f"reconcile_indexes: {SET_B}"])
         second = get_index_rows(project, unique_schema, "reconcile_dml")
         assert index_summary(second) == [("column_b", "nonclustered")]
+
+
+class TestSQLServerWideColumnstoreReconcile:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"wide_columnstore.sql": models__wide_columnstore_sql}
+
+    def test_wide_columnstore_reconcile_does_not_overflow(self, project, unique_schema):
+        # First run creates the wide table plus its clustered columnstore index.
+        run_dbt(["run", "--models", "wide_columnstore"])
+
+        # The second (non-full-refresh) run reconciles indexes, describing the
+        # existing columnstore index over all its columns.
+        results = run_dbt(["run", "--models", "wide_columnstore"])
+        assert len(results) == 1
+
+        # The clustered columnstore index (type 5) survives reconciliation.
+        cci_count = project.run_sql(
+            f"""
+            select count(*)
+            from sys.indexes i
+            join sys.objects o on o.object_id = i.object_id
+            join sys.schemas s on s.schema_id = o.schema_id
+            where s.name = '{unique_schema}'
+              and o.name = 'wide_columnstore'
+              and i.[type] = 5
+            """,
+            fetch="one",
+        )[0]
+        assert cci_count == 1
 
 
 class TestSQLServerDropUnmanagedIndexes:

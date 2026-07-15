@@ -210,11 +210,17 @@ def build_server_arg(credentials: SQLServerCredentials) -> str:
 
 
 def format_connection_string_value(value: Optional[str], mssql_python_backend: bool) -> str:
-    """Format a connection-string value for the requested backend."""
+    """Format a connection-string value for the requested backend.
+
+    Inside a brace-quoted ODBC value a literal ``}`` must be doubled to ``}}``;
+    otherwise the driver treats it as the closing brace and misparses the rest
+    of the connection string.
+    """
 
     if mssql_python_backend:
         return escape_connection_string_value(value)
-    return "{" + ("" if value is None else value) + "}"
+    text = "" if value is None else str(value)
+    return "{" + text.replace("}", "}}") + "}"
 
 
 def format_pyodbc_driver_value(value: Optional[str]) -> str:

@@ -30,7 +30,7 @@ jobs:
         password: ${{ secrets.github_token }}
     steps:
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         run: pip install uv

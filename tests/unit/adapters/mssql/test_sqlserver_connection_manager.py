@@ -1,5 +1,6 @@
 import builtins
 import importlib
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
@@ -38,6 +39,7 @@ from dbt.adapters.sqlserver.sqlserver_credentials import (
 from dbt.adapters.sqlserver.sqlserver_helpers import (
     bool_to_connection_string_arg,
     escape_connection_string_value,
+    format_connection_string_value,
     is_mssql_python_backend,
     sanitize_connection_string_for_logging,
     validate_connection_requirements,
@@ -347,6 +349,18 @@ def test_escape_connection_string_value_quotes_only_when_needed() -> None:
     assert escape_connection_string_value("brace}") == "{brace}}}"
     assert escape_connection_string_value(" leading") == "{ leading}"
     assert escape_connection_string_value("trailing ") == "{trailing }"
+
+
+def test_format_connection_string_value_doubles_braces_for_pyodbc() -> None:
+    assert format_connection_string_value("plain", mssql_python_backend=False) == "{plain}"
+    assert format_connection_string_value("pa}ss", mssql_python_backend=False) == "{pa}}ss}"
+    assert format_connection_string_value("}{", mssql_python_backend=False) == "{}}{}"
+    assert format_connection_string_value(None, mssql_python_backend=False) == "{}"
+
+
+def test_format_connection_string_value_delegates_for_mssql_python() -> None:
+    assert format_connection_string_value("plain", mssql_python_backend=True) == "plain"
+    assert format_connection_string_value("pa}ss", mssql_python_backend=True) == "{pa}}ss}"
 
 
 def test_sanitize_connection_string_for_logging_redacts_common_secret_fields() -> None:
@@ -1594,3 +1608,246 @@ def test_rollback_handle_disabled_exception_fires_rollback_failed(
         SQLServerConnectionManager._rollback_handle(connection)
 
     mock_fire_event.assert_called_once()
+
+
+class _FakeRetryableError(Exception):
+    """Stand-in for a backend retryable exception in add_query retry tests."""
+
+
+def _make_add_query_manager(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    retries: int,
+    execute_side_effect: Any,
+):
+    """Build a manager + thread connection wired for add_query retry tests.
+
+    Uses ``object.__new__`` (the pattern used elsewhere in this module) so no
+    real connection pool is constructed; only the collaborators add_query
+    touches are stubbed.
+    """
+
+    manager = object.__new__(SQLServerConnectionManager)
+
+    cursor = MagicMock()
+    cursor.execute.side_effect = execute_side_effect
+    cursor.rowcount = 0
+
+    handle = MagicMock()
+    handle.cursor.return_value = cursor
+
+    credentials = MagicMock()
+    credentials.retries = retries
+
+    connection = MagicMock()
+    connection.handle = handle
+    connection.credentials = credentials
+    connection.transaction_open = True
+    connection.name = "retry-test"
+
+    monkeypatch.setattr(manager, "get_thread_connection", lambda: connection)
+
+    # Isolate the retry loop from error translation / connection release, which
+    # have their own tests and otherwise depend on global runtime state.
+    @contextmanager
+    def _passthrough_exception_handler(_sql):
+        yield
+
+    monkeypatch.setattr(manager, "exception_handler", _passthrough_exception_handler)
+
+    return manager, cursor
+
+
+def test_add_query_retries_retryable_errors_until_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager, cursor = _make_add_query_manager(
+        monkeypatch,
+        retries=3,
+        execute_side_effect=[_FakeRetryableError(), _FakeRetryableError(), None],
+    )
+
+    with (
+        patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"),
+        patch("dbt.adapters.sqlserver.sqlserver_connections.time.sleep") as mock_sleep,
+    ):
+        _conn, result_cursor = manager.add_query(
+            "select 1", auto_begin=False, retryable_exceptions=(_FakeRetryableError,)
+        )
+
+    assert cursor.execute.call_count == 3
+    assert result_cursor is cursor
+    assert mock_sleep.call_count == 2
+
+
+@pytest.mark.parametrize(
+    ("retries", "execute_side_effect", "expected_exception", "expected_attempts"),
+    [
+        pytest.param(
+            3,
+            _FakeRetryableError(),
+            _FakeRetryableError,
+            3,
+            id="retryable-error-exhausts-attempt-cap",
+        ),
+        pytest.param(
+            1,
+            _FakeRetryableError(),
+            _FakeRetryableError,
+            1,
+            id="retries-one-means-single-attempt",
+        ),
+        pytest.param(
+            3,
+            ValueError("not retryable"),
+            ValueError,
+            1,
+            id="non-retryable-error-not-retried",
+        ),
+    ],
+)
+def test_add_query_raises_after_expected_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+    retries: int,
+    execute_side_effect: Exception,
+    expected_exception: type,
+    expected_attempts: int,
+) -> None:
+    # ``retries`` caps the total number of execute attempts: ``retries: 3``
+    # tries a persistently failing query three times, ``retries: 1`` never
+    # retries, and errors outside ``retryable_exceptions`` raise immediately.
+    manager, cursor = _make_add_query_manager(
+        monkeypatch,
+        retries=retries,
+        execute_side_effect=execute_side_effect,
+    )
+
+    with (
+        patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"),
+        patch("dbt.adapters.sqlserver.sqlserver_connections.time.sleep"),
+    ):
+        with pytest.raises(expected_exception):
+            manager.add_query(
+                "select 1", auto_begin=False, retryable_exceptions=(_FakeRetryableError,)
+            )
+
+    assert cursor.execute.call_count == expected_attempts
+
+
+@contextmanager
+def _passthrough_exception_handler(_sql):
+    """Stand-in for add_query's exception_handler in in-flight-cursor tests.
+
+    The real exception_handler has its own tests and depends on global runtime
+    state; here we only care about cursor tracking, so we let exceptions pass
+    straight through.
+    """
+
+    yield
+
+
+def _build_cancel_test_manager(monkeypatch: pytest.MonkeyPatch, cursor: MagicMock):
+    """Manager + thread connection wired for add_query in-flight-cursor tests."""
+
+    manager = object.__new__(SQLServerConnectionManager)
+
+    handle = MagicMock()
+    handle.cursor.return_value = cursor
+
+    credentials = MagicMock()
+    credentials.retries = 1
+
+    connection = MagicMock()
+    connection.handle = handle
+    connection.credentials = credentials
+    connection.transaction_open = True
+    connection.name = "cancel-test"
+
+    monkeypatch.setattr(manager, "get_thread_connection", lambda: connection)
+    monkeypatch.setattr(manager, "exception_handler", _passthrough_exception_handler)
+
+    return manager, connection
+
+
+def test_cancel_cancels_in_flight_cursor() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    cursor = MagicMock()
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=cursor)
+
+    manager.cancel(connection)
+
+    cursor.cancel.assert_called_once_with()
+
+
+def test_cancel_is_noop_without_in_flight_cursor() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=None)
+
+    # Must not raise when nothing is in flight.
+    manager.cancel(connection)
+
+
+def test_cancel_is_noop_when_attribute_absent() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    # A connection that never ran a query has no in-flight cursor attribute.
+    connection = SimpleNamespace(name="conn-1")
+
+    manager.cancel(connection)
+
+
+def test_cancel_handles_cursor_without_cancel_support() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    # object() has no .cancel attribute, so cancellation is skipped gracefully.
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=object())
+
+    manager.cancel(connection)
+
+
+def test_cancel_swallows_errors_from_cursor_cancel() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    cursor = MagicMock()
+    cursor.cancel.side_effect = RuntimeError("statement already completed")
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=cursor)
+
+    # Best-effort: a failure to cancel must not propagate.
+    manager.cancel(connection)
+
+    cursor.cancel.assert_called_once_with()
+
+
+def test_add_query_registers_then_clears_in_flight_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cursor = MagicMock()
+    cursor.rowcount = 0
+    captured: Dict[str, Any] = {}
+
+    manager, connection = _build_cancel_test_manager(monkeypatch, cursor)
+
+    def _record_in_flight(*_args, **_kwargs):
+        captured["during"] = connection._dbt_sqlserver_in_flight_cursor
+
+    cursor.execute.side_effect = _record_in_flight
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"):
+        manager.add_query("select 1", auto_begin=False)
+
+    # Registered while the statement runs, so cancel() can reach it...
+    assert captured["during"] is cursor
+    # ...and cleared once execution completes.
+    assert connection._dbt_sqlserver_in_flight_cursor is None
+
+
+def test_add_query_clears_in_flight_cursor_after_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cursor = MagicMock()
+    cursor.execute.side_effect = ValueError("boom")  # not a retryable exception
+
+    manager, connection = _build_cancel_test_manager(monkeypatch, cursor)
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"):
+        with pytest.raises(ValueError):
+            manager.add_query("select 1", auto_begin=False)
+
+    assert connection._dbt_sqlserver_in_flight_cursor is None

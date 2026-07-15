@@ -61,6 +61,10 @@ from dbt.adapters.sqlserver.sqlserver_runtime import (
 
 logger = AdapterLogger("sqlserver")
 
+# Attribute used to stash the in-flight pyodbc / mssql-python cursor on a
+# Connection so cancel() can reach it from another thread. See cancel().
+_IN_FLIGHT_CURSOR_ATTR = "_dbt_sqlserver_in_flight_cursor"
+
 
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
@@ -142,8 +146,40 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         return conn
 
-    def cancel(self, connection: Connection):
-        logger.debug("Cancel query")
+    def cancel(self, connection: Connection) -> None:
+        """Cancel the in-flight query on ``connection``, if any.
+
+        dbt-core's ``cancel_open`` calls this for sibling connections when a
+        run is interrupted (Ctrl-C) or another thread errors. We cancel by
+        calling ``Cursor.cancel()`` on the connection's in-flight cursor:
+        pyodbc exposes it and it is explicitly designed to be called from
+        another thread (it issues ``SQLCancel``); mssql-python's cursor is
+        used the same way when it supports it. Cancellation targets statement
+        execution. If no statement is in flight, the cursor is gone, or the
+        backend cursor does not support cancellation, this is a best-effort
+        no-op.
+        """
+
+        cursor = getattr(connection, _IN_FLIGHT_CURSOR_ATTR, None)
+        if cursor is None:
+            logger.debug(f"No in-flight query to cancel for connection {connection.name}.")
+            return
+
+        cancel_cursor = getattr(cursor, "cancel", None)
+        if not callable(cancel_cursor):
+            logger.debug(
+                f"Backend cursor for connection {connection.name} does not "
+                "support cancellation; skipping."
+            )
+            return
+
+        try:
+            logger.debug(f"Cancelling in-flight query for connection {connection.name}.")
+            cancel_cursor()
+        except Exception as exc:
+            # The statement may have completed between the lookup and the
+            # cancel; cancellation is best-effort, so swallow and log.
+            logger.debug(f"Failed to cancel query for connection {connection.name}: {exc}")
 
     def add_begin_query(self):
         if self._dbt_sqlserver_use_dbt_transactions:
@@ -225,7 +261,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
                 fire_event(
                     AdapterEventDebug(
-                        message=(
+                        base_msg=(
                             f"Got a retryable error {type(e)}. {retry_limit - attempt} "
                             "retries left. Retrying in 1 second.\n"
                             f"Error:\n{e}"
@@ -270,16 +306,25 @@ class SQLServerConnectionManager(SQLConnectionManager):
             pre = time.time()
 
             cursor = connection.handle.cursor()
+            # Track the in-flight cursor so cancel() / cancel_open() can stop it
+            # from another thread (e.g. on Ctrl-C); cleared once execution
+            # finishes. See cancel().
+            setattr(connection, _IN_FLIGHT_CURSOR_ATTR, cursor)
             credentials = self.get_credentials(connection.credentials)
 
-            _execute_query_with_retry(
-                cursor=cursor,
-                sql=sql,
-                bindings=bindings,
-                retryable_exceptions=retryable_exceptions,
-                retry_limit=(credentials.retries if credentials.retries > 3 else retry_limit),
-                attempt=1,
-            )
+            try:
+                _execute_query_with_retry(
+                    cursor=cursor,
+                    sql=sql,
+                    bindings=bindings,
+                    retryable_exceptions=retryable_exceptions,
+                    # ``retries`` caps total execute attempts, so ``retries: 1``
+                    # means a single attempt with no retry.
+                    retry_limit=credentials.retries,
+                    attempt=1,
+                )
+            finally:
+                setattr(connection, _IN_FLIGHT_CURSOR_ATTR, None)
 
             if is_pyodbc_handle(connection.handle):
                 connection.handle.add_output_converter(-155, byte_array_to_datetime)
