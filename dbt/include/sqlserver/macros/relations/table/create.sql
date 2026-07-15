@@ -40,9 +40,11 @@
     {% set as_columnstore = config.get('as_columnstore', default=true) %}
     {% if not temporary and as_columnstore -%}
         {#-
-        add columnstore index
-        this creates with dbt_temp as its coming from a temporary relation before renaming
-        could alter relation to drop the dbt_temp portion if needed
+        Add a clustered columnstore index. The index name is derived from the
+        *final* relation name (with __dbt_tmp / __dbt_backup suffixes stripped),
+        so a second run produces an identical name and the index is not
+        orphaned after intermediate relations are renamed.
+        See dbt/include/sqlserver/macros/adapters/indexes.sql.
         -#}
         {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
