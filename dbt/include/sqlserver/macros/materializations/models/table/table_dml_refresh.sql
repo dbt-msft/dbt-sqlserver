@@ -46,6 +46,10 @@
   {%- set schema_changes = check_for_schema_changes(refresh_relation, target_relation) -%}
   {%- set schema_match = not schema_changes['schema_changed'] -%}
 
+  {#- Resolve the mask map once; applied per-branch below at the right point
+      relative to index creation (see apply_masks). -#}
+  {%- set mask_config = adapter.resolve_masks(model, config.get('masks')) -%}
+
   {% if schema_match %}
     {# Use the target's physical column order for both INSERT and SELECT. #}
     {# The scratch table has the same columns but possibly in a different order, #}
@@ -78,6 +82,11 @@
        the config. Runs after the swap's self-contained transaction. #}
     {% do sqlserver__reconcile_indexes(target_relation) %}
 
+    {# Persisted-table path: masks already exist from the prior build; this
+       reconciles any config change. Runs after reconcile so index drops land
+       first. #}
+    {% do apply_masks(target_relation, mask_config) %}
+
   {% else %}
     {# Schema changed — fall back to rename-swap for this run #}
     {{ log("Schema change detected for " ~ target_relation ~ " — falling back to rename-swap", info=true) }}
@@ -93,6 +102,11 @@
     {% endif %}
 
     {{ adapter.rename_relation(refresh_relation, target_relation) }}
+
+    {# Rebuilt via SELECT INTO (no masks carried), so apply masks before
+       create_indexes — a mask cannot be added to a column an index depends
+       on (documented for all SQL Server versions). #}
+    {% do apply_masks(target_relation, mask_config) %}
 
     {% do create_indexes(target_relation) %}
 

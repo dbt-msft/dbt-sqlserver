@@ -216,6 +216,53 @@ You can also set it per model:
 {{ config(materialized="table", as_columnstore=false) }}
 ```
 
+### Dynamic Data Masking (`masked_with` / `masks`)
+
+The adapter can apply SQL Server [Dynamic Data Masking](https://learn.microsoft.com/en-us/sql/relational-databases/security/dynamic-data-masking) (DDM) to columns as part of the materialization, so masks are re-applied on every build and survive dbt's drop-and-recreate on a full refresh. A principal granted `SELECT` but not `UNMASK` then sees masked values instead of real data (dbt's own build principal, being `db_owner`, keeps `UNMASK` and reads real data). Requires **SQL Server 2016+**.
+
+There are two config surfaces, and you can use either or both:
+
+**Column-level `masked_with:`** — a first-class column property in schema YAML (like `data_type:` or `constraints:`), whose value is the masking-function string:
+
+```yaml
+# models/schema.yml
+version: 2
+models:
+  - name: core_patients
+    columns:
+      - name: surname
+        masked_with: "default()"
+      - name: nhs_number
+        masked_with: 'partial(0,"XXXXXXXXXX",0)'
+```
+
+**Model-level `masks`** — a `{column: function}` dict, settable in the in-file `{{ config() }}`, the model's `.yml` `config:` block, or a directory-wide default in `dbt_project.yml`. It merges key-wise across those levels (like `meta`), so a directory default and a per-model tweak combine rather than clobber:
+
+```sql
+{{ config(masks={'surname': "default()", 'nhs_number': 'partial(0,"XXXXXXXXXX",0)'}) }}
+```
+
+```yaml
+# dbt_project.yml — mask nhs_number on every model under datasets/ that has it
+models:
+  my_project:
+    datasets:
+      +masks: { nhs_number: "default()" }
+```
+
+Behaviour:
+
+- **Precedence:** when both surfaces target the same column, the column-level `masked_with` wins, and a warning naming the model, column and both functions is emitted (even when they agree). This is not something dbt itself ranks, so the rule is the adapter's: a column is more specific than a model.
+- **Opt out of an inherited default:** set `masked_with: null` on the column to remove a mask inherited from a directory/model-level `masks` entry.
+- **Validation:** a `masks` (or `masked_with`) entry naming a column that is not in the built relation is skipped with a warning (a likely typo or stale rename); the run does not fail.
+- **Unmaskable columns:** computed, `FILESTREAM`, sparse `COLUMN_SET` and `Always Encrypted` columns cannot carry a mask, and the run errors listing them rather than emitting DDL that fails.
+- **Views/ephemeral/seeds:** masks apply to base tables only (`table`, `incremental`, `snapshot`). Views inherit masking from their base tables and cannot carry a mask; **seeds are not currently masked**.
+- **Idempotent:** the adapter diffs the desired masks against `sys.masked_columns` and emits only the `ADD` / change / `DROP MASKED` statements that changed, so a persisted (incremental) re-run with no config change issues no DDL.
+
+**Indexes and masking.** SQL Server cannot *add* a mask to a column an index depends on (documented for all versions: `ALTER TABLE ALTER COLUMN … failed because one or more objects access this column`). The adapter avoids this on fresh builds by applying masks **before** it creates (rowstore) indexes — which is exactly Microsoft's documented workaround order (mask, then create the index). The default clustered columnstore index is unaffected (its columns are included, not key columns). On a **persisted** table (incremental/snapshot without full refresh), adding a *new* mask to a column that is already an index key errors with a message pointing to the drop-index → mask → recreate-index workaround.
+
+**Version notes.** All masking DDL the adapter emits (`ADD MASKED`, `MASKED WITH`, `DROP MASKED`) and the functions `default()`, `email()`, `random(a,b)` and `partial(...)` work on 2016+. The `datetime()` partial-date function and granular column/schema/table-scoped `UNMASK` are SQL Server 2022+ only; the adapter never emits them, but mask-function strings are passed through verbatim, so using a 2022-only function on an older server will be rejected by SQL Server.
+
 ## Contributing
 
 [![Unit tests](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/unit-tests.yml)

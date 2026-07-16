@@ -59,6 +59,15 @@
 
     {{ adapter.rename_relation(intermediate_relation, target_relation) }}
 
+    {#-- Apply data masks before create_indexes: a mask cannot be added to a
+         column an index depends on (documented for all SQL Server versions;
+         the fix is to mask first, then create the index — exactly this order),
+         so masking must happen while the (rowstore) indexes do not yet exist.
+         The clustered columnstore index built during CTAS is fine — columnstore
+         columns are reported as included, not index keys, and can be masked. --#}
+    {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}
+    {% do apply_masks(target_relation, mask_config) %}
+
     {% do create_indexes(target_relation) %}
   {% endif %}
 
