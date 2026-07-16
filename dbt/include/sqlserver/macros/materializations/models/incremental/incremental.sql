@@ -32,11 +32,47 @@
   {% set to_drop = [] %}
 
   {% if existing_relation is none %}
+    {% if config.get('full_refresh_build', 'heap_then_index') == 'prebuilt' %}
+      {#- first build: load straight into the clustered design -#}
+      {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+    {% else %}
       {% set build_sql = get_create_table_as_sql(False, target_relation, sql) %}
+    {% endif %}
   {% elif full_refresh_mode %}
+    {#- the target is marked as having a full refresh in flight (blocking
+        normal runs until one completes), but only AFTER anything that can
+        fail on config alone - a pure config error must not mark a healthy
+        table -#}
+    {% if config.get('full_refresh_build', 'heap_then_index') == 'prebuilt' and should_full_refresh() %}
+      {#- in-place full refresh: drop the existing table, rebuild the target
+          directly with no intermediate or swap (explicit --full-refresh
+          only; view->table conversions keep the default path) -#}
+      {% do sqlserver__assert_no_unguarded_self_reference(target_relation, sql) %}
+      {#- validate the index config BEFORE marking or dropping anything -#}
+      {% do adapter.validate_indexes(
+          config.get('indexes', default=[]),
+          config.get('as_columnstore', default=true),
+          config.get('drop_unmanaged_indexes', default=false)
+      ) %}
+      {% if existing_relation.type == 'table' %}
+        {% do sqlserver__mark_full_refresh_incomplete(existing_relation) %}
+      {% endif %}
+      {% do adapter.drop_relation(existing_relation) %}
+      {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+    {% else %}
       {% set build_sql = get_create_table_as_sql(False, intermediate_relation, sql) %}
+      {% if existing_relation.type == 'table' %}
+        {% do sqlserver__mark_full_refresh_incomplete(existing_relation) %}
+      {% endif %}
       {% set need_swap = true %}
+    {% endif %}
   {% else %}
+
+    {#- refuse to append onto a table whose last full refresh never
+        completed -#}
+    {% if existing_relation.type == 'table' %}
+      {% do sqlserver__assert_no_incomplete_full_refresh(existing_relation) %}
+    {% endif %}
 
     {% do run_query(get_create_table_as_sql(True, temp_relation, sql)) %}
 
