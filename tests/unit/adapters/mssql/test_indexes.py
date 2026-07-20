@@ -38,7 +38,7 @@ def _patched_macro_call(self, *args, **kwargs):
         return exc.value
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def _patch_jinja2_macro_return():
     _Jinja2Macro.__call__ = _patched_macro_call
     yield
@@ -85,6 +85,7 @@ def _env():
             "local_md5": local_md5,
             "information_schema_hints": lambda: "",
             "log": lambda *a, **kw: "",
+            "get_use_database_sql": lambda db: f"USE [{db}];",
             "this": _FakeRelation("mydb", "myschema", "my_model"),
             "return": lambda v: (_ for _ in ()).throw(_MacroReturn(v)),
         }

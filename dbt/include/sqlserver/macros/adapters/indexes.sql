@@ -50,17 +50,18 @@
 
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
     {%- set stripped_id = mssql__strip_dbt_suffix(relation.identifier) | replace('[', '') | replace(']', '') -%}
-    {%- set cci_name = relation.schema ~ '_' ~ stripped_id ~ '_cci' -%}
-    {%- set full_relation = mssql__quote_ident(relation.schema) ~ '.' ~ mssql__quote_ident(relation.identifier) -%}
-    use [{{ relation.database }}];
+    {%- set cci_name = relation.schema | replace('[', '') | replace(']', '') ~ '_' ~ stripped_id ~ '_cci' -%}
+    {%- set cci_literal = cci_name | replace("'", "''") -%}
+    {%- set full_relation_literal = mssql__qualified_relation(relation) | replace("'", "''") -%}
+    {{ get_use_database_sql(relation.database) }}
     if EXISTS (
         SELECT *
         FROM sys.indexes {{ information_schema_hints() }}
-        WHERE name = N'{{cci_name}}'
-        AND object_id = OBJECT_ID(N'{{full_relation}}')
+        WHERE name = N'{{ cci_literal }}'
+        AND object_id = OBJECT_ID(N'{{ full_relation_literal }}')
     )
-    DROP INDEX {{full_relation}}.[{{cci_name}}]
-    CREATE CLUSTERED COLUMNSTORE INDEX [{{cci_name}}]
+    DROP INDEX {{ mssql__quote_ident(cci_name) }} ON {{ mssql__qualified_relation(relation) }}
+    CREATE CLUSTERED COLUMNSTORE INDEX {{ mssql__quote_ident(cci_name) }}
     ON {{ mssql__qualified_relation(relation) }}
 {% endmacro %}
 
@@ -434,22 +435,13 @@
     from sys.indexes i {{ information_schema_hints() }}
     outer apply (
         /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
-           of this adapter's CI matrix.
-           A clustered columnstore index (type 5) has no key columns: it stores
-           the whole table, so sys.index_columns lists EVERY column for it. Those
-           columns are not part of the index's identity — reconciliation matches
-           the CCI by name/type and never compares its columns (see
-           index_config_changes) — and aggregating them all is what overflowed
-           STRING_AGG on wide tables (issue #735). Skip them: report no columns
-           for a CCI. The nvarchar(max) cast still guards wide *nonclustered*
-           columnstore indexes (type 6), whose columns ARE user-chosen identity. */
+           of this adapter's CI matrix */
         select string_agg(cast(col.[name] as nvarchar(max)), ', ') within group (order by ic.key_ordinal) as cols
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
         where ic.object_id = i.object_id and ic.index_id = i.index_id
           and ic.is_included_column = 0
-          and i.[type] <> 5
     ) key_cols
     outer apply (
         select string_agg(cast(col.[name] as nvarchar(max)), ', ') as cols
