@@ -367,9 +367,6 @@ class TestIndexQuotedIdentifiers:
         assert "weird name" in col_names
 
 
-
-
-
 orphan_cci_check_sql = """
 SELECT COUNT(*)
 FROM sys.indexes i
@@ -425,9 +422,9 @@ class TestNoOrphanColumnstoreIndex:
         cci_rows = list(t.rows)
         assert len(cci_rows) == 1, f"Expected exactly 1 CCI on cci_model, got {cci_rows}"
         cci_name = cci_rows[0][0]
-        assert "__dbt_tmp" not in cci_name, (
-            f"CCI name '{cci_name}' contains __dbt_tmp - index would be orphaned after rename"
-        )
-        assert "__dbt_backup" not in cci_name, (
-            f"CCI name '{cci_name}' contains __dbt_backup - index would be orphaned after rename"
-        )
+        assert (
+            "__dbt_tmp" not in cci_name
+        ), f"CCI name '{cci_name}' contains __dbt_tmp - index would be orphaned after rename"
+        assert (
+            "__dbt_backup" not in cci_name
+        ), f"CCI name '{cci_name}' contains __dbt_backup - index would be orphaned after rename"

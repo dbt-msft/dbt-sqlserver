@@ -227,17 +227,13 @@ class TestIndexExists:
 class TestCreateClusteredIndex:
     def test_quotes_columns(self):
         rel = _FakeRelation("d", "s", "t")
-        sql = _render(
-            "create_clustered_index(['id_col', 'data'], relation=rel)", rel=rel
-        )
+        sql = _render("create_clustered_index(['id_col', 'data'], relation=rel)", rel=rel)
         sql = _normalize_ws(sql)
         assert "([id_col], [data])" in sql
 
     def test_wrapped_in_if_not_exists(self):
         rel = _FakeRelation("d", "s", "t")
-        sql = _normalize_ws(
-            _render("create_clustered_index(['c'], relation=rel)", rel=rel)
-        )
+        sql = _normalize_ws(_render("create_clustered_index(['c'], relation=rel)", rel=rel))
         assert "if not exists" in sql
         assert "begin create" in sql
         assert sql.endswith("end")
@@ -245,33 +241,25 @@ class TestCreateClusteredIndex:
     def test_unique_flag_emits_unique_keyword(self):
         rel = _FakeRelation("d", "s", "t")
         sql = _normalize_ws(
-            _render(
-                "create_clustered_index(['c'], unique=True, relation=rel)", rel=rel
-            )
+            _render("create_clustered_index(['c'], unique=True, relation=rel)", rel=rel)
         )
         assert "unique clustered index" in sql
 
     def test_accepts_string_column(self):
         rel = _FakeRelation("d", "s", "t")
-        sql = _normalize_ws(
-            _render("create_clustered_index('id_col', relation=rel)", rel=rel)
-        )
+        sql = _normalize_ws(_render("create_clustered_index('id_col', relation=rel)", rel=rel))
         assert "([id_col])" in sql
 
 
 class TestCreateNonclusteredIndex:
     def test_emits_nonclustered(self):
         rel = _FakeRelation("d", "s", "t")
-        sql = _normalize_ws(
-            _render("create_nonclustered_index(['c'], relation=rel)", rel=rel)
-        )
+        sql = _normalize_ws(_render("create_nonclustered_index(['c'], relation=rel)", rel=rel))
         assert "create nonclustered index" in sql
 
     def test_accepts_string_column(self):
         rel = _FakeRelation("d", "s", "t")
-        sql = _normalize_ws(
-            _render("create_nonclustered_index('c', relation=rel)", rel=rel)
-        )
+        sql = _normalize_ws(_render("create_nonclustered_index('c', relation=rel)", rel=rel))
         assert "([c])" in sql
 
     def test_accepts_string_include_column(self):
@@ -293,9 +281,7 @@ class TestCreateNonclusteredIndex:
 
     def test_no_include_block_when_no_includes(self):
         rel = _FakeRelation("d", "s", "t")
-        sql = _normalize_ws(
-            _render("create_nonclustered_index(['c'], relation=rel)", rel=rel)
-        )
+        sql = _normalize_ws(_render("create_nonclustered_index(['c'], relation=rel)", rel=rel))
         assert "include" not in sql
 
     def test_false_include_is_treated_as_empty(self):
@@ -308,17 +294,13 @@ class TestCreateNonclusteredIndex:
     def test_columns_with_brackets_are_escaped(self):
         rel = _FakeRelation("d", "s", "t")
         sql = _normalize_ws(
-            _render(
-                "create_nonclustered_index(['we]ird'], relation=rel)", rel=rel
-            )
+            _render("create_nonclustered_index(['we]ird'], relation=rel)", rel=rel)
         )
         assert "[we]]ird]" in sql
 
     def test_idempotent_wrapper(self):
         rel = _FakeRelation("d", "s", "t")
-        sql = _normalize_ws(
-            _render("create_nonclustered_index(['c'], relation=rel)", rel=rel)
-        )
+        sql = _normalize_ws(_render("create_nonclustered_index(['c'], relation=rel)", rel=rel))
         assert "if not exists" in sql and "begin" in sql and "end" in sql
 
 
