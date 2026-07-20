@@ -30,6 +30,7 @@
 - Fix `columnstore IF EXISTS` guard to check `object_id('schema.table')` correctly.
 - Gate the `optimize_for_sequential_key` and `resumable` index options on the detected engine version: they require SQL Server 2019+, so on 2017/2016 the index is now built without them (with a warning) instead of failing with "is not a recognized CREATE INDEX option".
 - Cast the aggregated column names in `sqlserver__describe_indexes` to `nvarchar(max)` so index reconciliation no longer fails with `STRING_AGG` error 9829 on wide tables (e.g. a clustered columnstore index spanning enough columns to exceed the 8000-byte cap). [#735](https://github.com/dbt-msft/dbt-sqlserver/issues/735)
+- Apply `query_options` / `query_options_raw` (and the `LABEL` query tag) on the `table_refresh_method: dml` path. Both the scratch-build `SELECT ... INTO` and the swap `INSERT ... SELECT` now emit the `OPTION (...)` clause, matching `create_table_as`; previously they were silently dropped on every steady-state DML refresh.
 - Escape single quotes in `query_tag` before building `OPTION (LABEL)` clause.
 - Map Python `float` to SQL Server `float`, not `bigint`.
 - Set default port to `1433` (instead of Postgres `5432`) in `dbt init` profile template.
