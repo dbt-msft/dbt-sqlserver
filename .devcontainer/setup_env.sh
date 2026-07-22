@@ -21,6 +21,8 @@ command -v uv >/dev/null 2>&1 || pip install uv
 [ -d .venv ] || uv venv
 source .venv/bin/activate
 
-# Install both backend extras so the devcontainer can exercise either connection path.
-uv sync --all-extras
-pre-commit install
+# Install both backend extras so the devcontainer can exercise either connection path,
+# plus the dev dependency group (pre-commit, pytest, etc.). Groups are installed
+# explicitly rather than relying on uv's default-group behaviour, which varies by version.
+uv sync --all-extras --group dev
+uv run pre-commit install

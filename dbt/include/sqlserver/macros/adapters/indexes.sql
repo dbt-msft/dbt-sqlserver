@@ -378,13 +378,22 @@
     from sys.indexes i {{ information_schema_hints() }}
     outer apply (
         /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
-           of this adapter's CI matrix */
+           of this adapter's CI matrix.
+           A clustered columnstore index (type 5) has no key columns: it stores
+           the whole table, so sys.index_columns lists EVERY column for it. Those
+           columns are not part of the index's identity — reconciliation matches
+           the CCI by name/type and never compares its columns (see
+           index_config_changes) — and aggregating them all is what overflowed
+           STRING_AGG on wide tables (issue #735). Skip them: report no columns
+           for a CCI. The nvarchar(max) cast still guards wide *nonclustered*
+           columnstore indexes (type 6), whose columns ARE user-chosen identity. */
         select string_agg(cast(col.[name] as nvarchar(max)), ', ') within group (order by ic.key_ordinal) as cols
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
         where ic.object_id = i.object_id and ic.index_id = i.index_id
           and ic.is_included_column = 0
+          and i.[type] <> 5
     ) key_cols
     outer apply (
         select string_agg(cast(col.[name] as nvarchar(max)), ', ') as cols
