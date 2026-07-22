@@ -703,6 +703,25 @@ select
   {_wide_columnstore_columns}
 """
 
+# Calls the adapter's describe_indexes macro on a relation and logs, for the
+# clustered columnstore index (type 5), how many column names it reports. The
+# CCI stores the whole table but has no key columns, so describe_indexes must
+# report none for it — both because those columns are not part of the index's
+# identity and to avoid re-aggregating every column name on each reconcile.
+VALIDATE_CCI_DESCRIBE_MACRO = """
+{% macro validate_cci_describe_columns(schema, identifier) -%}
+    {% set relation = api.Relation.create(
+        database=target.database, schema=schema, identifier=identifier, type='table'
+    ) %}
+    {% set described = sqlserver__describe_indexes(relation) %}
+    {% for row in described.rows %}
+        {% if row['type'] == 'clustered columnstore' %}
+            {{ log("cci_columns_len: " ~ (row['columns'] | string | length)) }}
+        {% endif %}
+    {% endfor %}
+{% endmacro %}
+"""
+
 
 def get_index_rows(project, unique_schema, table_name):
     sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)
@@ -781,6 +800,10 @@ class TestSQLServerWideColumnstoreReconcile:
     def models(self):
         return {"wide_columnstore.sql": models__wide_columnstore_sql}
 
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"validate_cci_describe_columns.sql": VALIDATE_CCI_DESCRIBE_MACRO}
+
     def test_wide_columnstore_reconcile_does_not_overflow(self, project, unique_schema):
         # First run creates the wide table plus its clustered columnstore index.
         run_dbt(["run", "--models", "wide_columnstore"])
@@ -804,6 +827,25 @@ class TestSQLServerWideColumnstoreReconcile:
             fetch="one",
         )[0]
         assert cci_count == 1
+
+    def test_cci_described_with_no_columns(self, project, unique_schema):
+        # Build the wide table + its clustered columnstore index.
+        run_dbt(["run", "--models", "wide_columnstore"])
+
+        # describe_indexes must report NO columns for the CCI: they are the whole
+        # table, are not part of the index's identity, and aggregating them all
+        # is what overflowed STRING_AGG on wide tables (issue #735).
+        kwargs = {"schema": unique_schema, "identifier": "wide_columnstore"}
+        _, log_output = run_dbt_and_capture(
+            [
+                "--debug",
+                "run-operation",
+                "validate_cci_describe_columns",
+                "--args",
+                str(kwargs),
+            ]
+        )
+        assert "cci_columns_len: 0" in log_output
 
 
 class TestSQLServerDropUnmanagedIndexes:
