@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from dbt.tests.util import run_dbt
+from dbt.tests.util import run_dbt, run_dbt_and_capture
 
 
 def _find_compiled_run_sql(project, filename: str) -> str:
@@ -842,3 +842,87 @@ class TestQueryOptionsParameterizationRejected:
         results = run_dbt(["run"], expect_pass=False)
         assert len(results) == 1
         assert results[0].status == "error"
+
+
+# ---------------------------------------------------------------------------
+# DML table refresh path (table_refresh_method='dml', steady-state refresh)
+# ---------------------------------------------------------------------------
+
+dml_refresh_options_model_sql = """
+{{ config(
+    materialized='table',
+    table_refresh_method='dml',
+    as_columnstore=False,
+    query_options={'MAXDOP': 1}
+) }}
+select 1 as id
+"""
+
+dml_refresh_options_model_v2_sql = """
+{{ config(
+    materialized='table',
+    table_refresh_method='dml',
+    as_columnstore=False,
+    query_options={'MAXDOP': 1}
+) }}
+select 2 as id
+"""
+
+
+class TestQueryOptionsOnDmlRefresh:
+    """A table_refresh_method='dml' model takes the DML-refresh path on the
+    second (steady-state) run, not the create_table_as path. That path has two
+    grant-taking statements — the 'main' SELECT INTO scratch build and the
+    'dml_refresh_swap' INSERT — and BOTH must carry the query_options hint.
+
+    Only the 'main' statement lands in target/run; the swap runs via its own
+    statement() call. So this asserts against the executed SQL captured from the
+    debug log, matching each statement bounded by its terminating ';' so a hint
+    on one statement can't be mistaken for a hint on the other.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"dml_refresh_model.sql": dml_refresh_options_model_sql}
+
+    def test_options_render_on_both_dml_statements(self, project):
+        # First run creates the table via the standard create path.
+        run_dbt(["run"])
+
+        # Swap in v2 (same schema, different data) so the second run takes the
+        # DML refresh path (existing table + matching schema).
+        write_model(project, "dml_refresh_model.sql", dml_refresh_options_model_v2_sql)
+
+        _, logs = run_dbt_and_capture(["--debug", "run"])
+
+        # 'main' — SELECT * INTO <scratch> FROM <tmp view>, must carry the hint.
+        # [^;]* keeps the match inside the single statement (its only ';' is the
+        # terminator that follows the OPTION clause).
+        main_match = re.search(
+            r"SELECT \* INTO[^;]*__dbt_refresh__dbt_tmp_vw[^;]*OPTION \([^;]*MAXDOP 1",
+            logs,
+            re.IGNORECASE,
+        )
+        assert (
+            main_match is not None
+        ), "query_options missing from the 'main' SELECT INTO statement of the DML refresh"
+
+        # 'dml_refresh_swap' — INSERT ... SELECT ... FROM <scratch>, must carry
+        # the hint too. The INSERT...SELECT spans newlines but has no interior
+        # ';', so [^;]* stays within it and won't reach the main statement above.
+        swap_match = re.search(
+            r"INSERT INTO[^;]*SELECT[^;]*__dbt_refresh[^;]*OPTION \([^;]*MAXDOP 1",
+            logs,
+            re.IGNORECASE,
+        )
+        assert (
+            swap_match is not None
+        ), "query_options missing from the 'dml_refresh_swap' INSERT statement of the DML refresh"
+
+
+def write_model(project, filename, contents):
+    """Write a model file into the project's models directory (mirrors the
+    helper in test_table_refresh_method.py; kept local to avoid a cross-import)."""
+    path = os.path.join(project.project_root, "models", filename)
+    with open(path, "w") as f:
+        f.write(contents)
