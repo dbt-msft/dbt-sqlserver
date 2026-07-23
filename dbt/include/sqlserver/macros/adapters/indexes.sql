@@ -1,17 +1,52 @@
+{% macro sqlserver__strip_dbt_suffix(identifier) -%}
+  {%- set ns = namespace(result=identifier) -%}
+  {%- for suffix in ['__dbt_tmp_vw', '__dbt_backup', '__dbt_tmp'] -%}
+    {%- if ns.result.endswith(suffix) -%}
+      {%- set ns.result = ns.result[:(ns.result | length) - (suffix | length)] -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{ return(ns.result) }}
+{%- endmacro %}
+
+
+{% macro sqlserver__index_name(rel, type, columns, unique=False, includes=false) -%}
+  {%- set cols = [columns] if columns is string else columns -%}
+  {%- set incs = [] if not includes else ([includes] if includes is string else includes) -%}
+  {%- set stripped = sqlserver__strip_dbt_suffix(rel.identifier) | replace('[', '') | replace(']', '') -%}
+  {%- set sig = type ~ '|' ~ (cols | join(',')) ~ '|' ~ (unique | string) ~ '|' ~ (incs | join(',')) -%}
+  {%- set hash = local_md5(sig) -%}
+  {%- set prefix = type ~ '_' ~ stripped -%}
+  {%- set max_prefix = 83 -%}
+  {%- if prefix | length > max_prefix -%}
+    {%- set prefix = (prefix | list)[:max_prefix] | join -%}
+  {%- endif -%}
+  {{ return(prefix ~ '_' ~ hash) }}
+{%- endmacro %}
+
+
+{% macro sqlserver__index_exists(rel, index_name) -%}
+  EXISTS (
+    SELECT 1
+    FROM sys.indexes {{ information_schema_hints() }}
+    WHERE name = N'{{ escape_single_quotes(index_name) }}'
+    AND object_id = OBJECT_ID(N'{{ escape_single_quotes(rel) }}')
+  )
+{%- endmacro %}
+
+
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
-    {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
-    {%- set relation_name = relation.include(database=False) -%}
-    {%- set full_relation = '"' ~ relation.schema ~ '"."' ~ relation.identifier ~ '"' -%}
-    use [{{ relation.database }}];
+    {%- set stripped_id = sqlserver__strip_dbt_suffix(relation.identifier) | replace('[', '') | replace(']', '') -%}
+    {%- set cci_name = relation.schema | replace('[', '') | replace(']', '') ~ '_' ~ stripped_id ~ '_cci' -%}
+    {{ get_use_database_sql(relation.database) }}
     if EXISTS (
         SELECT *
         FROM sys.indexes {{ information_schema_hints() }}
-        WHERE name = '{{cci_name}}'
-        AND object_id=object_id('{{relation_name}}')
+        WHERE name = N'{{ escape_single_quotes(cci_name) }}'
+        AND object_id = OBJECT_ID(N'{{ escape_single_quotes(relation) }}')
     )
-    DROP index {{full_relation}}.{{cci_name}}
-    CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
-    ON {{full_relation}}
+    DROP INDEX {{ adapter.quote(cci_name) }} ON {{ relation }}
+    CREATE CLUSTERED COLUMNSTORE INDEX {{ adapter.quote(cci_name) }}
+    ON {{ relation }}
 {% endmacro %}
 
 {% macro drop_xml_indexes() -%}
@@ -116,15 +151,20 @@
 {%- endmacro %}
 
 
-{% macro create_clustered_index(columns, unique=False) -%}
+{% macro create_clustered_index(columns, unique=False, relation=none) -%}
+    {%- set _relation = relation if relation is not none else this -%}
+    {%- set cols = [columns] if columns is string else columns -%}
+    {%- set idx_name = sqlserver__index_name(_relation, 'cidx', cols, unique=unique) -%}
+    {%- set quoted_cols = [] -%}
+    {%- for col in cols -%}
+        {%- do quoted_cols.append(adapter.quote(col)) -%}
+    {%- endfor -%}
     {{ log("Creating clustered index...") }}
 
-    {% set idx_name = "clustered_" + local_md5(columns | join("_")) %}
-
-    if not exists(select *
+    if not exists(select 1
                     from sys.indexes {{ information_schema_hints() }}
-                    where name = '{{ idx_name }}'
-                    and object_id = OBJECT_ID('{{ this }}')
+                    where name = N'{{ escape_single_quotes(idx_name) }}'
+                    and object_id = OBJECT_ID(N'{{ escape_single_quotes(_relation) }}')
     )
     begin
 
@@ -133,38 +173,39 @@
     unique
     {% endif %}
     clustered index
-        {{ idx_name }}
-        on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
+        {{ adapter.quote(idx_name) }}
+        on {{ _relation }} ({{ quoted_cols | join(', ') }})
     end
 {%- endmacro %}
 
 
-{% macro create_nonclustered_index(columns, includes=False) %}
+{% macro create_nonclustered_index(columns, includes=False, relation=none) %}
 
+    {%- set _relation = relation if relation is not none else this -%}
+    {%- set cols = [columns] if columns is string else columns -%}
+    {%- set incs = [] if not includes else ([includes] if includes is string else includes) -%}
+    {%- set idx_name = sqlserver__index_name(_relation, 'nidx', cols, includes=incs) -%}
+    {%- set quoted_cols = [] -%}
+    {%- for col in cols -%}
+        {%- do quoted_cols.append(adapter.quote(col)) -%}
+    {%- endfor -%}
+    {%- set quoted_incs = [] -%}
+    {%- for inc in incs -%}
+        {%- do quoted_incs.append(adapter.quote(inc)) -%}
+    {%- endfor -%}
     {{ log("Creating nonclustered index...") }}
 
-    {% if includes -%}
-        {% set idx_name = (
-            "nonclustered_"
-            + local_md5(columns | join("_"))
-            + "_incl_"
-            + local_md5(includes | join("_"))
-        ) %}
-    {% else -%}
-        {% set idx_name = "nonclustered_" + local_md5(columns | join("_")) %}
-    {% endif %}
-
-    if not exists(select *
+    if not exists(select 1
                     from sys.indexes {{ information_schema_hints() }}
-                    where name = '{{ idx_name }}'
-                    and object_id = OBJECT_ID('{{ this }}')
+                    where name = N'{{ escape_single_quotes(idx_name) }}'
+                    and object_id = OBJECT_ID(N'{{ escape_single_quotes(_relation) }}')
     )
     begin
     create nonclustered index
-        {{ idx_name }}
-        on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
-        {% if includes -%}
-            include ({{ '[' + includes|join("], [") + ']' }})
+        {{ adapter.quote(idx_name) }}
+        on {{ _relation }} ({{ quoted_cols | join(', ') }})
+        {% if quoted_incs -%}
+            include ({{ quoted_incs | join(', ') }})
         {% endif %}
     end
 {% endmacro %}
@@ -378,22 +419,13 @@
     from sys.indexes i {{ information_schema_hints() }}
     outer apply (
         /* STRING_AGG ... WITHIN GROUP requires SQL Server 2017+, the floor
-           of this adapter's CI matrix.
-           A clustered columnstore index (type 5) has no key columns: it stores
-           the whole table, so sys.index_columns lists EVERY column for it. Those
-           columns are not part of the index's identity — reconciliation matches
-           the CCI by name/type and never compares its columns (see
-           index_config_changes) — and aggregating them all is what overflowed
-           STRING_AGG on wide tables (issue #735). Skip them: report no columns
-           for a CCI. The nvarchar(max) cast still guards wide *nonclustered*
-           columnstore indexes (type 6), whose columns ARE user-chosen identity. */
+           of this adapter's CI matrix */
         select string_agg(cast(col.[name] as nvarchar(max)), ', ') within group (order by ic.key_ordinal) as cols
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
         where ic.object_id = i.object_id and ic.index_id = i.index_id
           and ic.is_included_column = 0
-          and i.[type] <> 5
     ) key_cols
     outer apply (
         select string_agg(cast(col.[name] as nvarchar(max)), ', ') as cols
