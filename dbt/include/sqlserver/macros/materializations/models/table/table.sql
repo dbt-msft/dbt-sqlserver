@@ -24,8 +24,16 @@
       "Valid values are: 'rename' (default), 'dml'."
     ) }}
   {%- endif -%}
+  {%- set full_refresh_build = config.get('full_refresh_build', 'heap_then_index') -%}
+  {#- prebuilt owns the rebuild boundaries (--full-refresh, first build);
+      table_refresh_method governs the steady-state refreshes in between -#}
+  {%- set use_prebuilt = (
+    full_refresh_build == 'prebuilt'
+    and (should_full_refresh() or existing_relation is none)
+  ) -%}
   {%- set use_dml_refresh = (
     table_refresh_method == 'dml'
+    and not use_prebuilt
     and existing_relation is not none
     and existing_relation.type == 'table'
   ) -%}
@@ -41,6 +49,36 @@
 
   {% if use_dml_refresh %}
     {{ sqlserver__table_dml_refresh(target_relation, sql) }}
+  {% elif use_prebuilt %}
+    {#- in-place rebuild: drop the existing table, then build the target
+        directly with no intermediate or swap -#}
+    {% if existing_relation is not none %}
+      {% do sqlserver__assert_no_unguarded_self_reference(target_relation, sql) %}
+    {% endif %}
+    {#- validate the index config BEFORE dropping anything -#}
+    {% do adapter.validate_indexes(
+        config.get('indexes', default=[]),
+        config.get('as_columnstore', default=true),
+        config.get('drop_unmanaged_indexes', default=false)
+    ) %}
+    {% if existing_relation is not none %}
+      {% set existing_relation = load_cached_relation(existing_relation) %}
+      {% if existing_relation is not none %}
+        {{ adapter.drop_relation(existing_relation) }}
+      {% endif %}
+    {% endif %}
+
+    {% call statement('main') -%}
+      {{ sqlserver__create_table_as_prebuilt(target_relation, sql) }}
+    {%- endcall %}
+
+    {#- the prebuilt path lands the table via raw SQL, not a cache-maintaining
+        adapter method (rename_relation), and above it may have dropped the
+        existing relation from the cache; register the rebuilt target so dbt's
+        relation cache stays in sync with the database -#}
+    {% do adapter.cache_added(target_relation) %}
+
+    {% do create_indexes(target_relation) %}
   {% else %}
     -- build model
     {% call statement('main') -%}

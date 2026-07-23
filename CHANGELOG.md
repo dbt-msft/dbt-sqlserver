@@ -1,5 +1,17 @@
 # Changelog
 
+### Unreleased
+
+#### Features
+
+- Add `full_refresh_build` model config: `prebuilt` rebuilds the table in place - drop the old table, recreate it empty with its clustered design (the `as_columnstore` CCI or the clustered index from `indexes`), then bulk-load via `INSERT WITH (TABLOCK)`. No intermediate copy or rename swap, so peak rebuild disk is ~1x instead of 2x plus the uncompressed-heap overshoot. Default `heap_then_index` is unchanged.
+- `prebuilt` applies only under `--full-refresh` and on first builds; normal runs keep the configured refresh (swap build, or DML delete+insert) so live tables stay in place and visible. Rowstore models without a clustered index in `indexes` load in place as a heap.
+- Under `--full-refresh`, `prebuilt` takes precedence over `table_refresh_method: dml`: a fully-logged whole-table DELETE+INSERT is the wrong tool for a rebuild, and preserving the table would also preserve a physical design the rebuild is meant to replace.
+- `prebuilt` trade-off, by design: during a rebuild the target is empty/loading with no backup copy; a failed rebuild leaves an empty or partial table (recovery: rerun with `--full-refresh`).
+- `prebuilt` drops the table before rebuilding, so `{{ this }}` self-references must be guarded by `{% if is_incremental() %}` (false during rebuilds); models with unguarded self-references must keep the default `heap_then_index`. The adapter detects an unguarded self-reference in the compiled SQL and fails the rebuild before anything is dropped.
+- Incremental full refreshes (both build methods) now mark the target with a `dbt_full_refresh_incomplete` extended property until they complete: a normal incremental run over a table whose last full refresh failed errors with instructions to rerun `--full-refresh`, instead of silently appending onto stale, empty or partial data. The `prebuilt` index config is also validated before the old table is dropped.
+- `prebuilt` is now robust to a stale relation cache. The in-place create drops any physical target via an `OBJECT_ID` guard before recreating it, so a build no longer fails with `Msg 2714` when a table exists in the database but is absent from dbt's cache (e.g. created by an orphaned/concurrent writer after the run's cache snapshot). The rebuilt relation is also registered back into dbt's cache (`cache_added`) so the cache stays in sync after a raw-SQL prebuilt create.
+
 ### v1.10.1
 
 #### Features
