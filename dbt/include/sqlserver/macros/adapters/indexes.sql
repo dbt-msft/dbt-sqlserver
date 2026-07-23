@@ -1,18 +1,4 @@
-{% macro mssql__quote_ident(name) -%}
-  {{ return('[' ~ name | replace(']', ']]') ~ ']') }}
-{%- endmacro %}
-
-
-{% macro mssql__qualified_relation(rel) -%}
-  {{ return(
-    mssql__quote_ident(rel.database) ~ '.' ~
-    mssql__quote_ident(rel.schema) ~ '.' ~
-    mssql__quote_ident(rel.identifier)
-  ) }}
-{%- endmacro %}
-
-
-{% macro mssql__strip_dbt_suffix(identifier) -%}
+{% macro sqlserver__strip_dbt_suffix(identifier) -%}
   {%- set ns = namespace(result=identifier) -%}
   {%- for suffix in ['__dbt_tmp_vw', '__dbt_backup', '__dbt_tmp'] -%}
     {%- if ns.result.endswith(suffix) -%}
@@ -23,10 +9,10 @@
 {%- endmacro %}
 
 
-{% macro mssql__index_name(rel, type, columns, unique=False, includes=false) -%}
+{% macro sqlserver__index_name(rel, type, columns, unique=False, includes=false) -%}
   {%- set cols = [columns] if columns is string else columns -%}
   {%- set incs = [] if not includes else ([includes] if includes is string else includes) -%}
-  {%- set stripped = mssql__strip_dbt_suffix(rel.identifier) | replace('[', '') | replace(']', '') -%}
+  {%- set stripped = sqlserver__strip_dbt_suffix(rel.identifier) | replace('[', '') | replace(']', '') -%}
   {%- set sig = type ~ '|' ~ (cols | join(',')) ~ '|' ~ (unique | string) ~ '|' ~ (incs | join(',')) -%}
   {%- set hash = local_md5(sig) -%}
   {%- set prefix = type ~ '_' ~ stripped -%}
@@ -42,27 +28,25 @@
   EXISTS (
     SELECT 1
     FROM sys.indexes {{ information_schema_hints() }}
-    WHERE name = N'{{ index_name }}'
-    AND object_id = OBJECT_ID(N'{{ mssql__qualified_relation(rel) }}')
+    WHERE name = N'{{ escape_single_quotes(index_name) }}'
+    AND object_id = OBJECT_ID(N'{{ escape_single_quotes(rel) }}')
   )
 {%- endmacro %}
 
 
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
-    {%- set stripped_id = mssql__strip_dbt_suffix(relation.identifier) | replace('[', '') | replace(']', '') -%}
+    {%- set stripped_id = sqlserver__strip_dbt_suffix(relation.identifier) | replace('[', '') | replace(']', '') -%}
     {%- set cci_name = relation.schema | replace('[', '') | replace(']', '') ~ '_' ~ stripped_id ~ '_cci' -%}
-    {%- set cci_literal = cci_name | replace("'", "''") -%}
-    {%- set full_relation_literal = mssql__qualified_relation(relation) | replace("'", "''") -%}
     {{ get_use_database_sql(relation.database) }}
     if EXISTS (
         SELECT *
         FROM sys.indexes {{ information_schema_hints() }}
-        WHERE name = N'{{ cci_literal }}'
-        AND object_id = OBJECT_ID(N'{{ full_relation_literal }}')
+        WHERE name = N'{{ escape_single_quotes(cci_name) }}'
+        AND object_id = OBJECT_ID(N'{{ escape_single_quotes(relation) }}')
     )
-    DROP INDEX {{ mssql__quote_ident(cci_name) }} ON {{ mssql__qualified_relation(relation) }}
-    CREATE CLUSTERED COLUMNSTORE INDEX {{ mssql__quote_ident(cci_name) }}
-    ON {{ mssql__qualified_relation(relation) }}
+    DROP INDEX {{ adapter.quote(cci_name) }} ON {{ relation }}
+    CREATE CLUSTERED COLUMNSTORE INDEX {{ adapter.quote(cci_name) }}
+    ON {{ relation }}
 {% endmacro %}
 
 {% macro drop_xml_indexes() -%}
@@ -170,17 +154,17 @@
 {% macro create_clustered_index(columns, unique=False, relation=none) -%}
     {%- set _relation = relation if relation is not none else this -%}
     {%- set cols = [columns] if columns is string else columns -%}
-    {%- set idx_name = mssql__index_name(_relation, 'cidx', cols, unique=unique) -%}
+    {%- set idx_name = sqlserver__index_name(_relation, 'cidx', cols, unique=unique) -%}
     {%- set quoted_cols = [] -%}
     {%- for col in cols -%}
-        {%- do quoted_cols.append(mssql__quote_ident(col)) -%}
+        {%- do quoted_cols.append(adapter.quote(col)) -%}
     {%- endfor -%}
     {{ log("Creating clustered index...") }}
 
     if not exists(select 1
                     from sys.indexes {{ information_schema_hints() }}
-                    where name = N'{{ idx_name }}'
-                    and object_id = OBJECT_ID(N'{{ mssql__qualified_relation(_relation) }}')
+                    where name = N'{{ escape_single_quotes(idx_name) }}'
+                    and object_id = OBJECT_ID(N'{{ escape_single_quotes(_relation) }}')
     )
     begin
 
@@ -189,8 +173,8 @@
     unique
     {% endif %}
     clustered index
-        [{{ idx_name }}]
-        on {{ mssql__qualified_relation(_relation) }} ({{ quoted_cols | join(', ') }})
+        {{ adapter.quote(idx_name) }}
+        on {{ _relation }} ({{ quoted_cols | join(', ') }})
     end
 {%- endmacro %}
 
@@ -200,26 +184,26 @@
     {%- set _relation = relation if relation is not none else this -%}
     {%- set cols = [columns] if columns is string else columns -%}
     {%- set incs = [] if not includes else ([includes] if includes is string else includes) -%}
-    {%- set idx_name = mssql__index_name(_relation, 'nidx', cols, includes=incs) -%}
+    {%- set idx_name = sqlserver__index_name(_relation, 'nidx', cols, includes=incs) -%}
     {%- set quoted_cols = [] -%}
     {%- for col in cols -%}
-        {%- do quoted_cols.append(mssql__quote_ident(col)) -%}
+        {%- do quoted_cols.append(adapter.quote(col)) -%}
     {%- endfor -%}
     {%- set quoted_incs = [] -%}
     {%- for inc in incs -%}
-        {%- do quoted_incs.append(mssql__quote_ident(inc)) -%}
+        {%- do quoted_incs.append(adapter.quote(inc)) -%}
     {%- endfor -%}
     {{ log("Creating nonclustered index...") }}
 
     if not exists(select 1
                     from sys.indexes {{ information_schema_hints() }}
-                    where name = N'{{ idx_name }}'
-                    and object_id = OBJECT_ID(N'{{ mssql__qualified_relation(_relation) }}')
+                    where name = N'{{ escape_single_quotes(idx_name) }}'
+                    and object_id = OBJECT_ID(N'{{ escape_single_quotes(_relation) }}')
     )
     begin
     create nonclustered index
-        [{{ idx_name }}]
-        on {{ mssql__qualified_relation(_relation) }} ({{ quoted_cols | join(', ') }})
+        {{ adapter.quote(idx_name) }}
+        on {{ _relation }} ({{ quoted_cols | join(', ') }})
         {% if quoted_incs -%}
             include ({{ quoted_incs | join(', ') }})
         {% endif %}
