@@ -22,6 +22,7 @@
 
 #### Bugfixes
 
+- Fix `rows_affected` reporting zero for delete+insert incremental models by suppressing the DELETE row-count token before restoring `NOCOUNT` for the INSERT. [#583](https://github.com/dbt-msft/dbt-sqlserver/issues/583)
 - Fix unit tests with empty fixtures (`rows: []`) generating invalid `limit 0` syntax; emit `top 0` instead. Also fix `get_columns_in_query()` for queries starting with a CTE, which broke unit tests with an empty `expect` block; such queries are now described via `sp_describe_first_result_set` instead of being executed. [#698](https://github.com/dbt-msft/dbt-sqlserver/issues/698)
 - Fix catalog generation for NVARCHAR/NCHAR columns: use `user_type_id` instead of `system_type_id` in catalog.sql, preventing them from appearing as `SYSNAME` in `dbt docs`. [#637](https://github.com/dbt-msft/dbt-sqlserver/issues/637)
 - Fix `varchar(max)` / `nvarchar(max)` columns being incorrectly treated as size `-1` during type expansion, preventing `varchar(max)` → `varchar(100)` narrowing and properly allowing `varchar(100)` → `varchar(max)` expansion.
