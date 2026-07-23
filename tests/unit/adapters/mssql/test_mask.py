@@ -172,6 +172,53 @@ def test_diff_function_comparison_ignores_whitespace():
     assert result["adds"] == []
 
 
+def test_diff_partial_padding_reformatting_is_not_a_change():
+    # SQL Server preserves the partial() padding verbatim but reformats the
+    # surrounding syntax (a space after each comma). Folding syntax while
+    # preserving the quoted padding must not report a spurious change.
+    result = mask_changes(
+        existing_masks=[existing("nhs_number", 'partial(1, "X X", 1)')],
+        desired={"nhs_number": 'partial(1,"X X",1)'},
+        index_key_columns=set(),
+    )
+    assert result["changes"] == []
+    assert result["adds"] == []
+
+
+def test_diff_partial_padding_whitespace_change_is_detected():
+    # "XX" -> "X X" is a real change to the padding data: the space inside the
+    # quotes is significant and must not be normalised away.
+    result = mask_changes(
+        existing_masks=[existing("nhs_number", 'partial(1, "XX", 1)')],
+        desired={"nhs_number": 'partial(1, "X X", 1)'},
+        index_key_columns=set(),
+    )
+    assert result["changes"] == [("nhs_number", 'partial(1, "X X", 1)')]
+
+
+def test_diff_partial_padding_case_change_is_detected():
+    # "XXXX" -> "xxxx" changes the masked output: case inside the padding is
+    # significant and must not be case-folded away.
+    result = mask_changes(
+        existing_masks=[existing("nhs_number", 'partial(0, "XXXX", 0)')],
+        desired={"nhs_number": 'partial(0, "xxxx", 0)'},
+        index_key_columns=set(),
+    )
+    assert result["changes"] == [("nhs_number", 'partial(0, "xxxx", 0)')]
+
+
+def test_diff_function_name_case_is_still_folded():
+    # the function name / keywords remain case-insensitive (SQL Server treats
+    # them so); only the quoted padding is case-sensitive.
+    result = mask_changes(
+        existing_masks=[existing("surname", "DEFAULT()")],
+        desired={"surname": "default()"},
+        index_key_columns=set(),
+    )
+    assert result["changes"] == []
+    assert result["adds"] == []
+
+
 def test_diff_add_to_index_key_column_is_an_error_not_a_ddl():
     result = mask_changes(
         existing_masks=[],

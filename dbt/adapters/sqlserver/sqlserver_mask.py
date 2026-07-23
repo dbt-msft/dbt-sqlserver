@@ -108,12 +108,31 @@ def _normalize_function(function: str) -> str:
     """Canonicalise a masking-function string for comparison only.
 
     ``sys.masked_columns.masking_function`` may store a function with different
-    internal spacing than the user wrote (e.g. ``partial(0, "X", 0)`` vs
+    *syntactic* spacing than the user wrote (e.g. ``partial(0, "X", 0)`` vs
     ``partial(0,"X",0)``), so whitespace is stripped and case folded before
-    comparing desired against current. The user's original string is always the
-    one emitted in DDL.
+    comparing desired against current.
+
+    That folding is applied only *outside* quoted string literals. The
+    ``partial()`` padding literal is data, not syntax: SQL Server preserves its
+    spaces and case verbatim (``partial(1, "X X", 1)`` stays ``"X X"``), so its
+    contents are compared as written. Normalising inside the quotes would make
+    ``"X X"`` compare equal to ``"XX"`` and ``"XXXX"`` equal to ``"xxxx"``,
+    silently dropping a legitimate padding change. The user's original string is
+    always the one emitted in DDL.
     """
-    return "".join(function.split()).lower()
+    result: List[str] = []
+    in_quotes = False
+    for ch in function:
+        if ch == '"':
+            in_quotes = not in_quotes
+            result.append(ch)
+        elif in_quotes:
+            # data: preserve padding spaces and case verbatim
+            result.append(ch)
+        elif not ch.isspace():
+            # syntax: fold case, drop whitespace
+            result.append(ch.lower())
+    return "".join(result)
 
 
 def mask_changes(
