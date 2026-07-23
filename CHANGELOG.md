@@ -15,7 +15,7 @@
 - Add `dbt_sqlserver_enable_safe_type_expansion` behaviour flag to allow safe column type widening during schema expansion: `varchar` → `nvarchar`, integer family promotions (`bit` → `tinyint` → `smallint` → `int` → `bigint`), and `numeric`/`decimal` precision/scale upgrades. Gated by the per-model `column_type_expansion_max_rows` config (default 1,000,000 rows). [#699](https://github.com/dbt-msft/dbt-sqlserver/issues/699).
 - Add `prefer_single_alter_column` model config to use a single `ALTER COLUMN` statement instead of the add+update+drop+rename pattern when altering column types on tables.
 - Add `string_type_instance()` to preserve the NVARCHAR/NCHAR type family during column expansion, fixing incorrect promotion of NVARCHAR/NCHAR to VARCHAR.
-- Add `tinyint` and `bit` to the `is_integer()` type list for correct type detection.
+- Restrict `is_integer()` detection to SQL Server integer types, including `tinyint` and `bit`, and remove PostgreSQL-only integer aliases.
 - Add `dbt_sqlserver_use_dbt_transactions` flag for proper T-SQL `BEGIN TRAN`/`COMMIT`/`ROLLBACK` transaction handling. When enabled, operations use real server-side transactions instead of the default autocommit mode. [#708](https://github.com/dbt-msft/dbt-sqlserver/issues/708)
 - Implement relation and column comment persistence via `persist_docs`. [#289](https://github.com/dbt-msft/dbt-sqlserver/issues/289)
 - Add optional `mssql-python` connection backend alongside the default `pyodbc` backend. [#681](https://github.com/dbt-msft/dbt-sqlserver/issues/681)
@@ -29,9 +29,11 @@
 - Guard `run_hooks` commit with `@@trancount` check for autocommit safety when running post-hooks. [#444](https://github.com/dbt-msft/dbt-sqlserver/issues/444)
 - Fix `columnstore IF EXISTS` guard to check `object_id('schema.table')` correctly.
 - Gate the `optimize_for_sequential_key` and `resumable` index options on the detected engine version: they require SQL Server 2019+, so on 2017/2016 the index is now built without them (with a warning) instead of failing with "is not a recognized CREATE INDEX option".
-- Cast the aggregated column names in `sqlserver__describe_indexes` to `nvarchar(max)` so index reconciliation no longer fails with `STRING_AGG` error 9829 on wide tables (e.g. a clustered columnstore index spanning enough columns to exceed the 8000-byte cap). [#735](https://github.com/dbt-msft/dbt-sqlserver/issues/735)
+- Fix index reconciliation for wide tables and clustered columnstore indexes: cast aggregated column names to `nvarchar(max)` to avoid `STRING_AGG` error 9829, and skip column aggregation for clustered columnstore indexes, which have no key columns and are matched by name/type only. [#735](https://github.com/dbt-msft/dbt-sqlserver/issues/735)
+- Fix `add_query` retry handling to honor the configured retry count and avoid a retry-event crash. [#730](https://github.com/dbt-msft/dbt-sqlserver/pull/730)
+- Escape closing braces in pyodbc connection-string values so credentials and other values containing `}` are parsed correctly. [#734](https://github.com/dbt-msft/dbt-sqlserver/pull/734)
+- Cancel the in-flight cursor when dbt cancels an open SQL Server query, with best-effort handling when cancellation is unsupported or the statement has already completed. [#733](https://github.com/dbt-msft/dbt-sqlserver/pull/733)
 - Apply `query_options` / `query_options_raw` (and the `LABEL` query tag) on the `table_refresh_method: dml` path. Both the scratch-build `SELECT ... INTO` and the swap `INSERT ... SELECT` now emit the `OPTION (...)` clause, matching `create_table_as`; previously they were silently dropped on every steady-state DML refresh.
-- Stop `sqlserver__describe_indexes` from aggregating column names for clustered columnstore indexes (type 5). A CCI stores the whole table and has no key columns; its column list is not part of the index's identity and reconciliation matches it by name/type only, so listing every table column was both meaningless and the underlying cause of the `STRING_AGG` overflow above. [#735](https://github.com/dbt-msft/dbt-sqlserver/issues/735)
 - Escape single quotes in `query_tag` before building `OPTION (LABEL)` clause.
 - Map Python `float` to SQL Server `float`, not `bigint`.
 - Set default port to `1433` (instead of Postgres `5432`) in `dbt init` profile template.
