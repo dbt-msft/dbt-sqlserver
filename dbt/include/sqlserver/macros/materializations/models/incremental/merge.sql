@@ -14,6 +14,7 @@
 
     {% if unique_key %}
         {% if unique_key is sequence and unique_key is not string %}
+            SET NOCOUNT ON;
             delete from {{ target }}
             where exists (
                 select null
@@ -30,7 +31,9 @@
                 {% endfor %}
             {% endif %}
             {{ query_label }}
+            SET NOCOUNT OFF;
         {% else %}
+            SET NOCOUNT ON;
             delete from {{ target }}
             where (
                 {{ unique_key }}) in (
@@ -43,6 +46,7 @@
                 {% endfor %}
             {%- endif -%}
             {{ query_label }}
+            SET NOCOUNT OFF;
         {% endif %}
     {% endif %}
 
@@ -71,6 +75,7 @@
     {% endif %}
     {% do arg_dict.update({'incremental_predicates': incremental_predicates}) %}
 
+    SET NOCOUNT ON;
     delete DBT_INTERNAL_TARGET from {{ target }} AS DBT_INTERNAL_TARGET
     where (
     {% for predicate in incremental_predicates %}
@@ -78,6 +83,7 @@
     {% endfor %}
     )
     {{ query_label }}
+    SET NOCOUNT OFF;
 
     {%- set dest_cols_csv = get_quoted_csv(dest_columns | map(attribute="name")) -%}
     insert into {{ target }} ({{ dest_cols_csv }})

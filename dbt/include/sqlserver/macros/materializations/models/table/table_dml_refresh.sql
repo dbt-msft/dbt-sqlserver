@@ -22,6 +22,11 @@
       path={"identifier": refresh_relation.identifier ~ '__dbt_tmp_vw'}
   ) -%}
 
+  {#- Query hint for the grant-taking data-movement statements below (SELECT INTO
+      and the swap INSERT). get_query_options() emits the OPTION (...) clause and
+      terminates it with ';', matching how create_table_as appends it. -#}
+  {%- set query_label = get_query_options(parse_options=True) -%}
+
   {# Clean up any leftovers from a prior failed run #}
   {% call statement('dml_refresh_cleanup_pre') -%}
     DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
@@ -35,7 +40,7 @@
   {%- endcall %}
 
   {% call statement('main') -%}
-    SELECT * INTO {{ refresh_relation }} FROM {{ tmp_vw_relation }};
+    SELECT * INTO {{ refresh_relation }} FROM {{ tmp_vw_relation }} {{ query_label }}
   {%- endcall %}
 
   {% call statement('dml_refresh_drop_view') -%}
@@ -63,7 +68,7 @@
       {% endif %}
       DELETE FROM {{ target_relation }};
       INSERT INTO {{ target_relation }} ({{ column_list }})
-        SELECT {{ column_list }} FROM {{ refresh_relation }};
+        SELECT {{ column_list }} FROM {{ refresh_relation }} {{ query_label }}
       {% if not adapter.behavior.dbt_sqlserver_use_dbt_transactions %}
       COMMIT TRANSACTION;
       {% endif %}
