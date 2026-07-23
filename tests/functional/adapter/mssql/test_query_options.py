@@ -259,6 +259,7 @@ class TestQueryOptionsOnIncrementalDeleteInsert:
         results = run_dbt(["run"])
         assert len(results) == 1
         assert results[0].status == "success"
+        assert results[0].adapter_response["rows_affected"] == 3
 
         sql = _find_compiled_run_sql(project, "inc_model.sql")
         assert "MAXDOP 1" in sql
