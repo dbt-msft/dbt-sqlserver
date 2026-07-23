@@ -35,6 +35,7 @@
     {% if config.get('full_refresh_build', 'heap_then_index') == 'prebuilt' %}
       {#- first build: load straight into the clustered design -#}
       {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+      {% set prebuilt_cache_add = true %}
     {% else %}
       {% set build_sql = get_create_table_as_sql(False, target_relation, sql) %}
     {% endif %}
@@ -59,6 +60,7 @@
       {% endif %}
       {% do adapter.drop_relation(existing_relation) %}
       {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+      {% set prebuilt_cache_add = true %}
     {% else %}
       {% set build_sql = get_create_table_as_sql(False, intermediate_relation, sql) %}
       {% if existing_relation.type == 'table' %}
@@ -108,6 +110,15 @@
       {% do adapter.rename_relation(target_relation, backup_relation) %}
       {% do adapter.rename_relation(intermediate_relation, target_relation) %}
       {% do to_drop.append(backup_relation) %}
+  {% endif %}
+
+  {% if prebuilt_cache_add %}
+      {#- the prebuilt path lands the table via raw SQL, not a cache-maintaining
+          adapter method (rename_relation/drop_relation), so register it here to
+          keep dbt's relation cache in sync with the database. On the
+          full-refresh branch this also re-adds the target that drop_relation
+          removed from the cache. -#}
+      {% do adapter.cache_added(target_relation) %}
   {% endif %}
 
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}

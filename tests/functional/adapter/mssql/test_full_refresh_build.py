@@ -573,3 +573,87 @@ class TestFullRefreshBuildSelfReference:
 
         # no marker was set, so a normal run still works
         run_dbt(["run", "--models", "selfref_model"])
+
+
+# A pre_hook runs AFTER the materialization snapshots existing_relation from the
+# relation cache but BEFORE the prebuilt create - and it writes via raw SQL, so
+# the cache is never told. That leaves dbt believing existing_relation is none
+# while the physical table exists: exactly the drift an orphaned/concurrent
+# writer produces, reproduced deterministically. Without the idempotent
+# OBJECT_ID drop inside sqlserver__create_table_as_prebuilt, the bare
+# CREATE / SELECT ... INTO collides with Msg 2714 (object already exists).
+_cache_drift_pre_hook = (
+    "IF OBJECT_ID('{{ this.schema }}.{{ this.identifier }}', 'U') IS NULL "
+    "EXEC('CREATE TABLE {{ this }} (column_a int)')"
+)
+
+models__cache_drift_incremental_sql = (
+    """
+{{
+  config(
+    materialized = "incremental",
+    as_columnstore = False,
+    full_refresh_build = "prebuilt",
+    indexes = [{'columns': ['column_a'], 'type': 'clustered'}],
+    pre_hook = \""""
+    + _cache_drift_pre_hook
+    + """\"
+  )
+}}
+
+select 1 as column_a
+
+{% if is_incremental() %}
+    where column_a > (select max(column_a) from {{ this }})
+{% endif %}
+"""
+)
+
+models__cache_drift_table_sql = (
+    """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    full_refresh_build = "prebuilt",
+    indexes = [{'columns': ['column_a'], 'type': 'clustered'}],
+    pre_hook = \""""
+    + _cache_drift_pre_hook
+    + """\"
+  )
+}}
+
+select 1 as column_a
+"""
+)
+
+
+class TestFullRefreshBuildStaleCache:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "cache_drift_incr.sql": models__cache_drift_incremental_sql,
+            "cache_drift_table.sql": models__cache_drift_table_sql,
+        }
+
+    def test_incremental_prebuilt_survives_stale_cache_collision(self, project, unique_schema):
+        # the pre_hook creates the target as a plain heap while dbt's cache
+        # still reports none; the first-build prebuilt path must drop it and
+        # rebuild in place rather than fail with Msg 2714
+        run_dbt(["run", "--models", "cache_drift_incr"])
+        rows = project.run_sql(
+            f"select count(*) from {unique_schema}.cache_drift_incr", fetch="one"
+        )
+        assert rows[0] == 1
+        # the prebuilt clustered design won, not the pre_hook's heap
+        idx = get_rowstore_indexes(project, unique_schema, "cache_drift_incr")
+        assert set(idx) == {"CLUSTERED"}
+
+    def test_table_prebuilt_survives_stale_cache_collision(self, project, unique_schema):
+        run_dbt(["run", "--models", "cache_drift_table"])
+        rows = project.run_sql(
+            f"select count(*) from {unique_schema}.cache_drift_table", fetch="one"
+        )
+        assert rows[0] == 1
+        idx = get_rowstore_indexes(project, unique_schema, "cache_drift_table")
+        assert set(idx) == {"CLUSTERED"}

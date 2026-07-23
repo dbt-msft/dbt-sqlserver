@@ -72,6 +72,12 @@
       {{ sqlserver__create_table_as_prebuilt(target_relation, sql) }}
     {%- endcall %}
 
+    {#- the prebuilt path lands the table via raw SQL, not a cache-maintaining
+        adapter method (rename_relation), and above it may have dropped the
+        existing relation from the cache; register the rebuilt target so dbt's
+        relation cache stays in sync with the database -#}
+    {% do adapter.cache_added(target_relation) %}
+
     {% do create_indexes(target_relation) %}
   {% else %}
     -- build model

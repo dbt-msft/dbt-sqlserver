@@ -62,7 +62,9 @@
       In-place build for full_refresh_build=prebuilt: create the table empty
       under its final name with its clustered design (the as_columnstore CCI
       or the clustered entry from the indexes config), then bulk-load it via
-      INSERT WITH (TABLOCK). Callers drop any existing target first.
+      INSERT WITH (TABLOCK). The create is idempotent: it drops any physical
+      target first (see the OBJECT_ID guard below), so it is safe even when
+      dbt's relation cache is stale.
       See the CHANGELOG for the trade-offs of this build mode.
     -#}
     {%- set query_label = get_query_options(parse_options=True) -%}
@@ -93,6 +95,13 @@
     USE [{{ relation.database }}];
     {{ get_create_view_as_sql(tmp_relation, sql) }}
 
+    {#- drop any physical target before the bare CREATE / SELECT ... INTO below.
+        OBJECT_ID reads the database directly, so this is robust to dbt's
+        relation cache being stale (reporting none while the table exists) -
+        which would otherwise collide with Msg 2714 (object already exists) -#}
+    IF OBJECT_ID('{{ escape_single_quotes(relation.schema) }}.{{ escape_single_quotes(relation.identifier) }}', 'U') IS NOT NULL
+        EXEC('DROP TABLE {{ relation }}');
+
     {% if contract_enforced %}
         {%- set ddl_query -%}
             CREATE TABLE {{ relation }}
@@ -106,8 +115,8 @@
 
     {# mark the rebuild in progress; removed atomically with the load below #}
     EXEC sp_addextendedproperty @name = N'dbt_full_refresh_incomplete', @value = '1',
-        @level0type = N'SCHEMA', @level0name = N'{{ relation.schema }}',
-        @level1type = N'TABLE', @level1name = N'{{ relation.identifier }}'
+        @level0type = N'SCHEMA', @level0name = N'{{ escape_single_quotes(relation.schema) }}',
+        @level1type = N'TABLE', @level1name = N'{{ escape_single_quotes(relation.identifier) }}'
 
     {% if as_columnstore %}
         {{ sqlserver__create_clustered_columnstore_index(relation) }}
@@ -137,8 +146,8 @@
         BEGIN TRANSACTION;
         {{ insert_statement }};
         EXEC sp_dropextendedproperty @name = N'dbt_full_refresh_incomplete',
-            @level0type = N'SCHEMA', @level0name = N'{{ relation.schema }}',
-            @level1type = N'TABLE', @level1name = N'{{ relation.identifier }}';
+            @level0type = N'SCHEMA', @level0name = N'{{ escape_single_quotes(relation.schema) }}',
+            @level1type = N'TABLE', @level1name = N'{{ escape_single_quotes(relation.identifier) }}';
         COMMIT TRANSACTION;
     {%- endset %}
     EXEC('{{- escape_single_quotes(insert_query) -}}')
