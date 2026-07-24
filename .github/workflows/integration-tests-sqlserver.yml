@@ -41,16 +41,13 @@ jobs:
       # Smaller matrix allows this to check if a failure is specific.
       fail-fast: false
       matrix:
-        python_version: ["3.10", "3.11", "3.12", "3.13"]
+        python_version: ["3.11", "3.12", "3.13"]
         backend: [pyodbc, mssql-python]
         # Baseline on 2025 (newest)
         sqlserver_version: ["2025"]
         msodbc_version: ["18"]
         collation: [SQL_Latin1_General_CP1_CI_AS]
         exclude:
-          - backend: mssql-python
-            python_version: "3.10"
-            sqlserver_version: "2025"
           - backend: mssql-python
             python_version: "3.11"
             sqlserver_version: "2025"
@@ -61,7 +58,7 @@ jobs:
           # Keep pyodbc on every supported Python version, but retain
           # SQL Server ODBC 17 coverage for the oldest and newest Python.
           - backend: pyodbc
-            python_version: "3.10"
+            python_version: "3.11"
             sqlserver_version: "2025"
             msodbc_version: "17"
             collation: SQL_Latin1_General_CP1_CI_AS
@@ -73,7 +70,7 @@ jobs:
           # Older SQL Server versions stay on pyodbc only, with a single
           # collation so the matrix stays small and readable.
           - backend: pyodbc
-            python_version: "3.10"
+            python_version: "3.11"
             sqlserver_version: "2017"
             msodbc_version: "17"
             collation: SQL_Latin1_General_CP1_CI_AS
