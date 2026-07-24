@@ -109,11 +109,17 @@
 
   {% do persist_docs(target_relation, model) %}
 
+  {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}
   {% if not target_relation_exists %}
+    {# Freshly built snapshot table: mask before creating (rowstore) indexes,
+       since a mask cannot be added to a column an index depends on (all versions). #}
+    {% do apply_masks(target_relation, mask_config) %}
     {% do create_indexes(target_relation) %}
   {% else %}
-    {# Snapshot table persisted: converge its indexes on the config. #}
+    {# Snapshot table persisted: converge its indexes on the config, then
+       reconcile masks (index drops land first). #}
     {% do sqlserver__reconcile_indexes(target_relation) %}
+    {% do apply_masks(target_relation, mask_config) %}
   {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}

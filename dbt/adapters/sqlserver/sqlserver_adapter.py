@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import agate
 import dbt_common.exceptions
@@ -29,6 +29,9 @@ from dbt.adapters.sqlserver.relation_configs.index import (
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sqlserver_mask import ColumnMask
+from dbt.adapters.sqlserver.sqlserver_mask import mask_changes as _mask_changes
+from dbt.adapters.sqlserver.sqlserver_mask import resolve_masks as _resolve_masks
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
 logger = AdapterLogger("SQLServer")
@@ -501,6 +504,64 @@ class SQLServerAdapter(SQLAdapter):
             "creates_no_txn": creates_no_txn,
             "warnings": warnings,
         }
+
+    @available
+    def resolve_masks(self, model: Any, model_masks: Optional[dict] = None) -> Dict[str, str]:
+        """Merge the column-level `masked_with` and model-level `masks` surfaces
+        into one `{column: function}` map for `apply_masks`.
+
+        `model` is the Jinja `model` dict (`node.to_dict()`), whose `columns`
+        carry any `masked_with` as a flattened key (an explicit `masked_with:
+        null` survives serialization as a present `None`, signalling opt-out).
+        `model_masks` is `config.get('masks')` — already surface-merged by dbt.
+        Precedence and conflict warnings are handled here; key existence is
+        validated later in the macro against the real relation.
+        """
+        model = model or {}
+        columns = model.get("columns") or {}
+        column_masks = []
+        for name, col in columns.items():
+            col = col or {}
+            column_masks.append(
+                ColumnMask(
+                    name=col.get("name", name),
+                    masked_with_present=("masked_with" in col),
+                    masked_with=col.get("masked_with"),
+                )
+            )
+        model_name = model.get("name") or model.get("alias") or "<unknown>"
+        mask_map, warnings = _resolve_masks(column_masks, model_masks, model_name)
+        for warning in warnings:
+            logger.warning(warning)
+        return mask_map
+
+    @available
+    def mask_changes(
+        self,
+        existing_masks: Any,
+        mask_config: Optional[dict],
+        index_key_columns: Any = None,
+        existing_columns: Any = None,
+    ) -> dict:
+        """Diff a resolved mask map against current `sys.masked_columns` state.
+
+        `existing_masks` is the agate table from `get_show_mask_sql` (columns
+        `name`, `masking_function`). Returns plain lists for jinja: `adds` /
+        `changes` (each `[column, function]`), `drops` (column names), `skipped`
+        (warnings for columns absent from the relation) and `errors` (an ADD onto
+        a current index-key column, which SQL Server rejects). The macro emits
+        DDL for adds/changes/drops, logs `skipped`, and raises on `errors`."""
+        rows = []
+        if existing_masks is not None:
+            column_names = existing_masks.column_names
+            for row in existing_masks.rows:
+                rows.append(dict(zip(column_names, row)))
+        return _mask_changes(
+            rows,
+            mask_config or {},
+            set(index_key_columns or []),
+            existing_columns=(list(existing_columns) if existing_columns is not None else None),
+        )
 
 
 COLUMNS_EQUAL_SQL = """
