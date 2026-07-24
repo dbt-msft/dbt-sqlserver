@@ -14,20 +14,19 @@ authors = [
     { name = "Cor Zuurmond" },
     { name = "Cody Scott" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dbt-core>=1.10.0,<2.0",
+    "dbt-core>=1.11.0,<2.0",
     "dbt-common>=1.22.0,<2.0",
     "dbt-adapters>=1.15.2,<2.0",
     "pyodbc>=5.2.0",
@@ -95,7 +94,7 @@ override-dependencies = ["pathspec>=0.9,<1.1"] # Remove on dbt-core v1.12 or mig
 
 [tool.ruff]
 line-length = 99
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 # E/W = pycodestyle, F = pyflakes (together: flake8), I = isort,
