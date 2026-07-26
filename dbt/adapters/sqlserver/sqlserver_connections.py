@@ -65,6 +65,10 @@ logger = AdapterLogger("sqlserver")
 # Connection so cancel() can reach it from another thread. See cancel().
 _IN_FLIGHT_CURSOR_ATTR = "_dbt_sqlserver_in_flight_cursor"
 
+# Fires once per process (not per connection/thread) when xact_abort is
+# disabled. See SQLServerConnectionManager._warn_xact_abort_disabled_once.
+_xact_abort_warning_logged = False
+
 
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
@@ -144,7 +148,65 @@ class SQLServerConnectionManager(SQLConnectionManager):
             retryable_exceptions=retryable_exceptions,
         )
 
+        if conn.state == ConnectionState.OPEN:
+            if credentials.xact_abort:
+                cls._apply_session_settings(conn)
+            else:
+                cls._warn_xact_abort_disabled_once()
+
         return conn
+
+    @classmethod
+    def _apply_session_settings(cls, connection: Connection) -> None:
+        """Set session-level defaults that must hold for every batch this
+        connection ever runs. Currently: XACT_ABORT, so a run-time error
+        mid-batch (e.g. a NOT NULL violation in a DELETE+INSERT swap) kills
+        the batch and rolls back any open transaction instead of falling
+        through to a trailing COMMIT. See dbt-msft/dbt-sqlserver#718.
+
+        A connection that fails this setup is not usable: it is closed and
+        the error is re-raised rather than handed back to dbt.
+        """
+        try:
+            cursor = connection.handle.cursor()
+            try:
+                cursor.execute("SET XACT_ABORT ON;")
+            finally:
+                cursor.close()
+
+            if not connection.handle.autocommit:
+                connection.handle.commit()
+        except Exception:
+            connection.handle.close()
+            connection.handle = None
+            connection.state = ConnectionState.FAIL
+            raise
+
+    @classmethod
+    def _warn_xact_abort_disabled_once(cls) -> None:
+        global _xact_abort_warning_logged
+        if _xact_abort_warning_logged:
+            return
+        _xact_abort_warning_logged = True
+
+        use_dbt_transactions = cls._dbt_sqlserver_use_dbt_transactions
+        msg = (
+            "xact_abort is disabled (xact_abort: false in the profile). Without "
+            "SET XACT_ABORT ON, a run-time error partway through a multi-statement "
+            "batch (e.g. the DELETE+INSERT swap in the DML refresh materialization) "
+            "aborts only the failing statement, not the batch, so a trailing COMMIT "
+            "can still commit a partial result. "
+            f"dbt_sqlserver_use_dbt_transactions is currently {use_dbt_transactions}"
+        )
+        if not use_dbt_transactions:
+            msg += (
+                " (dbt-managed transactions are off): the DML refresh materialization "
+                "emits its own in-batch BEGIN/COMMIT, and that in-batch swap can commit "
+                "a partial result in this configuration."
+            )
+        else:
+            msg += "."
+        logger.warning(msg)
 
     def cancel(self, connection: Connection) -> None:
         """Cancel the in-flight query on ``connection``, if any.

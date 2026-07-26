@@ -56,6 +56,7 @@ class SQLServerCredentials(Credentials):
     schema_authorization: Optional[str] = None
     login_timeout: Optional[int] = 0
     query_timeout: Optional[int] = 0
+    xact_abort: bool = True
 
     _ALIASES = {
         "user": "UID",
@@ -104,6 +105,7 @@ class SQLServerCredentials(Credentials):
             "encrypt",
             "trust_cert",
             "backend",
+            "xact_abort",
         )
 
         if self.backend == SQLServerBackend.pyodbc:

@@ -140,9 +140,12 @@
             SELECT * FROM {{ tmp_relation }} {{ query_label }}
         {%- endset -%}
     {%- endif %}
-    {#- load and unmark atomically: any failure rolls back and keeps the marker -#}
+    {#- load and unmark atomically: any failure rolls back and keeps the marker.
+        Relies on the session-level SET XACT_ABORT ON applied at connection
+        open (see #718) so a run-time error here rolls back instead of
+        falling through to COMMIT; EXEC('...') runs in the same session, so
+        that setting still applies inside this dynamic SQL sub-batch. -#}
     {%- set insert_query -%}
-        SET XACT_ABORT ON;
         BEGIN TRANSACTION;
         {{ insert_statement }};
         EXEC sp_dropextendedproperty @name = N'dbt_full_refresh_incomplete',
