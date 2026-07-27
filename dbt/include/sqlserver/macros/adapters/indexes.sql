@@ -19,12 +19,13 @@
 
     declare @drop_xml_indexes nvarchar(max);
     select @drop_xml_indexes = (
-    select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ''' + sys.indexes.[name] + ''', ''IndexId'') IS NOT NULL DROP INDEX [' + sys.indexes.[name] + '] ON ' + '[' + SCHEMA_NAME(sys.tables.[schema_id]) + '].[' + OBJECT_NAME(sys.tables.[object_id]) + ']; '
+    select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ' + QUOTENAME(sys.indexes.[name], '''') + ', ''IndexId'') IS NOT NULL DROP INDEX ' + QUOTENAME(sys.indexes.[name]) + ' ON ' + QUOTENAME(SCHEMA_NAME(sys.tables.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.tables.[object_id])) + '; '
     from sys.indexes {{ information_schema_hints() }}
     inner join sys.tables {{ information_schema_hints() }}
     on sys.indexes.object_id = sys.tables.object_id
     where sys.indexes.[name] is not null
         and sys.indexes.type_desc = 'XML'
+        and SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
     for xml path('')
     ); exec sp_executesql @drop_xml_indexes;
@@ -39,12 +40,13 @@
 
     declare @drop_spatial_indexes nvarchar(max);
     select @drop_spatial_indexes = (
-        select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ''' + sys.indexes.[name] + ''', ''IndexId'') IS NOT NULL DROP INDEX [' + sys.indexes.[name] + '] ON ' + '[' + SCHEMA_NAME(sys.tables.[schema_id]) + '].[' + OBJECT_NAME(sys.tables.[object_id]) + ']; '
+        select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ' + QUOTENAME(sys.indexes.[name], '''') + ', ''IndexId'') IS NOT NULL DROP INDEX ' + QUOTENAME(sys.indexes.[name]) + ' ON ' + QUOTENAME(SCHEMA_NAME(sys.tables.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.tables.[object_id])) + '; '
         from sys.indexes {{ information_schema_hints() }}
         inner join sys.tables {{ information_schema_hints() }}
         on sys.indexes.object_id = sys.tables.object_id
         where sys.indexes.[name] is not null
         and sys.indexes.type_desc = 'Spatial'
+        and SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
     ); exec sp_executesql @drop_spatial_indexes;
@@ -56,12 +58,17 @@
 
     {{ log("Running drop_fk_constraints() macro...") }}
 
+    {# The schema filter applies to the referenced table (this model). The
+       constraint itself is dropped from the referencing (parent) table, which
+       may legitimately live in another schema, so it is not filtered. #}
+
     declare @drop_fk_constraints nvarchar(max);
     select @drop_fk_constraints = (
-        select 'IF OBJECT_ID(''' + SCHEMA_NAME(CONVERT(VARCHAR(MAX), sys.foreign_keys.[schema_id])) + '.' + sys.foreign_keys.[name] + ''', ''F'') IS NOT NULL ALTER TABLE [' + SCHEMA_NAME(sys.foreign_keys.[schema_id]) + '].[' + OBJECT_NAME(sys.foreign_keys.[parent_object_id]) + '] DROP CONSTRAINT [' + sys.foreign_keys.[name]+ '];'
+        select 'IF OBJECT_ID(''' + REPLACE(QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(sys.foreign_keys.[name]), '''', '''''') + ''', ''F'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.foreign_keys.[parent_object_id])) + ' DROP CONSTRAINT ' + QUOTENAME(sys.foreign_keys.[name]) + ';'
         from sys.foreign_keys
         inner join sys.tables on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
-        where sys.tables.[name] = '{{ this.table }}'
+        where SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
+        and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
     ); exec sp_executesql @drop_fk_constraints;
 
@@ -82,10 +89,11 @@
 
     declare @drop_pk_constraints nvarchar(max);
     select @drop_pk_constraints = (
-        select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ''' + sys.indexes.[name] + ''', ''IndexId'') IS NOT NULL ALTER TABLE [' + SCHEMA_NAME(sys.tables.[schema_id]) + '].[' + sys.tables.[name] + '] DROP CONSTRAINT [' + sys.indexes.[name]+ '];'
+        select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ' + QUOTENAME(sys.indexes.[name], '''') + ', ''IndexId'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.tables.[schema_id])) + '.' + QUOTENAME(sys.tables.[name]) + ' DROP CONSTRAINT ' + QUOTENAME(sys.indexes.[name]) + ';'
         from sys.indexes
         inner join sys.tables on sys.indexes.[object_id] = sys.tables.[object_id]
         where sys.indexes.is_primary_key = 1
+        and SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
     ); exec sp_executesql @drop_pk_constraints;
@@ -103,12 +111,12 @@
 
     declare @drop_remaining_indexes_last nvarchar(max);
     select @drop_remaining_indexes_last = (
-        select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ''' + sys.indexes.[name] + ''', ''IndexId'') IS NOT NULL DROP INDEX [' + sys.indexes.[name] + '] ON ' + '[' + SCHEMA_NAME(sys.tables.[schema_id]) + '].[' + OBJECT_NAME(sys.tables.[object_id]) + ']; '
+        select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ' + QUOTENAME(sys.indexes.[name], '''') + ', ''IndexId'') IS NOT NULL DROP INDEX ' + QUOTENAME(sys.indexes.[name]) + ' ON ' + QUOTENAME(SCHEMA_NAME(sys.tables.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.tables.[object_id])) + '; '
         from sys.indexes {{ information_schema_hints() }}
         inner join sys.tables {{ information_schema_hints() }}
         on sys.indexes.object_id = sys.tables.object_id
         where sys.indexes.[name] is not null
-        and SCHEMA_NAME(sys.tables.schema_id) = '{{ this.schema }}'
+        and SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
     ); exec sp_executesql @drop_remaining_indexes_last;
