@@ -171,6 +171,25 @@ flags:
   dbt_sqlserver_use_dbt_transactions: true # <-- opt-in; default is false
 ```
 
+### `xact_abort`
+
+*(default: `true`)* Profile/connection field. When enabled, the adapter runs `SET XACT_ABORT ON;` once per connection, right after it opens. With `XACT_ABORT ON`, a run-time error partway through a multi-statement batch (e.g. a `NOT NULL`/constraint violation during the DML table refresh's DELETE+INSERT swap) aborts the whole batch and rolls back any open transaction, instead of only aborting the failing statement and letting a trailing `COMMIT` persist a partial result. See [#718](https://github.com/dbt-msft/dbt-sqlserver/issues/718).
+
+This is independent of `dbt_sqlserver_use_dbt_transactions` above: that flag decides who owns the transaction boundary (dbt vs. the driver's autocommit), while `xact_abort` decides how the server reacts to a run-time error mid-batch. `XACT_ABORT ON` matters even when there is no explicit transaction at all, which is exactly the configuration `dbt_sqlserver_use_dbt_transactions` offers no protection in — so the two settings are not derived from one another and both need to be considered independently.
+
+Turn it off only if a project intentionally relies on continue-on-error batch semantics (e.g. a hook that expects one failing statement in a batch not to abort the rest):
+
+```yaml
+# profiles.yml
+your_profile:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      # ...
+      xact_abort: false # <-- opt-out; default is true
+```
+
 ### `column_type_expansion_max_rows`
 
 *(default: `1000000`)* Per-model config that limits when safe type expansion runs. When the target table exceeds this row count, safe type expansion is skipped (basic same-family string resizes still proceed). Set to `-1` to disable the check entirely.

@@ -12,6 +12,10 @@
 - Incremental full refreshes (both build methods) now mark the target with a `dbt_full_refresh_incomplete` extended property until they complete: a normal incremental run over a table whose last full refresh failed errors with instructions to rerun `--full-refresh`, instead of silently appending onto stale, empty or partial data. The `prebuilt` index config is also validated before the old table is dropped.
 - `prebuilt` is now robust to a stale relation cache. The in-place create drops any physical target via an `OBJECT_ID` guard before recreating it, so a build no longer fails with `Msg 2714` when a table exists in the database but is absent from dbt's cache (e.g. created by an orphaned/concurrent writer after the run's cache snapshot). The rebuilt relation is also registered back into dbt's cache (`cache_added`) so the cache stays in sync after a raw-SQL prebuilt create.
 
+#### Bugfixes
+
+- **Behavior change:** `SET XACT_ABORT ON` is now a session-level default on every connection the adapter opens, fixing silent, committed data loss on the DML table refresh path (and any other multi-statement batch): a mid-batch run-time error (e.g. a `NOT NULL`/constraint violation on the swap `INSERT`) previously aborted only the failing statement, not the batch, so a trailing `COMMIT` could still commit a partial result — most notably an emptied target after the `DELETE` succeeded and the `INSERT` failed. This is on by default in this already-published 1.11.x line; opt out per profile with `xact_abort: false` if you rely on continue-on-error batch semantics in custom hooks. [#718](https://github.com/dbt-msft/dbt-sqlserver/issues/718)
+
 ### v1.10.1
 
 #### Features

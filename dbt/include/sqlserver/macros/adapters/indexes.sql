@@ -474,7 +474,8 @@
   {%- endfor %}
   {#- Apply all drops and creates in ONE transactional batch: a definition
       change is then atomic, with no window where a replacement index (or the
-      uniqueness it enforces) is missing for concurrent readers. xact_abort
+      uniqueness it enforces) is missing for concurrent readers. The
+      session-level SET XACT_ABORT ON applied at connection open (see #718)
       guarantees rollback if any statement fails mid-batch. -#}
   {%- set reconcile_statements = [] -%}
   {%- for index_name in result['drops'] %}
@@ -486,7 +487,7 @@
   {%- endfor %}
   {% if reconcile_statements %}
     {% do run_query(
-        "set xact_abort on;\nbegin transaction;\n"
+        "begin transaction;\n"
         ~ reconcile_statements | join(";\n")
         ~ ";\ncommit transaction;"
     ) %}

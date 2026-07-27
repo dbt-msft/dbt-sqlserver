@@ -1,5 +1,15 @@
 {% macro sqlserver__table_dml_refresh(target_relation, sql) %}
   {#
+    The DELETE + INSERT swap below (dml_refresh_swap) is only safe because
+    every connection sets SET XACT_ABORT ON at session level (see
+    dbt/adapters/sqlserver/sqlserver_connections.py, xact_abort credential,
+    dbt-msft/dbt-sqlserver#718). Without it, a run-time error partway
+    through the swap (e.g. a NOT NULL/constraint violation on the INSERT)
+    only aborts that statement, not the batch — the DELETE can still
+    commit, silently emptying the target. Do not add a per-macro
+    SET XACT_ABORT ON here; the session-level default is the single source
+    of truth, and do not "simplify" this back into an unguarded batch.
+
     DML-only table refresh for use under RCSI.
 
     Instead of rename-swap (which uses DDL and creates a window where the
