@@ -1,8 +1,16 @@
 from typing import Iterable
 
+import pytest
+
 from dbt.tests.adapter.simple_snapshot.test_snapshot import BaseSimpleSnapshot
 from dbt.tests.fixtures.project import TestProjInfo
 from dbt.tests.util import relation_from_name, run_dbt
+
+_BASELINE = "dbt_snapshot_baseline"
+
+
+def _fqt(project, table):
+    return f"[{project.database}].[{project.test_schema}].[{table}]"
 
 
 def clone_table_sqlserver(
@@ -57,10 +65,35 @@ def add_column_sqlserver(project: TestProjInfo, table: str, column: str, definit
 
 
 class TestSimpleSnapshot(BaseSimpleSnapshot):
-    def create_fact_from_seed(self, where: str = None):  # type: ignore
+    @pytest.fixture(scope="class", autouse=True)
+    def _setup_class(self, project):
+        self.project = project
+        run_dbt(["seed"])
+        self.create_fact_from_seed("id between 1 and 20")
+        run_dbt(["snapshot"])
+        project.run_sql(
+            f"select * into {_fqt(project, _BASELINE)} from {_fqt(project, 'snapshot')}"
+        )
+        yield
+        project.run_sql(f"drop table if exists {_fqt(project, _BASELINE)}")
+        self.delete_snapshot_records()
+        self.delete_fact_records()
+
+    @pytest.fixture(scope="function", autouse=True)
+    def _setup_method(self, project):
+        self.project = project
+        project.run_sql(f"drop table if exists {_fqt(project, 'fact')}")
+        self.create_fact_from_seed("id between 1 and 20")
+        project.run_sql(f"drop table if exists {_fqt(project, 'snapshot')}")
+        project.run_sql(
+            f"select * into {_fqt(project, 'snapshot')} from {_fqt(project, _BASELINE)}"
+        )
+        yield
+
+    def create_fact_from_seed(self, where: str = None):  # type: ignore[override]
         clone_table_sqlserver(self.project, "fact", "seed", "*", where)
 
-    def add_fact_column(self, column: str = None, definition: str = None):  # type: ignore
+    def add_fact_column(self, column: str = None, definition: str = None):  # type: ignore[override]
         add_column_sqlserver(self.project, "fact", column, definition)
 
     def test_updates_are_captured_by_snapshot(self, project):

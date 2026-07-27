@@ -219,13 +219,26 @@ def has_columnstore_index(project, table_name):
     return table.rows[0][0] > 0
 
 
-# -- Test: First run uses standard CREATE path (table doesn't exist yet) --
+dml_model_empty_sql = """
+{{
+  config({
+    "materialized": "table",
+    "table_refresh_method": "dml",
+    "as_columnstore": False
+  })
+}}
+select 1 as id, 'hello' as val where 1 = 0
+"""
 
 
-class TestDmlRefreshFirstRun:
+class TestDmlRefresh:
     @pytest.fixture(scope="class")
     def models(self):
         return {"dml_model.sql": dml_model_sql}
+
+    @pytest.fixture(scope="function", autouse=True)
+    def _restore_model(self, project):
+        write_model(project, "dml_model.sql", dml_model_sql)
 
     def test_first_run_creates_table(self, project):
         results = run_dbt(["run"])
@@ -236,15 +249,6 @@ class TestDmlRefreshFirstRun:
         assert len(rows) == 1
         assert rows[0][0] == 1
         assert rows[0][1] == "hello"
-
-
-# -- Test: Second run with same schema uses DML refresh (DELETE + INSERT) --
-
-
-class TestDmlRefreshSubsequentRun:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"dml_model.sql": dml_model_sql}
 
     def test_dml_refresh_updates_data(self, project):
         # First run — creates the table
@@ -258,7 +262,6 @@ class TestDmlRefreshSubsequentRun:
 
         # Swap in the v2 model with different data but same schema
         write_model(project, "dml_model.sql", dml_model_v2_sql)
-
         # Second run — should use DML refresh
         results = run_dbt(["run"])
         assert len(results) == 1
@@ -272,15 +275,6 @@ class TestDmlRefreshSubsequentRun:
         # Scratch table should be cleaned up
         assert not table_exists(project, "dml_model__dbt_refresh")
 
-
-# -- Test: Schema change triggers rename-swap fallback --
-
-
-class TestDmlRefreshSchemaChange:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"dml_model.sql": dml_model_sql}
-
     def test_schema_change_falls_back_to_rename(self, project):
         # First run — creates the table
         results = run_dbt(["run"])
@@ -292,7 +286,6 @@ class TestDmlRefreshSchemaChange:
 
         # Swap in model with an extra column
         write_model(project, "dml_model.sql", dml_model_schema_change_sql)
-
         # Second run — schema changed, should fall back to rename-swap
         results = run_dbt(["run"])
         assert len(results) == 1
@@ -305,6 +298,50 @@ class TestDmlRefreshSchemaChange:
         assert len(rows) == 1
 
         # Scratch table should be cleaned up
+        assert not table_exists(project, "dml_model__dbt_refresh")
+
+    def test_empty_model_swap(self, project):
+        # First run — one row
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+        assert len(query_table(project, "dml_model")) == 1
+
+        # Swap in an empty-projection version
+        write_model(project, "dml_model.sql", dml_model_empty_sql)
+        # Second run — DELETE removes the original row, INSERT inserts nothing
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        assert query_table(project, "dml_model") == []
+        assert not table_exists(project, "dml_model__dbt_refresh")
+
+    def test_leftover_scratch_does_not_block_refresh(self, project):
+        # First run — establishes the target
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        # Simulate a prior failed run by manually creating a leftover scratch table
+        with get_connection(project.adapter):
+            project.adapter.execute(
+                f"SELECT CAST(99 AS INT) AS id, CAST('stale' AS VARCHAR(5)) AS val "
+                f"INTO {project.test_schema}.dml_model__dbt_refresh"
+            )
+        assert table_exists(project, "dml_model__dbt_refresh")
+
+        # Second run — the macro's pre-DROP TABLE IF EXISTS should clean up the
+        # leftover before re-creating it; the run should succeed normally.
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        rows = query_table(project, "dml_model")
+        assert len(rows) == 1
+        assert rows[0][0] == 1
+        assert rows[0][1] == "hello"
+
         assert not table_exists(project, "dml_model__dbt_refresh")
 
 
@@ -566,79 +603,3 @@ class TestDmlRefreshColumnOrderMismatch:
 
         # Scratch cleaned up
         assert not table_exists(project, "dml_reorder_model__dbt_refresh")
-
-
-# -- Test: DML refresh handles a model that produces zero rows --
-
-dml_model_empty_sql = """
-{{
-  config({
-    "materialized": "table",
-    "table_refresh_method": "dml",
-    "as_columnstore": False
-  })
-}}
-select 1 as id, 'hello' as val where 1 = 0
-"""
-
-
-class TestDmlRefreshEmptyModel:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"dml_model.sql": dml_model_sql}
-
-    def test_empty_model_swap(self, project):
-        # First run — one row
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-        assert len(query_table(project, "dml_model")) == 1
-
-        # Swap in an empty-projection version
-        write_model(project, "dml_model.sql", dml_model_empty_sql)
-
-        # Second run — DELETE removes the original row, INSERT inserts nothing
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-
-        assert query_table(project, "dml_model") == []
-        assert not table_exists(project, "dml_model__dbt_refresh")
-
-
-# -- Test: leftover scratch table from a prior failed run is cleaned up --
-
-
-class TestDmlRefreshLeftoverScratchCleanup:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"dml_model.sql": dml_model_sql}
-
-    def test_leftover_scratch_does_not_block_refresh(self, project):
-        # First run — establishes the target
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-
-        # Simulate a prior failed run by manually creating a leftover scratch table
-        with get_connection(project.adapter):
-            project.adapter.execute(
-                f"SELECT CAST(99 AS INT) AS id, CAST('stale' AS VARCHAR(5)) AS val "
-                f"INTO {project.test_schema}.dml_model__dbt_refresh"
-            )
-        assert table_exists(project, "dml_model__dbt_refresh")
-
-        # Second run — the macro's pre-DROP TABLE IF EXISTS should clean up the
-        # leftover before re-creating it; the run should succeed normally.
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-
-        # Target has the live row (not the stale one)
-        rows = query_table(project, "dml_model")
-        assert len(rows) == 1
-        assert rows[0][0] == 1
-        assert rows[0][1] == "hello"
-
-        # Scratch fully cleaned up after the refresh
-        assert not table_exists(project, "dml_model__dbt_refresh")
