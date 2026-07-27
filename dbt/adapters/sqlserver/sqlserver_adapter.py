@@ -78,14 +78,6 @@ class SQLServerAdapter(SQLAdapter):
     def _behavior_flags(self) -> List[BehaviorFlag]:
         return [
             {
-                "name": "empty",
-                "default": False,
-                "description": (
-                    "When enabled, table and view materializations will be created as empty "
-                    "structures (no data)."
-                ),
-            },
-            {
                 "name": "dbt_sqlserver_use_default_schema_concat",
                 "default": False,
                 "description": (
