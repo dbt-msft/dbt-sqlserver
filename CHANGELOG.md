@@ -24,6 +24,7 @@
 - Bump `dbt-adapters` to `>=1.24.1` and `dbt-tests-adapter` to `>=1.20.0`.
 - Replace Black with Ruff's formatter for code formatting.
 - devcontainer: install the `dev` dependency group explicitly in `setup_env`, fixing a setup where dev-only tooling was missing from the container.
+- Remove the dead `empty` behavior flag: it was defined in `_behavior_flags` but had zero references anywhere in the codebase.
 
 ### v1.10.1
 
