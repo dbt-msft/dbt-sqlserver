@@ -3,3 +3,5 @@
 4eff3237f2bf9d3d206c9234353fb07e70ac6013
 # Updated README.md and blackified the code.
 29bab50f0e7d9e09b9110500f6e41e1255d3f3f6
+# Replaced black with ruff format.
+3d77e975c41bb6be2a13afd0df8cbb596d84fe9f
