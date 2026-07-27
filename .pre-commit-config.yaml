@@ -37,20 +37,12 @@ repos:
         alias: ruff-check-manual
         stages:
           - manual
-  - repo: 'https://github.com/psf/black'
-    rev: 26.5.1
-    hooks:
-      - id: black
-        args:
-          - '--line-length=99'
-          - '--target-version=py311'
-      - id: black
-        alias: black-check
+      - id: ruff-format
+      - id: ruff-format
+        alias: ruff-format-check
         stages:
           - manual
         args:
-          - '--line-length=99'
-          - '--target-version=py311'
           - '--check'
           - '--diff'
   - repo: 'https://github.com/pre-commit/mirrors-mypy'

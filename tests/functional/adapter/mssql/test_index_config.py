@@ -55,7 +55,9 @@ and index_id > 0
 )
 """
 
-index_count = base_validation + """
+index_count = (
+    base_validation
+    + """
 select
   index_type + case when [unique] = 'Unique' then ' unique' else '' end as index_type,
   count(*) index_count
@@ -65,8 +67,11 @@ WHERE
   schema_name='{schema_name}'
 group by index_type + case when [unique] = 'Unique' then ' unique' else '' end
 """
+)
 
-indexes_def = base_validation + """
+indexes_def = (
+    base_validation
+    + """
 SELECT
   index_name,
   [columns],
@@ -84,6 +89,7 @@ WHERE
   table_view='{schema_name}.{table_name}'
 
 """
+)
 
 # Altered from: https://github.com/dbt-labs/dbt-postgres
 
@@ -898,7 +904,7 @@ class TestSQLServerClusteredCollision:
     def test_clustered_collision_fails_with_clear_error(self, project, unique_schema):
         run_dbt(["run", "--models", "collision"])
         project.run_sql(
-            f"CREATE CLUSTERED INDEX ix_dba_clustered " f"ON {unique_schema}.collision (column_a)"
+            f"CREATE CLUSTERED INDEX ix_dba_clustered ON {unique_schema}.collision (column_a)"
         )
 
         _, output = run_dbt_and_capture(

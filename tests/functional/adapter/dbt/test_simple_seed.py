@@ -163,10 +163,12 @@ class TestSimpleSeedEnabledViaConfig__seed_with_disabled(BaseSimpleSeedEnabledVi
         check_table_does_not_exist(project.adapter, "seed_disabled")
         check_table_does_exist(project.adapter, "seed_tricky")
 
-    @pytest.mark.skip(reason="""
+    @pytest.mark.skip(
+        reason="""
         Running all the tests in the same schema causes the tests to fail
         as they all share the same schema across the tests
-        """)
+        """
+    )
     def test_simple_seed_selection(self, clear_test_schema, project):
         results = run_dbt(["seed", "--select", "seed_enabled"])
         assert len(results) == 1
@@ -174,10 +176,12 @@ class TestSimpleSeedEnabledViaConfig__seed_with_disabled(BaseSimpleSeedEnabledVi
         check_table_does_not_exist(project.adapter, "seed_disabled")
         check_table_does_not_exist(project.adapter, "seed_tricky")
 
-    @pytest.mark.skip(reason="""
+    @pytest.mark.skip(
+        reason="""
         Running all the tests in the same schema causes the tests to fail
         as they all share the same schema across the tests
-        """)
+        """
+    )
     def test_simple_seed_exclude(self, clear_test_schema, project):
         results = run_dbt(["seed", "--exclude", "seed_enabled"])
         assert len(results) == 1
@@ -204,10 +208,12 @@ class TestSimpleSeedEnabledViaConfig__seed_selection(BaseSimpleSeedEnabledViaCon
         project.run_sql(f"drop view if exists {project.test_schema}.seed_tricky")
         project.run_sql(f"drop schema if exists {project.test_schema}")
 
-    @pytest.mark.skip(reason="""
+    @pytest.mark.skip(
+        reason="""
         Running all the tests in the same schema causes the tests to fail
         as they all share the same schema across the tests
-        """)
+        """
+    )
     def test_simple_seed_with_disabled(self, clear_test_schema, project):
         results = run_dbt(["seed"])
         assert len(results) == 2
@@ -222,10 +228,12 @@ class TestSimpleSeedEnabledViaConfig__seed_selection(BaseSimpleSeedEnabledViaCon
         check_table_does_not_exist(project.adapter, "seed_disabled")
         check_table_does_not_exist(project.adapter, "seed_tricky")
 
-    @pytest.mark.skip(reason="""
+    @pytest.mark.skip(
+        reason="""
         Running all the tests in the same schema causes the tests to fail
         as they all share the same schema across the tests
-        """)
+        """
+    )
     def test_simple_seed_exclude(self, clear_test_schema, project):
         results = run_dbt(["seed", "--exclude", "seed_enabled"])
         assert len(results) == 1
@@ -252,10 +260,12 @@ class TestSimpleSeedEnabledViaConfig__seed_exclude(BaseSimpleSeedEnabledViaConfi
         project.run_sql(f"drop view if exists {project.test_schema}.seed_tricky")
         project.run_sql(f"drop schema if exists {project.test_schema}")
 
-    @pytest.mark.skip(reason="""
+    @pytest.mark.skip(
+        reason="""
         Running all the tests in the same schema causes the tests to fail
         as they all share the same schema across the tests
-        """)
+        """
+    )
     def test_simple_seed_with_disabled(self, clear_test_schema, project):
         results = run_dbt(["seed"])
         assert len(results) == 2
@@ -263,10 +273,12 @@ class TestSimpleSeedEnabledViaConfig__seed_exclude(BaseSimpleSeedEnabledViaConfi
         check_table_does_not_exist(project.adapter, "seed_disabled")
         check_table_does_exist(project.adapter, "seed_tricky")
 
-    @pytest.mark.skip(reason="""
+    @pytest.mark.skip(
+        reason="""
         Running all the tests in the same schema causes the tests to fail
         as they all share the same schema across the tests
-        """)
+        """
+    )
     def test_simple_seed_selection(self, clear_test_schema, project):
         results = run_dbt(["seed", "--select", "seed_enabled"])
         assert len(results) == 1

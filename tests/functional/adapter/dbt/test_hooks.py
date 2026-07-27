@@ -129,12 +129,12 @@ class BaseTestPrePost:
             # assert ctx["target_user"] == "root"
             # assert ctx["target_pass"] == ""
 
-            assert (
-                ctx["run_started_at"] is not None and len(ctx["run_started_at"]) > 0
-            ), "run_started_at was not set"
-            assert (
-                ctx["invocation_id"] is not None and len(ctx["invocation_id"]) > 0
-            ), "invocation_id was not set"
+            assert ctx["run_started_at"] is not None and len(ctx["run_started_at"]) > 0, (
+                "run_started_at was not set"
+            )
+            assert ctx["invocation_id"] is not None and len(ctx["invocation_id"]) > 0, (
+                "invocation_id was not set"
+            )
             assert ctx["thread_id"].startswith("Thread-")
 
 
@@ -196,7 +196,8 @@ class BaseHookRefs(BaseTestPrePost):
             "models": {
                 "test": {
                     "hooked": {
-                        "post-hook": ["""
+                        "post-hook": [
+                            """
                         insert into {{this.schema}}.on_model_hook select
                         test_state,
                         '{{ target.dbname }}' as target_dbname,
@@ -210,7 +211,8 @@ class BaseHookRefs(BaseTestPrePost):
                         '{{ run_started_at }}' as run_started_at,
                         '{{ invocation_id }}' as invocation_id,
                         '{{ thread_id }}' as thread_id
-                        from {{ ref('post') }}""".strip()],
+                        from {{ ref('post') }}""".strip()
+                        ],
                     }
                 },
             }

@@ -16,7 +16,6 @@ from dbt.tests.util import run_dbt
 
 
 class TestSimpleMaterializations(BaseSimpleMaterializations):
-
     def test_existing_view_materialization(self, project, models):
         """Test that materializing an existing view works correctly."""
         # Create a temporary model file directly in the project

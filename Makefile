@@ -16,10 +16,10 @@ ruff: ## Runs ruff against staged changes to enforce style guide.
 	@\
 	pre-commit run --hook-stage manual ruff-check-manual | grep -v "INFO"
 
-.PHONY: black
-black: ## Runs black  against staged changes to enforce style guide.
+.PHONY: format
+format: ## Runs ruff format against staged changes to enforce style guide.
 	@\
-	pre-commit run --hook-stage manual black-check -v | grep -v "INFO"
+	pre-commit run --hook-stage manual ruff-format-check -v | grep -v "INFO"
 
 .PHONY: lint
 lint: ## Runs ruff and mypy code checks against staged changes.
@@ -46,7 +46,7 @@ functional: ## Runs functional tests.
 test: ## Runs unit tests and code checks against staged changes.
 	@\
 	uv run pytest -n auto -ra -v tests/unit; \
-	pre-commit run black-check --hook-stage manual | grep -v "INFO"; \
+	pre-commit run ruff-format-check --hook-stage manual | grep -v "INFO"; \
 	pre-commit run ruff-check-manual --hook-stage manual | grep -v "INFO"; \
 	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
 
