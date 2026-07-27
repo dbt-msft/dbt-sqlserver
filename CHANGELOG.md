@@ -1,9 +1,11 @@
 # Changelog
 
-### Unreleased
+### v1.11.0
 
 #### Features
 
+- Official support for `dbt-core` 1.11.
+- Add support for the `function` resource type introduced in `dbt-core` 1.11: SQL scalar UDFs are created via `CREATE OR ALTER FUNCTION`, with support for typed arguments, default argument values, grants and `persist_docs`. Python UDFs and UDAFs are not supported on SQL Server and error with a clear message; a `volatility` config is accepted but warned on and ignored, since SQL Server has no volatility specifier.
 - Add `full_refresh_build` model config: `prebuilt` rebuilds the table in place - drop the old table, recreate it empty with its clustered design (the `as_columnstore` CCI or the clustered index from `indexes`), then bulk-load via `INSERT WITH (TABLOCK)`. No intermediate copy or rename swap, so peak rebuild disk is ~1x instead of 2x plus the uncompressed-heap overshoot. Default `heap_then_index` is unchanged.
 - `prebuilt` applies only under `--full-refresh` and on first builds; normal runs keep the configured refresh (swap build, or DML delete+insert) so live tables stay in place and visible. Rowstore models without a clustered index in `indexes` load in place as a heap.
 - Under `--full-refresh`, `prebuilt` takes precedence over `table_refresh_method: dml`: a fully-logged whole-table DELETE+INSERT is the wrong tool for a rebuild, and preserving the table would also preserve a physical design the rebuild is meant to replace.
@@ -14,7 +16,15 @@
 
 #### Bugfixes
 
-- **Behavior change:** `SET XACT_ABORT ON` is now a session-level default on every connection the adapter opens, fixing silent, committed data loss on the DML table refresh path (and any other multi-statement batch): a mid-batch run-time error (e.g. a `NOT NULL`/constraint violation on the swap `INSERT`) previously aborted only the failing statement, not the batch, so a trailing `COMMIT` could still commit a partial result — most notably an emptied target after the `DELETE` succeeded and the `INSERT` failed. This is on by default in this already-published 1.11.x line; opt out per profile with `xact_abort: false` if you rely on continue-on-error batch semantics in custom hooks. [#718](https://github.com/dbt-msft/dbt-sqlserver/issues/718)
+- **Behavior change:** `SET XACT_ABORT ON` is now a session-level default on every connection the adapter opens, fixing silent, committed data loss on the DML table refresh path (and any other multi-statement batch): a mid-batch run-time error (e.g. a `NOT NULL`/constraint violation on the swap `INSERT`) previously aborted only the failing statement, not the batch, so a trailing `COMMIT` could still commit a partial result — most notably an emptied target after the `DELETE` succeeded and the `INSERT` failed. This is on by default starting in this release; opt out per profile with `xact_abort: false` if you rely on continue-on-error batch semantics in custom hooks. [#718](https://github.com/dbt-msft/dbt-sqlserver/issues/718)
+
+#### Under the hood
+
+- Drop Python 3.10 support; this release targets Python 3.11 and newer. [#758](https://github.com/dbt-msft/dbt-sqlserver/issues/758)
+- Bump `dbt-adapters` to `>=1.24.1` and `dbt-tests-adapter` to `>=1.20.0`.
+- Replace Black with Ruff's formatter for code formatting.
+- devcontainer: install the `dev` dependency group explicitly in `setup_env`, fixing a setup where dev-only tooling was missing from the container.
+- Remove the dead `empty` behavior flag: it was defined in `_behavior_flags` but had zero references anywhere in the codebase.
 
 ### v1.10.1
 
