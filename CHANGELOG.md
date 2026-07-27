@@ -1,5 +1,18 @@
 # Changelog
 
+### Unreleased
+
+#### Features
+
+- Official support for `dbt-core` 1.12. Bump `dbt-core` minimum to `>=1.12.0` and `dbt-adapters` to `>=1.24.5`.
+- Add Python 3.14 support.
+- **Behavior change:** `dbt_sqlserver_use_dbt_transactions` now defaults to `True`: dbt-managed transaction hooks (begin/commit) emit real `BEGIN TRANSACTION` / `COMMIT TRANSACTION` T-SQL instead of no-ops, so a failed model rolls back its own statements instead of leaving a partial result behind on autocommit. The `False` (legacy autocommit) behavior is deprecated and will be removed in a future release.
+- **Behavior change:** `dbt_sqlserver_use_native_string_types` now defaults to `True`: `STRING` maps to `VARCHAR(MAX)`, `NCHAR` to `NCHAR(1)`, and `NVARCHAR` to `NVARCHAR(4000)`, instead of the legacy `VARCHAR(8000)`/`CHAR(1)` mappings. The `False` (legacy) behavior is deprecated and will be removed in a future release.
+
+#### Bugfixes
+
+- Fix `dbt_sqlserver_use_dbt_transactions: True` (now the default) breaking two things that assumed the old autocommit-per-statement behavior: building an index with `build_options: {online: true}` or `{resumable: true}` on a fresh table or `table_refresh_method`'s rename-swap path (SQL Server rejects `RESUMABLE` inside a user transaction outright — `create_indexes` didn't split these out the way index reconciliation already did); and the `dbt_full_refresh_incomplete` crash marker on `full_refresh_build=prebuilt` and incremental full refreshes, which previously rode the same ambient transaction as the rebuild it's meant to survive, so a real failure mid-rebuild rolled the marker back along with everything else instead of leaving it in place to block the next normal run.
+
 ### v1.11.0
 
 #### Features

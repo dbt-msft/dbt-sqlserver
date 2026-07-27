@@ -287,10 +287,6 @@ class TestFullRefreshBuild:
     project instead of paying setup cost per case."""
 
     @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"dbt_sqlserver_use_dbt_transactions": False}}
-
-    @pytest.fixture(scope="class")
     def models(self):
         return {
             "invalid_value.sql": models__invalid_value_sql,

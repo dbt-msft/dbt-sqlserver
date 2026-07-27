@@ -887,10 +887,6 @@ class TestSQLServerIndexAdvanced:
     """
 
     @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"dbt_sqlserver_use_dbt_transactions": False}}
-
-    @pytest.fixture(scope="class")
     def models(self):
         return {
             "reconcile_incremental.sql": models__reconcile_incremental_sql,
