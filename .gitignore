@@ -104,3 +104,10 @@ venv.bak/
 .mise.toml
 
 devcontainer-lock.json
+opencode.jsonc
+.opencode/
+
+# APM dependencies
+apm_modules/
+apm.yml
+apm.lock.yaml
