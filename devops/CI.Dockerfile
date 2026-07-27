@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION="3.11"
-FROM python:${PYTHON_VERSION}-bullseye as base
+FROM python:${PYTHON_VERSION}-bookworm AS base
 
 # Shared CI tooling used by both backends.
 RUN apt-get update && \
@@ -12,11 +12,21 @@ RUN apt-get update && \
     apt-get clean &&  \
     rm -rf /var/lib/apt/lists/*
 
-# enable Microsoft package repo
-RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-RUN curl -sL https://packages.microsoft.com/config/debian/$(lsb_release -sr)/prod.list | tee /etc/apt/sources.list.d/msprod.list
-# enable Azure CLI package repo
-RUN echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/azure-cli.list
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Download and dearmor Microsoft's GPG key
+RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor \
+    | tee /usr/share/keyrings/microsoft-prod.gpg >/dev/null
+
+# Enable Microsoft package repo with signed-by key
+RUN curl -sL https://packages.microsoft.com/config/debian/$(lsb_release -sr 2>/dev/null)/prod.list \
+    | sed -e 's#deb \[arch=#deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg arch=#' \
+    | tee /etc/apt/sources.list.d/mssql-release.list
+
+# Enable Azure CLI package repo
+RUN echo "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" \
+    | tee /etc/apt/sources.list.d/azure-cli.list
 
 # install Azure CLI
 ENV ACCEPT_EULA=Y
@@ -27,7 +37,7 @@ RUN apt-get update && \
     apt-get clean &&  \
     rm -rf /var/lib/apt/lists/*
 
-FROM base as mssql
+FROM base AS mssql
 
 # System libraries required by the mssql-python backend.
 ENV ACCEPT_EULA=Y
@@ -40,7 +50,7 @@ RUN apt-get update && \
     apt-get clean &&  \
     rm -rf /var/lib/apt/lists/*
 
-FROM base as msodbc17
+FROM base AS msodbc17
 
 # install ODBC driver 17
 ENV ACCEPT_EULA=Y
@@ -56,7 +66,7 @@ RUN apt-get update && \
 # add sqlcmd to the path
 ENV PATH="$PATH:/opt/mssql-tools/bin"
 
-FROM base as msodbc18
+FROM base AS msodbc18
 
 # install ODBC driver 18
 ENV ACCEPT_EULA=Y
