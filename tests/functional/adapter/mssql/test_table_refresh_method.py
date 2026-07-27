@@ -337,11 +337,13 @@ class TestDmlRefresh:
         assert len(results) == 1
         assert results[0].status == "success"
 
+        # Target has the live row (not the stale one)
         rows = query_table(project, "dml_model")
         assert len(rows) == 1
         assert rows[0][0] == 1
         assert rows[0][1] == "hello"
 
+        # Scratch fully cleaned up after the refresh
         assert not table_exists(project, "dml_model__dbt_refresh")
 
 
