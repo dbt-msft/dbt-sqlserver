@@ -4,33 +4,34 @@ THREADS ?= auto
 .PHONY: dev
 dev: ## Installs adapter in develop mode along with development dependencies
 	@\
-	uv sync --all-extras && pre-commit install
+	uv sync --all-extras && uv run pre-commit install
 
 .PHONY: mypy
 mypy: ## Runs mypy against staged changes for static type checking.
 	@\
-	pre-commit run --hook-stage manual mypy-check | grep -v "INFO"
+	uv run pre-commit run --hook-stage manual mypy-check
 
 .PHONY: ruff
 ruff: ## Runs ruff against staged changes to enforce style guide.
 	@\
-	pre-commit run --hook-stage manual ruff-check-manual | grep -v "INFO"
+	uv run pre-commit run --hook-stage manual ruff-check-manual
 
 .PHONY: format
 format: ## Runs ruff format against staged changes to enforce style guide.
 	@\
-	pre-commit run --hook-stage manual ruff-format-check -v | grep -v "INFO"
+	uv run pre-commit run --hook-stage manual ruff-format-check -v
 
 .PHONY: lint
 lint: ## Runs ruff and mypy code checks against staged changes.
-	@\
-	pre-commit run ruff-check-manual --hook-stage manual | grep -v "INFO"; \
-	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
+	@status=0; \
+	uv run pre-commit run ruff-check-manual --hook-stage manual || status=1; \
+	uv run pre-commit run mypy-check --hook-stage manual || status=1; \
+	exit $$status
 
 .PHONY: all
 all: ## Runs all checks against staged changes.
 	@\
-	pre-commit run -a
+	uv run pre-commit run -a
 
 .PHONY: unit
 unit: ## Runs unit tests.
@@ -44,11 +45,12 @@ functional: ## Runs functional tests.
 
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
-	@\
-	uv run pytest -n auto -ra -v tests/unit; \
-	pre-commit run ruff-format-check --hook-stage manual | grep -v "INFO"; \
-	pre-commit run ruff-check-manual --hook-stage manual | grep -v "INFO"; \
-	pre-commit run mypy-check --hook-stage manual | grep -v "INFO"
+	@status=0; \
+	uv run pytest -n auto -ra -v tests/unit || status=1; \
+	uv run pre-commit run ruff-format-check --hook-stage manual || status=1; \
+	uv run pre-commit run ruff-check-manual --hook-stage manual || status=1; \
+	uv run pre-commit run mypy-check --hook-stage manual || status=1; \
+	exit $$status
 
 .PHONY: server
 server: ## Spins up a local MS SQL Server instance for development. Docker-compose is required.
