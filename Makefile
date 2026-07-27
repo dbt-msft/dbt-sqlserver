@@ -43,6 +43,11 @@ functional: ## Runs functional tests.
 	@\
 	uv run pytest -n $(THREADS) -ra -v tests/functional
 
+.PHONY: v2-parser-test
+v2-parser-test: ## Runs v2 parser functional tests. Requires dbt-core-experimental-parser on PATH and a running SQL Server.
+	@\
+	uv run pytest -m v2_parser tests/functional/adapter/v2_parser -v
+
 .PHONY: test
 test: ## Runs unit tests and code checks against staged changes.
 	@status=0; \

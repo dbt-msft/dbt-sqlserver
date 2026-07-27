@@ -106,7 +106,7 @@ All CI/CD pipelines are using GitHub Actions. The following pipelines are availa
 
 * `publish-docker`: publishes the image we use in all other pipelines.
 * `unit-tests`: runs the unit tests for each supported Python version.
-* `integration-tests-sqlserver`: runs the integration tests for SQL Server.
+* `integration-tests-sqlserver`: runs the integration tests for SQL Server (includes the `v2-parser-tests` job).
 * `release-version`: publishes the adapter to PyPI.
 
 There is an additional [Pre-commit](https://pre-commit.ci/) pipeline that validates the code style.
@@ -131,3 +131,7 @@ Make sure the version number is bumped in `dbt/adapters/sqlserver/__version__.py
 A GitHub Actions workflow will be triggered to build the package and push it to PyPI.
 
 If you're releasing support for a new version of `dbt-core`, also bump the `dbt-core` constraint in `dependencies` in `pyproject.toml`.
+
+## V2 Parser (Experimental)
+
+See [docs/contributing/v2-parser.md](docs/contributing/v2-parser.md) for details on the experimental Rust-based v2 parser, local setup, CI integration, known limitations, and manifest comparison.
