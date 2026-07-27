@@ -1,0 +1,44 @@
+---
+name: Lint
+on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - v*
+  pull_request:
+    branches:
+      - master
+      - v*
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+
+      # The hook environments (ruff, mypy, yamllint) dominate this job's
+      # runtime. They are rebuilt only when the pinned hook revisions change.
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-py3.11-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # SKIP omits the hooks that only make sense on a developer's machine.
+      - name: Run pre-commit
+        run: uvx pre-commit run --all-files --show-diff-on-failure --color always
+        env:
+          SKIP: no-commit-to-branch
