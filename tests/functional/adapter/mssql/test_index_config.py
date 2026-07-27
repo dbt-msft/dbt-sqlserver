@@ -572,6 +572,10 @@ class TestSQLServerIndex:
 
 
 class TestSQLServerInvalidIndex:
+    """Kept isolated: the test relies on being the ONLY models in the project
+    so that `run_dbt_and_capture()` (no --models select) touches exactly these
+    4 nodes and `len(results) == 4` holds."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -589,6 +593,12 @@ class TestSQLServerInvalidIndex:
         assert re.search(r"'columns' is a required property", output)
         assert re.search(r"'non_existent_type'.*is not one of", output)
 
+
+# ---------------------------------------------------------------------------
+# Everything below is a single independent model/snapshot per case, each always
+# built via an explicit --models/--select, so they share one project instead
+# of paying setup cost per case (see TestSQLServerIndexAdvanced).
+# ---------------------------------------------------------------------------
 
 models__reconcile_incremental_sql = """
 {{
@@ -728,6 +738,133 @@ VALIDATE_CCI_DESCRIBE_MACRO = """
 {% endmacro %}
 """
 
+models__multiple_clustered_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['column_a'], 'type': 'clustered'},
+      {'columns': ['column_b'], 'type': 'clustered'},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+
+"""
+
+models__clustered_with_cci_sql = """
+{{
+  config(
+    materialized = "table",
+    indexes=[
+      {'columns': ['column_a'], 'type': 'clustered'},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+
+"""
+
+models__full_options_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['column_a', {'column': 'column_b', 'desc': True}],
+       'type': 'clustered', 'data_compression': 'page', 'fillfactor': 90},
+      {'columns': ['column_a'], 'unique': True, 'ignore_dup_key': True,
+       'build_options': {'maxdop': 1, 'allow_page_locks': False}},
+      {'columns': ['column_b'], 'included_columns': ['column_c'],
+       'where': 'column_b is not null',
+       'optimize_for_sequential_key': True},
+      {'columns': ['column_c'], 'type': 'columnstore',
+       'data_compression': 'columnstore_archive'},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b, 3 as column_c
+
+"""
+
+models__invalid_dum_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    drop_unmanaged_indexes = "yes please",
+    indexes=[{'columns': ['column_a']}]
+  )
+}}
+
+select 1 as column_a
+
+"""
+
+snapshots__clustered_cci_snapshot_sql = """
+{% snapshot clustered_cci_snapshot %}
+
+    {{
+        config(
+            target_database=database,
+            target_schema=schema,
+            unique_key='id',
+            strategy='check',
+            check_cols=['color'],
+            indexes=[{'columns': ['id'], 'type': 'clustered'}]
+        )
+    }}
+
+    select 1 as id, 'red' as color
+
+{% endsnapshot %}
+
+"""
+
+models__online_table_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes=[
+      {'columns': ['column_a'], 'build_options': {'online': True}},
+      {'columns': ['column_b'], 'build_options': {'online': True, 'resumable': True}},
+    ]
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+"""
+
+models__online_incremental_sql = """
+{{
+  config(
+    materialized = "incremental",
+    as_columnstore = False,
+    indexes=[{'columns': ['column_a'], 'build_options': {'online': True}}],
+  )
+}}
+
+select 1 as column_a, 2 as column_b
+{% if is_incremental() %} where 1 = 0 {% endif %}
+"""
+
+models__managed_index_key_include_boundary_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    indexes = var('managed_idx', [])
+  )
+}}
+
+select cast(1 as int) as a, cast(2 as int) as b, cast(3 as int) as c
+"""
+
 
 def get_index_rows(project, unique_schema, table_name):
     sql = indexes_def.format(schema_name=unique_schema, table_name=table_name)
@@ -738,14 +875,46 @@ def index_summary(rows):
     return sorted((row[1], row[3]) for row in rows)  # (columns, type)
 
 
-class TestSQLServerIndexReconciliation:
+class TestSQLServerIndexAdvanced:
+    """Each test below targets an independent model/snapshot via an explicit
+    --models/--select/--vars scope, so none of them can see or interfere with
+    another test's node — that's what lets them share one project fixture
+    instead of one per case. Kept separate from this class: anything with its
+    own project_config_update (TestSQLServerIndex, TestSQLServerProjectLevelIndexes),
+    since that rewrites dbt_project.yml for the whole project and would leak into
+    every other model here; and TestSQLServerInvalidIndex, which depends on being
+    the entire project so its unfiltered run touches exactly 4 nodes.
+    """
+
     @pytest.fixture(scope="class")
     def models(self):
-        return {"reconcile_incremental.sql": models__reconcile_incremental_sql}
+        return {
+            "reconcile_incremental.sql": models__reconcile_incremental_sql,
+            "reconcile_dml.sql": models__reconcile_dml_sql,
+            "wide_columnstore.sql": models__wide_columnstore_sql,
+            "drop_unmanaged.sql": models__drop_unmanaged_sql,
+            "collision.sql": models__collision_sql,
+            "multiple_clustered.sql": models__multiple_clustered_sql,
+            "clustered_with_cci.sql": models__clustered_with_cci_sql,
+            "full_options.sql": models__full_options_sql,
+            "online_table.sql": models__online_table_sql,
+            "online_incr.sql": models__online_incremental_sql,
+            "invalid_dum.sql": models__invalid_dum_sql,
+            "managed_index_key_include_boundary.sql": (
+                models__managed_index_key_include_boundary_sql
+            ),
+        }
 
     @pytest.fixture(scope="class")
     def snapshots(self):
-        return {"reconcile_colors.sql": snapshots__reconcile_snapshot_sql}
+        return {
+            "reconcile_colors.sql": snapshots__reconcile_snapshot_sql,
+            "clustered_cci_snapshot.sql": snapshots__clustered_cci_snapshot_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"validate_cci_describe_columns.sql": VALIDATE_CCI_DESCRIBE_MACRO}
 
     def test_incremental_reconciles_definition_change(self, project, unique_schema):
         run_dbt(["run", "--models", "reconcile_incremental"])
@@ -767,19 +936,21 @@ class TestSQLServerIndexReconciliation:
         assert index_summary(third) == [("column_b", "nonclustered")]
 
     def test_snapshot_reconciles_definition_change(self, project, unique_schema):
-        run_dbt(["snapshot"])
+        run_dbt(["snapshot", "--select", "reconcile_colors"])
         first = get_index_rows(project, unique_schema, "reconcile_colors")
         assert index_summary(first) == [("id", "nonclustered")]
 
-        run_dbt(["snapshot", "--vars", "reconcile_indexes: [{'columns': ['color']}]"])
+        run_dbt(
+            [
+                "snapshot",
+                "--select",
+                "reconcile_colors",
+                "--vars",
+                "reconcile_indexes: [{'columns': ['color']}]",
+            ]
+        )
         second = get_index_rows(project, unique_schema, "reconcile_colors")
         assert index_summary(second) == [("color", "nonclustered")]
-
-
-class TestSQLServerIndexReconciliationDML:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"reconcile_dml.sql": models__reconcile_dml_sql}
 
     def test_dml_refresh_reconciles_definition_change(self, project, unique_schema):
         run_dbt(["run", "--models", "reconcile_dml"])
@@ -799,16 +970,6 @@ class TestSQLServerIndexReconciliationDML:
         run_dbt(["run", "--models", "reconcile_dml", "--vars", f"reconcile_indexes: {SET_B}"])
         second = get_index_rows(project, unique_schema, "reconcile_dml")
         assert index_summary(second) == [("column_b", "nonclustered")]
-
-
-class TestSQLServerWideColumnstoreReconcile:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"wide_columnstore.sql": models__wide_columnstore_sql}
-
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"validate_cci_describe_columns.sql": VALIDATE_CCI_DESCRIBE_MACRO}
 
     def test_wide_columnstore_reconcile_does_not_overflow(self, project, unique_schema):
         # First run creates the wide table plus its clustered columnstore index.
@@ -853,12 +1014,6 @@ class TestSQLServerWideColumnstoreReconcile:
         )
         assert "cci_columns_len: 0" in log_output
 
-
-class TestSQLServerDropUnmanagedIndexes:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"drop_unmanaged.sql": models__drop_unmanaged_sql}
-
     def seed_out_of_band_indexes(self, project, unique_schema):
         table = f"{unique_schema}.drop_unmanaged"
         project.run_sql(f"CREATE NONCLUSTERED INDEX dbt_idx_orphan ON {table} (column_b)")
@@ -895,12 +1050,6 @@ class TestSQLServerDropUnmanagedIndexes:
         assert "nonclustered_legacy1" in names
         assert "uq_drop_unmanaged" in names
 
-
-class TestSQLServerClusteredCollision:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"collision.sql": models__collision_sql}
-
     def test_clustered_collision_fails_with_clear_error(self, project, unique_schema):
         run_dbt(["run", "--models", "collision"])
         project.run_sql(
@@ -920,46 +1069,6 @@ class TestSQLServerClusteredCollision:
         assert "ix_dba_clustered" in output
         assert "will not be dropped" in output
 
-
-models__multiple_clustered_sql = """
-{{
-  config(
-    materialized = "table",
-    as_columnstore = False,
-    indexes=[
-      {'columns': ['column_a'], 'type': 'clustered'},
-      {'columns': ['column_b'], 'type': 'clustered'},
-    ]
-  )
-}}
-
-select 1 as column_a, 2 as column_b
-
-"""
-
-models__clustered_with_cci_sql = """
-{{
-  config(
-    materialized = "table",
-    indexes=[
-      {'columns': ['column_a'], 'type': 'clustered'},
-    ]
-  )
-}}
-
-select 1 as column_a, 2 as column_b
-
-"""
-
-
-class TestSQLServerCrossConfigValidation:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "multiple_clustered.sql": models__multiple_clustered_sql,
-            "clustered_with_cci.sql": models__clustered_with_cci_sql,
-        }
-
     def test_multiple_clustered_rejected(self, project):
         _, output = run_dbt_and_capture(
             ["run", "--models", "multiple_clustered"], expect_pass=False
@@ -975,37 +1084,7 @@ class TestSQLServerCrossConfigValidation:
         )
         assert "as_columnstore" in output
 
-
-models__full_options_sql = """
-{{
-  config(
-    materialized = "table",
-    as_columnstore = False,
-    indexes=[
-      {'columns': ['column_a', {'column': 'column_b', 'desc': True}],
-       'type': 'clustered', 'data_compression': 'page', 'fillfactor': 90},
-      {'columns': ['column_a'], 'unique': True, 'ignore_dup_key': True,
-       'build_options': {'maxdop': 1, 'allow_page_locks': False}},
-      {'columns': ['column_b'], 'included_columns': ['column_c'],
-       'where': 'column_b is not null',
-       'optimize_for_sequential_key': True},
-      {'columns': ['column_c'], 'type': 'columnstore',
-       'data_compression': 'columnstore_archive'},
-    ]
-  )
-}}
-
-select 1 as column_a, 2 as column_b, 3 as column_c
-
-"""
-
-
-class TestSQLServerIndexFullOptions:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"full_options.sql": models__full_options_sql}
-
-    def introspect(self, project, unique_schema):
+    def introspect_full_options(self, project, unique_schema):
         sql = f"""
         select i.[name], i.type_desc, i.is_unique, i.ignore_dup_key,
                i.fill_factor, i.has_filter, i.filter_definition,
@@ -1035,7 +1114,7 @@ class TestSQLServerIndexFullOptions:
         results = run_dbt(["run", "--models", "full_options"])
         assert len(results) == 1
 
-        by_key = self.introspect(project, unique_schema)
+        by_key = self.introspect_full_options(project, unique_schema)
         assert set(by_key) == {
             ("CLUSTERED", False, False),
             ("NONCLUSTERED", True, False),
@@ -1062,8 +1141,108 @@ class TestSQLServerIndexFullOptions:
         first_names = sorted(by_key[k][0] for k in by_key)
         results = run_dbt(["run", "--models", "full_options"])
         assert len(results) == 1
-        second = self.introspect(project, unique_schema)
+        second = self.introspect_full_options(project, unique_schema)
         assert sorted(second[k][0] for k in second) == first_names
+
+    def test_invalid_drop_unmanaged_fails_on_first_build(self, project):
+        # Must fail on the FIRST build (create path), not only when
+        # reconciliation first runs on a later build.
+        _, output = run_dbt_and_capture(["run", "--models", "invalid_dum"], expect_pass=False)
+        assert "drop_unmanaged_indexes" in output
+
+    def test_snapshot_clustered_with_default_columnstore_rejected(self, project):
+        # Snapshots build through create_table_as, which honors the
+        # as_columnstore default (true) - a clustered rowstore index in the
+        # snapshot config must be rejected with the clear cross-config error.
+        _, output = run_dbt_and_capture(
+            ["snapshot", "--select", "clustered_cci_snapshot"], expect_pass=False
+        )
+        assert "as_columnstore" in output
+
+    def test_table_create_path_post_commit(self, project, unique_schema):
+        """ONLINE/RESUMABLE indexes are built in the materialization's post-commit
+        phase (outside any transaction), so they build correctly on both the create
+        and reconcile paths. The same post-commit placement keeps them transaction-
+        safe once dbt-managed transactions land; that flag-on path is exercised
+        separately when the transactions feature is present. RESUMABLE requires
+        ONLINE, so they pair."""
+        results = run_dbt(["run", "--models", "online_table"])
+        assert len(results) == 1
+        first = get_index_rows(project, unique_schema, "online_table")
+        assert index_summary(first) == [
+            ("column_a", "nonclustered"),
+            ("column_b", "nonclustered"),
+        ]
+        # Idempotent: rebuilding keeps the same indexes (no churn).
+        first_names = sorted(row[0] for row in first)
+        results = run_dbt(["run", "--models", "online_table"])
+        assert len(results) == 1
+        second = get_index_rows(project, unique_schema, "online_table")
+        assert sorted(row[0] for row in second) == first_names
+
+    def test_incremental_reconcile_path_post_commit(self, project, unique_schema):
+        # First run: create path (post-commit build).
+        run_dbt(["run", "--models", "online_incr"])
+        first = get_index_rows(project, unique_schema, "online_incr")
+        assert index_summary(first) == [("column_a", "nonclustered")]
+        # Second run: table persists -> reconcile path runs; the online index is
+        # (re)built post-commit and persists.
+        run_dbt(["run", "--models", "online_incr"])
+        second = get_index_rows(project, unique_schema, "online_incr")
+        assert index_summary(second) == [("column_a", "nonclustered")]
+
+    def _managed_index_rows(self, project, unique_schema):
+        """Return only dbt_idx_ rows for the test table."""
+        sql = indexes_def.format(
+            schema_name=unique_schema, table_name="managed_index_key_include_boundary"
+        )
+        all_rows = project.run_sql(sql, fetch="all")
+        return [r for r in all_rows if r[0] and r[0].startswith("dbt_idx_")]
+
+    def test_managed_name_changes_when_columns_moved_to_included(self, project, unique_schema):
+        """Regression: columns=['a','b'] and columns=['a'] with
+        included_columns=['b'] must produce different managed names so that
+        reconciliation drops and recreates the index when the definition
+        changes."""
+        # ---- Step 1: create with key-only index (columns: ["a", "b"]) ----
+        run_dbt(
+            [
+                "run",
+                "--models",
+                "managed_index_key_include_boundary",
+                "--vars",
+                "managed_idx: [{'columns': ['a', 'b']}]",
+            ]
+        )
+        rows1 = self._managed_index_rows(project, unique_schema)
+        assert len(rows1) == 1, f"Expected exactly one managed index, got {len(rows1)}"
+        name1, cols1, inc1 = rows1[0][0], rows1[0][1], rows1[0][2]
+        assert cols1 == "a, b", f"Expected key columns 'a, b' after first run, got {cols1!r}"
+        assert inc1 is None, f"Expected no included columns after first run, got {inc1!r}"
+
+        # ---- Step 2: change config to key+include index ----
+        run_dbt(
+            [
+                "run",
+                "--models",
+                "managed_index_key_include_boundary",
+                "--vars",
+                "managed_idx: [{'columns': ['a'], 'included_columns': ['b']}]",
+            ]
+        )
+        rows2 = self._managed_index_rows(project, unique_schema)
+        assert len(rows2) == 1, f"Expected exactly one managed index, got {len(rows2)}"
+        name2, cols2, inc2 = rows2[0][0], rows2[0][1], rows2[0][2]
+        assert cols2 == "a", f"Expected key column 'a' after second run, got {cols2!r}"
+        assert inc2 == "b", f"Expected included column 'b' after second run, got {inc2!r}"
+
+        # ---- Step 3: verify managed names differ ----
+        assert name1 != name2, (
+            "Managed index name must change when the definition changes: "
+            "columns=['a','b'] -> columns=['a'] with included_columns=['b']. "
+            "If this assertion fails the hash/name generation does not "
+            "distinguish key columns from included columns."
+        )
 
 
 models__project_level_sql = """
@@ -1115,202 +1294,3 @@ class TestSQLServerProjectLevelIndexes:
         # model-level config clobbers the project-level list entirely
         overridden = get_index_rows(project, unique_schema, "project_level_override")
         assert index_summary(overridden) == [("column_b", "nonclustered")]
-
-
-models__invalid_dum_sql = """
-{{
-  config(
-    materialized = "table",
-    as_columnstore = False,
-    drop_unmanaged_indexes = "yes please",
-    indexes=[{'columns': ['column_a']}]
-  )
-}}
-
-select 1 as column_a
-
-"""
-
-snapshots__clustered_cci_snapshot_sql = """
-{% snapshot clustered_cci_snapshot %}
-
-    {{
-        config(
-            target_database=database,
-            target_schema=schema,
-            unique_key='id',
-            strategy='check',
-            check_cols=['color'],
-            indexes=[{'columns': ['id'], 'type': 'clustered'}]
-        )
-    }}
-
-    select 1 as id, 'red' as color
-
-{% endsnapshot %}
-
-"""
-
-
-class TestSQLServerEarlyValidation:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"invalid_dum.sql": models__invalid_dum_sql}
-
-    @pytest.fixture(scope="class")
-    def snapshots(self):
-        return {"clustered_cci_snapshot.sql": snapshots__clustered_cci_snapshot_sql}
-
-    def test_invalid_drop_unmanaged_fails_on_first_build(self, project):
-        # Must fail on the FIRST build (create path), not only when
-        # reconciliation first runs on a later build.
-        _, output = run_dbt_and_capture(["run", "--models", "invalid_dum"], expect_pass=False)
-        assert "drop_unmanaged_indexes" in output
-
-    def test_snapshot_clustered_with_default_columnstore_rejected(self, project):
-        # Snapshots build through create_table_as, which honors the
-        # as_columnstore default (true) - a clustered rowstore index in the
-        # snapshot config must be rejected with the clear cross-config error.
-        _, output = run_dbt_and_capture(["snapshot"], expect_pass=False)
-        assert "as_columnstore" in output
-
-
-models__online_table_sql = """
-{{
-  config(
-    materialized = "table",
-    as_columnstore = False,
-    indexes=[
-      {'columns': ['column_a'], 'build_options': {'online': True}},
-      {'columns': ['column_b'], 'build_options': {'online': True, 'resumable': True}},
-    ]
-  )
-}}
-
-select 1 as column_a, 2 as column_b
-"""
-
-
-models__online_incremental_sql = """
-{{
-  config(
-    materialized = "incremental",
-    as_columnstore = False,
-    indexes=[{'columns': ['column_a'], 'build_options': {'online': True}}],
-  )
-}}
-
-select 1 as column_a, 2 as column_b
-{% if is_incremental() %} where 1 = 0 {% endif %}
-"""
-
-
-class TestSQLServerOnlineResumableIndexes:
-    """ONLINE/RESUMABLE indexes are built in the materialization's post-commit
-    phase (outside any transaction), so they build correctly on both the create
-    and reconcile paths. The same post-commit placement keeps them transaction-
-    safe once dbt-managed transactions land; that flag-on path is exercised
-    separately when the transactions feature is present. RESUMABLE requires
-    ONLINE, so they pair."""
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "online_table.sql": models__online_table_sql,
-            "online_incr.sql": models__online_incremental_sql,
-        }
-
-    def test_table_create_path_post_commit(self, project, unique_schema):
-        results = run_dbt(["run", "--models", "online_table"])
-        assert len(results) == 1
-        first = get_index_rows(project, unique_schema, "online_table")
-        assert index_summary(first) == [
-            ("column_a", "nonclustered"),
-            ("column_b", "nonclustered"),
-        ]
-        # Idempotent: rebuilding keeps the same indexes (no churn).
-        first_names = sorted(row[0] for row in first)
-        results = run_dbt(["run", "--models", "online_table"])
-        assert len(results) == 1
-        second = get_index_rows(project, unique_schema, "online_table")
-        assert sorted(row[0] for row in second) == first_names
-
-    def test_incremental_reconcile_path_post_commit(self, project, unique_schema):
-        # First run: create path (post-commit build).
-        run_dbt(["run", "--models", "online_incr"])
-        first = get_index_rows(project, unique_schema, "online_incr")
-        assert index_summary(first) == [("column_a", "nonclustered")]
-        # Second run: table persists -> reconcile path runs; the online index is
-        # (re)built post-commit and persists.
-        run_dbt(["run", "--models", "online_incr"])
-        second = get_index_rows(project, unique_schema, "online_incr")
-        assert index_summary(second) == [("column_a", "nonclustered")]
-
-
-models__managed_index_key_include_boundary_sql = """
-{{
-  config(
-    materialized = "table",
-    as_columnstore = False,
-    indexes = var('managed_idx', [])
-  )
-}}
-
-select cast(1 as int) as a, cast(2 as int) as b, cast(3 as int) as c
-"""
-
-
-class TestSQLServerManagedNameKeyIncludeBoundary:
-    """Regression: columns=['a','b'] and columns=['a'] with
-    included_columns=['b'] must produce different managed names so that
-    reconciliation drops and recreates the index when the definition
-    changes."""
-
-    MODEL = "managed_index_key_include_boundary"
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {f"{self.MODEL}.sql": models__managed_index_key_include_boundary_sql}
-
-    def _managed_index_rows(self, project, unique_schema):
-        """Return only dbt_idx_ rows for the test table."""
-        sql = indexes_def.format(schema_name=unique_schema, table_name=self.MODEL)
-        all_rows = project.run_sql(sql, fetch="all")
-        return [r for r in all_rows if r[0] and r[0].startswith("dbt_idx_")]
-
-    def test_managed_name_changes_when_columns_moved_to_included(self, project, unique_schema):
-        # ---- Step 1: create with key-only index (columns: ["a", "b"]) ----
-        run_dbt(
-            [
-                "run",
-                "--vars",
-                "managed_idx: [{'columns': ['a', 'b']}]",
-            ]
-        )
-        rows1 = self._managed_index_rows(project, unique_schema)
-        assert len(rows1) == 1, f"Expected exactly one managed index, got {len(rows1)}"
-        name1, cols1, inc1 = rows1[0][0], rows1[0][1], rows1[0][2]
-        assert cols1 == "a, b", f"Expected key columns 'a, b' after first run, got {cols1!r}"
-        assert inc1 is None, f"Expected no included columns after first run, got {inc1!r}"
-
-        # ---- Step 2: change config to key+include index ----
-        run_dbt(
-            [
-                "run",
-                "--vars",
-                "managed_idx: [{'columns': ['a'], 'included_columns': ['b']}]",
-            ]
-        )
-        rows2 = self._managed_index_rows(project, unique_schema)
-        assert len(rows2) == 1, f"Expected exactly one managed index, got {len(rows2)}"
-        name2, cols2, inc2 = rows2[0][0], rows2[0][1], rows2[0][2]
-        assert cols2 == "a", f"Expected key column 'a' after second run, got {cols2!r}"
-        assert inc2 == "b", f"Expected included column 'b' after second run, got {inc2!r}"
-
-        # ---- Step 3: verify managed names differ ----
-        assert name1 != name2, (
-            "Managed index name must change when the definition changes: "
-            "columns=['a','b'] -> columns=['a'] with included_columns=['b']. "
-            "If this assertion fails the hash/name generation does not "
-            "distinguish key columns from included columns."
-        )

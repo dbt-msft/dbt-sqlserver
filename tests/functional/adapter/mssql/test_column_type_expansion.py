@@ -92,56 +92,43 @@ select 1 as id,
 """
 
 
-# ============================================================================
-# Default string types (dbt_sqlserver_use_native_string_types = false)
-# ============================================================================
-
-
-class TestExpansionDefault:
+class BaseColumnOperations:
     @pytest.fixture(scope="class")
     def models(self):
-        return {"expand_test.sql": EXPAND_V1}
+        return {
+            "expand_test.sql": EXPAND_V1,
+            "add_col_test.sql": ADD_COL_V1,
+            "sync_test.sql": SYNC_V1,
+        }
 
     def test_varchar_size_expansion(self, project):
-        run_dbt(["run", "--full-refresh"])
+        """Test that column type expansion widens varchar(10) -> varchar(25)."""
+        run_dbt(["run", "--full-refresh", "--select", "expand_test"])
         write_model(project, "expand_test.sql", EXPAND_V2)
-        results = run_dbt(["run"])
+        results = run_dbt(["run", "--select", "expand_test"])
         assert len(results) == 1
         assert results[0].status == "success"
 
         typ = _column_type(project, project.test_schema, "expand_test", "str_col")
         assert typ == ("varchar", 25), f"Expected varchar(25), got {typ}"
 
-
-class TestAddColumnDefault:
-    """
-    This test addresses: https://github.com/dbt-msft/dbt-sqlserver/issues/446
-    """
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"add_col_test.sql": ADD_COL_V1}
-
     def test_add_nvarchar_column(self, project):
-        run_dbt(["run", "--full-refresh"])
+        """
+        This test addresses: https://github.com/dbt-msft/dbt-sqlserver/issues/446
+        """
+        run_dbt(["run", "--full-refresh", "--select", "add_col_test"])
         write_model(project, "add_col_test.sql", ADD_COL_V2)
-        results = run_dbt(["run"])
+        results = run_dbt(["run", "--select", "add_col_test"])
         assert len(results) == 1
         assert results[0].status == "success"
 
         typ = _column_type(project, project.test_schema, "add_col_test", "new_col")
         assert typ == ("nvarchar", 20), f"Expected nvarchar(20), got {typ}"
 
-
-class TestSyncColumnsDefault:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"sync_test.sql": SYNC_V1}
-
     def test_sync_all_columns(self, project):
-        run_dbt(["run", "--full-refresh"])
+        run_dbt(["run", "--full-refresh", "--select", "sync_test"])
         write_model(project, "sync_test.sql", SYNC_V2)
-        results = run_dbt(["run"])
+        results = run_dbt(["run", "--select", "sync_test"])
         assert len(results) == 1
         assert results[0].status == "success"
 
@@ -150,6 +137,16 @@ class TestSyncColumnsDefault:
 
         typ = _column_type(project, project.test_schema, "sync_test", "new_col")
         assert typ == ("nvarchar", 20), f"Expected nvarchar(20), got {typ}"
+
+
+class TestColumnOperationsDefault(BaseColumnOperations):
+    pass
+
+
+class TestColumnOperationsNative(BaseColumnOperations):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"dbt_sqlserver_use_native_string_types": True}}
 
 
 # ============================================================================
@@ -204,71 +201,3 @@ class TestVarcharToNvarcharWithFlag:
 
         typ = _column_type(project, project.test_schema, "nvarchar_safe_test", "str_col")
         assert typ == ("nvarchar", 25), f"Expected nvarchar(25), got {typ}"
-
-
-# ============================================================================
-# Native string types (dbt_sqlserver_use_native_string_types = true)
-# ============================================================================
-
-
-class TestExpansionNative:
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"dbt_sqlserver_use_native_string_types": True}}
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"expand_test.sql": EXPAND_V1}
-
-    def test_varchar_size_expansion_native(self, project):
-        run_dbt(["run", "--full-refresh"])
-        write_model(project, "expand_test.sql", EXPAND_V2)
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-
-        typ = _column_type(project, project.test_schema, "expand_test", "str_col")
-        assert typ == ("varchar", 25), f"Expected varchar(25), got {typ}"
-
-
-class TestAddColumnNative:
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"dbt_sqlserver_use_native_string_types": True}}
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"add_col_test.sql": ADD_COL_V1}
-
-    def test_add_nvarchar_column_native(self, project):
-        run_dbt(["run", "--full-refresh"])
-        write_model(project, "add_col_test.sql", ADD_COL_V2)
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-
-        typ = _column_type(project, project.test_schema, "add_col_test", "new_col")
-        assert typ == ("nvarchar", 20), f"Expected nvarchar(20), got {typ}"
-
-
-class TestSyncColumnsNative:
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"dbt_sqlserver_use_native_string_types": True}}
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"sync_test.sql": SYNC_V1}
-
-    def test_sync_all_columns_native(self, project):
-        run_dbt(["run", "--full-refresh"])
-        write_model(project, "sync_test.sql", SYNC_V2)
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-
-        typ = _column_type(project, project.test_schema, "sync_test", "str_col")
-        assert typ == ("varchar", 25), f"Expected varchar(25), got {typ}"
-
-        typ = _column_type(project, project.test_schema, "sync_test", "new_col")
-        assert typ == ("nvarchar", 20), f"Expected nvarchar(20), got {typ}"

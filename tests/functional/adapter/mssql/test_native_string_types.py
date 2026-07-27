@@ -70,12 +70,7 @@ def _column_types(project, schema: str, table: str) -> dict:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Default behaviour — flag absent, mappings unchanged from pre-#626
-# ---------------------------------------------------------------------------
-
-
-class TestDefaultStringTypes:
+class BaseStringTypes:
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -83,18 +78,29 @@ class TestDefaultStringTypes:
             "schema.yml": contract_model_yml,
         }
 
-    def test_type_labels_dict_default(self, project):
-        labels = project.adapter.Column.TYPE_LABELS
-        assert labels["STRING"] == "VARCHAR(8000)"
-        assert labels["NCHAR"] == "CHAR(1)"
-        assert labels["NVARCHAR"] == "VARCHAR(8000)"
+    def test_type_labels_dict(self, project):
+        self._assert_type_labels(project.adapter.Column.TYPE_LABELS)
 
-    def test_column_types_in_database_default(self, project):
+    def test_column_types_in_database(self, project):
         results = run_dbt(["run"])
         assert len(results) == 1
         assert results[0].status == "success"
 
-        types = _column_types(project, project.test_schema, "types_model")
+        self._assert_column_types(_column_types(project, project.test_schema, "types_model"))
+
+
+# ---------------------------------------------------------------------------
+# Default behaviour — flag absent, mappings unchanged from pre-#626
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultStringTypes(BaseStringTypes):
+    def _assert_type_labels(self, labels):
+        assert labels["STRING"] == "VARCHAR(8000)"
+        assert labels["NCHAR"] == "CHAR(1)"
+        assert labels["NVARCHAR"] == "VARCHAR(8000)"
+
+    def _assert_column_types(self, types):
         # STRING -> VARCHAR(8000)
         assert types["str_col"] == ("varchar", 8000)
         # NCHAR -> CHAR(1) (non-unicode under legacy)
@@ -108,7 +114,7 @@ class TestDefaultStringTypes:
 # ---------------------------------------------------------------------------
 
 
-class TestNativeStringTypes:
+class TestNativeStringTypes(BaseStringTypes):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -117,25 +123,12 @@ class TestNativeStringTypes:
             }
         }
 
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "types_model.sql": contract_model_sql,
-            "schema.yml": contract_model_yml,
-        }
-
-    def test_type_labels_dict_native(self, project):
-        labels = project.adapter.Column.TYPE_LABELS
+    def _assert_type_labels(self, labels):
         assert labels["STRING"] == "VARCHAR(MAX)"
         assert labels["NCHAR"] == "NCHAR(1)"
         assert labels["NVARCHAR"] == "NVARCHAR(4000)"
 
-    def test_column_types_in_database_native(self, project):
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-
-        types = _column_types(project, project.test_schema, "types_model")
+    def _assert_column_types(self, types):
         # STRING -> VARCHAR(MAX), reported as character_maximum_length = -1
         assert types["str_col"] == ("varchar", -1)
         # NCHAR -> NCHAR(1) (unicode)
