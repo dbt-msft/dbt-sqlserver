@@ -61,6 +61,11 @@
     {%- if adapter.behavior.dbt_sqlserver_use_default_schema_concat -%}
         {{ default__generate_schema_name(custom_schema_name, node) }}
     {%- elif var('dbt_sqlserver_use_default_schema_concat', false) -%}
+        {{ exceptions.warn(
+            "DEPRECATED: Using `vars.dbt_sqlserver_use_default_schema_concat` is deprecated. "
+            "Use `flags.dbt_sqlserver_use_default_schema_concat` in dbt_project.yml instead. "
+            "Support for the `var` fallback will be removed in a future release."
+        ) }}
         {{ default__generate_schema_name(custom_schema_name, node) }}
     {%- else -%}
         {%- set default_schema = target.schema -%}

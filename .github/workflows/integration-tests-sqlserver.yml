@@ -41,7 +41,7 @@ jobs:
       # Smaller matrix allows this to check if a failure is specific.
       fail-fast: false
       matrix:
-        python_version: ["3.11", "3.12", "3.13"]
+        python_version: ["3.11", "3.12", "3.13", "3.14"]
         backend: [pyodbc, mssql-python]
         # Baseline on 2025 (newest)
         sqlserver_version: ["2025"]

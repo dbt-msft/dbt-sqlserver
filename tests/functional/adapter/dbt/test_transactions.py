@@ -168,8 +168,10 @@ class TestRollbackWithoutFlag(BaseFailingModelWithSideEffect):
 
     @pytest.mark.xfail(
         strict=True,
-        reason="Without transactions flag, DML in pre-hooks is auto-committed and not rolled back,"
-        " remove after migration to always use transactions.",
+        reason=(
+            "Without transactions flag (legacy deprecated behavior), "
+            "DML in pre-hooks is auto-committed and not rolled back."
+        ),
     )
     def test_side_effect_rolled_back(self, project):
         project.run_sql("CREATE TABLE {schema}.audit_log (msg varchar(100), created_at datetime)")

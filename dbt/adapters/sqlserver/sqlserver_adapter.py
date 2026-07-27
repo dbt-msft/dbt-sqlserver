@@ -100,13 +100,14 @@ class SQLServerAdapter(SQLAdapter):
             },
             {
                 "name": "dbt_sqlserver_use_native_string_types",
-                "default": False,
+                "default": True,
                 "description": (
-                    "When True, uses SQL Server-native string type mappings: "
+                    "When True (default), uses SQL Server-native string type mappings: "
                     "STRING -> VARCHAR(MAX), NCHAR -> NCHAR(1), NVARCHAR -> NVARCHAR(4000). "
-                    "When False (default), preserves legacy mappings: "
+                    "When False, preserves deprecated legacy mappings: "
                     "STRING and NVARCHAR -> VARCHAR(8000), NCHAR -> CHAR(1). "
-                    "The new behaviour is intended to become the default in a future release."
+                    "The legacy False behavior is deprecated "
+                    "and will be removed in a future release."
                 ),
             },
             {
@@ -121,14 +122,15 @@ class SQLServerAdapter(SQLAdapter):
             },
             {
                 "name": "dbt_sqlserver_use_dbt_transactions",
-                "default": False,
+                "default": True,
                 "description": (
-                    "When True, dbt transaction hooks (begin/commit) emit real T-SQL "
+                    "When True (default), dbt transaction hooks (begin/commit) emit real T-SQL "
                     "BEGIN TRANSACTION / COMMIT TRANSACTION statements. "
-                    "When False (default and legacy), begin/commit are no-ops and each statement "
-                    "is auto-committed by the driver. This means earlier successful statements "
+                    "When False, begin/commit are no-ops and each statement "
+                    "is auto-committed by the driver, meaning earlier successful statements "
                     "are not rolled back if a later statement fails. "
-                    "This behavior is intended to become the default in a future release."
+                    "The legacy False behavior is deprecated "
+                    "and will be removed in a future release."
                 ),
             },
         ]

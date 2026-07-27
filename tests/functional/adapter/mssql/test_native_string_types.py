@@ -90,39 +90,11 @@ class BaseStringTypes:
 
 
 # ---------------------------------------------------------------------------
-# Default behaviour — flag absent, mappings unchanged from pre-#626
+# Default behaviour — flag absent, native mappings are now the default
 # ---------------------------------------------------------------------------
 
 
 class TestDefaultStringTypes(BaseStringTypes):
-    def _assert_type_labels(self, labels):
-        assert labels["STRING"] == "VARCHAR(8000)"
-        assert labels["NCHAR"] == "CHAR(1)"
-        assert labels["NVARCHAR"] == "VARCHAR(8000)"
-
-    def _assert_column_types(self, types):
-        # STRING -> VARCHAR(8000)
-        assert types["str_col"] == ("varchar", 8000)
-        # NCHAR -> CHAR(1) (non-unicode under legacy)
-        assert types["nchar_col"] == ("char", 1)
-        # NVARCHAR -> VARCHAR(8000) (non-unicode under legacy)
-        assert types["nvarchar_col"] == ("varchar", 8000)
-
-
-# ---------------------------------------------------------------------------
-# Native behaviour — flag enabled
-# ---------------------------------------------------------------------------
-
-
-class TestNativeStringTypes(BaseStringTypes):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "flags": {
-                "dbt_sqlserver_use_native_string_types": True,
-            }
-        }
-
     def _assert_type_labels(self, labels):
         assert labels["STRING"] == "VARCHAR(MAX)"
         assert labels["NCHAR"] == "NCHAR(1)"
@@ -135,3 +107,31 @@ class TestNativeStringTypes(BaseStringTypes):
         assert types["nchar_col"] == ("nchar", 1)
         # NVARCHAR -> NVARCHAR(4000) (unicode, max fixed-length)
         assert types["nvarchar_col"] == ("nvarchar", 4000)
+
+
+# ---------------------------------------------------------------------------
+# Legacy behaviour — flag disabled, deprecated pre-#626 mappings
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyStringTypes(BaseStringTypes):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "dbt_sqlserver_use_native_string_types": False,
+            }
+        }
+
+    def _assert_type_labels(self, labels):
+        assert labels["STRING"] == "VARCHAR(8000)"
+        assert labels["NCHAR"] == "CHAR(1)"
+        assert labels["NVARCHAR"] == "VARCHAR(8000)"
+
+    def _assert_column_types(self, types):
+        # STRING -> VARCHAR(8000)
+        assert types["str_col"] == ("varchar", 8000)
+        # NCHAR -> CHAR(1) (non-unicode under legacy)
+        assert types["nchar_col"] == ("char", 1)
+        # NVARCHAR -> VARCHAR(8000) (non-unicode under legacy)
+        assert types["nvarchar_col"] == ("varchar", 8000)
