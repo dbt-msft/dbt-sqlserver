@@ -1,5 +1,11 @@
 # Changelog
 
+### Unreleased
+
+#### Bugfixes
+
+- Fix `drop_all_indexes_on_table()` and its component macros (`drop_pk_constraints()`, `drop_fk_constraints()`, `drop_xml_indexes()`, `drop_spatial_indexes()`) matching tables by name only. A post-hook on a model dropped the primary key, inbound foreign keys, and XML/spatial indexes of every same-named table in *other* schemas of the same database. All four now filter on the model's schema as well. Identifiers in the generated dynamic SQL are also wrapped in `QUOTENAME()`.
+
 ### v1.11.0
 
 #### Features

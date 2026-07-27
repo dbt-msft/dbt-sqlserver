@@ -68,6 +68,23 @@ drop_schema_model = """
 select * from {{ ref('raw_data') }}
 """
 
+other_schema_pk_count = """
+select count(*)
+from sys.key_constraints kc
+inner join sys.tables t on kc.parent_object_id = t.object_id
+where kc.[type] = 'PK'
+  and schema_name(t.schema_id) = '{schema_name}'
+  and t.[name] = '{table_name}'
+"""
+
+other_schema_fk_count = """
+select count(*)
+from sys.foreign_keys fk
+inner join sys.tables t on fk.referenced_object_id = t.object_id
+where schema_name(t.schema_id) = '{schema_name}'
+  and t.[name] = '{table_name}'
+"""
+
 
 class TestIndex:
     @pytest.fixture(scope="class")
@@ -142,41 +159,68 @@ class TestIndexDropsOnlySchema:
         END
         """
 
+        # Same table name as the dbt model, in a different schema. The primary
+        # key and the inbound foreign key are what the drop_pk_constraints() /
+        # drop_fk_constraints() legs of drop_all_indexes_on_table() reach.
         create_table = f"""
         CREATE TABLE {_schema}.index_model (
-        IDCOL BIGINT
+        IDCOL BIGINT NOT NULL,
+        CONSTRAINT pk_other_index_model PRIMARY KEY (IDCOL)
         )
         """
 
         create_index = f"""
         CREATE INDEX sample_schema ON {_schema}.index_model (IDCOL)
         """
+
+        create_child_table = f"""
+        CREATE TABLE {_schema}.index_model_child (
+        IDCOL BIGINT NOT NULL,
+        CONSTRAINT fk_other_index_model FOREIGN KEY (IDCOL)
+            REFERENCES {_schema}.index_model (IDCOL)
+        )
+        """
         with get_connection(project.adapter):
             project.adapter.execute(create_sql, fetch=True)
             project.adapter.execute(create_table)
             project.adapter.execute(create_index)
+            project.adapter.execute(create_child_table)
 
     def drop_schema_artifacts(self, project):
         _schema = project.test_schema + "other"
+        drop_child_table = f"DROP TABLE IF EXISTS {_schema}.index_model_child"
         drop_index = f"DROP INDEX IF EXISTS sample_schema ON {_schema}.index_model"
         drop_table = f"DROP TABLE IF EXISTS {_schema}.index_model"
         drop_schema = f"DROP SCHEMA IF EXISTS {_schema}"
 
         with get_connection(project.adapter):
-            project.adapter.execute(drop_index, fetch=True)
+            project.adapter.execute(drop_child_table, fetch=True)
+            project.adapter.execute(drop_index)
             project.adapter.execute(drop_table)
             project.adapter.execute(drop_schema)
 
     def validate_other_schema(self, project):
+        _schema = project.test_schema + "other"
         with get_connection(project.adapter):
             result, table = project.adapter.execute(
-                indexes_def.format(
-                    schema_name=project.test_schema + "other", table_name="index_model"
-                ),
+                indexes_def.format(schema_name=_schema, table_name="index_model"),
                 fetch=True,
             )
 
-        assert len(table.rows) == 1
+            _, pk_table = project.adapter.execute(
+                other_schema_pk_count.format(schema_name=_schema, table_name="index_model"),
+                fetch=True,
+            )
+
+            _, fk_table = project.adapter.execute(
+                other_schema_fk_count.format(schema_name=_schema, table_name="index_model"),
+                fetch=True,
+            )
+
+        # The nonclustered index plus the clustered index backing the primary key.
+        assert len(table.rows) == 2
+        assert pk_table.rows[0][0] == 1
+        assert fk_table.rows[0][0] == 1
 
     def test_create_index(self, project):
         self.create_table_and_index_other_schema(project)
