@@ -420,6 +420,57 @@ class SQLServerAdapter(SQLAdapter):
         return SQLServerIndexConfig.parse(raw_index)
 
     @available
+    def index_needs_own_batch(self, raw_index: Any) -> bool:
+        """True when raw_index's build_options (ONLINE / RESUMABLE) force its
+        CREATE INDEX to run outside any transaction: SQL Server rejects
+        RESUMABLE inside a user transaction (error 574), and an ONLINE build
+        wrapped in one holds its locks until commit, negating the point."""
+        parsed = self.parse_index(raw_index)
+        if not parsed:
+            return False
+        return create_needs_own_batch(parsed.build_options)
+
+    @available
+    def commit_if_open(self) -> None:
+        """Commit the current transaction if one is open - a no-op otherwise.
+
+        dbt_sqlserver_use_dbt_transactions on (default) wraps a
+        materialization's whole build, from its first statement through its
+        own trailing ``adapter.commit()``, in one continuous ambient
+        transaction. Some statements must not share that transaction with
+        whatever runs after them: an ONLINE/RESUMABLE index build (SQL Server
+        rejects RESUMABLE inside a user transaction outright, and ONLINE
+        holds its locks until commit either way), or a full-refresh-in-
+        progress marker, which exists specifically to survive a later
+        failure and so must not roll back with it. This makes the prior
+        statement durable on its own; pair with begin_if_closed once the
+        statement(s) that must run outside a transaction are done, to leave
+        later code (more such statements, or the materialization's own
+        trailing ``adapter.commit()``, which raises if it finds nothing open)
+        working as if this call had never happened.
+
+        A no-op when no transaction is open: the caller's statement already
+        ran autocommitted on its own (e.g. via ``run_query``'s
+        ``auto_begin=false``, before anything else began one), so there is
+        nothing to flush. Also a no-op, at the SQL level, whenever
+        dbt_sqlserver_use_dbt_transactions is off: begin/commit still flip
+        dbt-core's bookkeeping (see
+        SQLServerConnectionManager.add_begin_query/add_commit_query), but
+        emit no real T-SQL, matching the driver's own autocommit.
+        """
+        connection = self.connections.get_thread_connection()
+        if connection is not None and connection.transaction_open:
+            self.connections.commit()
+
+    @available
+    def begin_if_closed(self) -> None:
+        """Begin a transaction if none is open - a no-op otherwise. See
+        commit_if_open, which this pairs with."""
+        connection = self.connections.get_thread_connection()
+        if connection is not None and not connection.transaction_open:
+            self.connections.begin()
+
+    @available
     def validate_indexes(
         self, raw_indexes: Any, as_columnstore: Any = False, drop_unmanaged: Any = False
     ) -> None:

@@ -30,12 +30,17 @@
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
   {% set to_drop = [] %}
+  {% set prebuilt_handled = false %}
 
   {% if existing_relation is none %}
     {% if config.get('full_refresh_build', 'heap_then_index') == 'prebuilt' %}
-      {#- first build: load straight into the clustered design -#}
-      {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+      {#- first build: load straight into the clustered design. Calls its own
+          statement() blocks (including 'main') rather than returning SQL to
+          run below, so it can commit its in-progress marker independently of
+          the load that follows - see the macro for why. -#}
+      {% do sqlserver__create_table_as_prebuilt(target_relation, sql) %}
       {% set prebuilt_cache_add = true %}
+      {% set prebuilt_handled = true %}
     {% else %}
       {% set build_sql = get_create_table_as_sql(False, target_relation, sql) %}
     {% endif %}
@@ -59,8 +64,9 @@
         {% do sqlserver__mark_full_refresh_incomplete(existing_relation) %}
       {% endif %}
       {% do adapter.drop_relation(existing_relation) %}
-      {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+      {% do sqlserver__create_table_as_prebuilt(target_relation, sql) %}
       {% set prebuilt_cache_add = true %}
+      {% set prebuilt_handled = true %}
     {% else %}
       {% set build_sql = get_create_table_as_sql(False, intermediate_relation, sql) %}
       {% if existing_relation.type == 'table' %}
@@ -102,9 +108,11 @@
     {% do to_drop.append(temp_relation) %}
   {% endif %}
 
-  {% call statement("main") %}
-      {{ build_sql }}
-  {% endcall %}
+  {% if not prebuilt_handled %}
+    {% call statement("main") %}
+        {{ build_sql }}
+    {% endcall %}
+  {% endif %}
 
   {% if need_swap %}
       {% do adapter.rename_relation(target_relation, backup_relation) %}
