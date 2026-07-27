@@ -34,9 +34,9 @@ class TestTypeStringSQLServer(BaseTypeString):
     def assert_columns_equal(self, project, expected_cols, actual_cols):
         #  ignore the size of the varchar since we do
         #  an optimization to not use varchar(max) all the time
-        assert (
-            expected_cols[:-1] == actual_cols[:-1]
-        ), f"Type difference detected: {expected_cols} vs. {actual_cols}"
+        assert expected_cols[:-1] == actual_cols[:-1], (
+            f"Type difference detected: {expected_cols} vs. {actual_cols}"
+        )
 
 
 class TestTypeTimestampSQLServer(BaseTypeTimestamp):

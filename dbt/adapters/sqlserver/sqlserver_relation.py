@@ -71,13 +71,11 @@ class SQLServerRelation(BaseRelation):
             )
         elif event_time_filter.start:
             filter = (
-                f"{event_time_filter.field_name} >="
-                f" cast('{event_time_filter.start}' as datetime2)"
+                f"{event_time_filter.field_name} >= cast('{event_time_filter.start}' as datetime2)"
             )
         elif event_time_filter.end:
             filter = (
-                f"{event_time_filter.field_name} <"
-                f" cast('{event_time_filter.end}' as datetime2)"
+                f"{event_time_filter.field_name} < cast('{event_time_filter.end}' as datetime2)"
             )
 
         return filter

@@ -432,7 +432,8 @@ class TestApplyLabelBackwardCompat:
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {"verify_apply_label.sql": """
+        return {
+            "verify_apply_label.sql": """
 {% macro verify_apply_label() %}
     {%- set result = apply_label() -%}
     {{ log("apply_label returned: " ~ result, info=True) }}
@@ -443,7 +444,8 @@ class TestApplyLabelBackwardCompat:
         {{ exceptions.raise_compiler_error("apply_label() must not emit query_options hints") }}
     {%- endif -%}
 {% endmacro %}
-"""}
+"""
+        }
 
     def test_apply_label_callable_and_label_only(self, project):
         # run-operation will fail (non-zero exit) if apply_label is undefined
@@ -904,9 +906,9 @@ class TestQueryOptionsOnDmlRefresh:
             logs,
             re.IGNORECASE,
         )
-        assert (
-            main_match is not None
-        ), "query_options missing from the 'main' SELECT INTO statement of the DML refresh"
+        assert main_match is not None, (
+            "query_options missing from the 'main' SELECT INTO statement of the DML refresh"
+        )
 
         # 'dml_refresh_swap' — INSERT ... SELECT ... FROM <scratch>, must carry
         # the hint too. The INSERT...SELECT spans newlines but has no interior
@@ -916,9 +918,9 @@ class TestQueryOptionsOnDmlRefresh:
             logs,
             re.IGNORECASE,
         )
-        assert (
-            swap_match is not None
-        ), "query_options missing from the 'dml_refresh_swap' INSERT statement of the DML refresh"
+        assert swap_match is not None, (
+            "query_options missing from the 'dml_refresh_swap' INSERT statement of the DML refresh"
+        )
 
 
 def write_model(project, filename, contents):
