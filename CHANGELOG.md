@@ -26,7 +26,7 @@
 
 #### Under the hood
 
-- Drop Python 3.10 support; this release targets Python 3.11 and newer. [#758](https://github.com/dbt-msft/dbt-sqlserver/issues/758)
+- The `requires-python` floor is Python 3.10 (soft-installable), but CI and development tooling target Python 3.11+ only. [#758](https://github.com/dbt-msft/dbt-sqlserver/issues/758)
 - Bump `dbt-adapters` to `>=1.24.1` and `dbt-tests-adapter` to `>=1.20.0`.
 - Replace Black with Ruff's formatter for code formatting.
 - devcontainer: install the `dev` dependency group explicitly in `setup_env`, fixing a setup where dev-only tooling was missing from the container.
