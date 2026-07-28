@@ -14,13 +14,14 @@ authors = [
     { name = "Cor Zuurmond" },
     { name = "Cody Scott" },
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -90,6 +91,7 @@ namespaces = true
 
 [tool.uv]
 link-mode = "copy"
+environments = "python_version >= '3.11'"
 override-dependencies = ["pathspec>=0.9,<1.1"] # Remove on dbt-core v1.12 or migration to ty by astral
 
 [tool.ruff]
