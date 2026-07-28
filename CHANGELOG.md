@@ -1,11 +1,5 @@
 # Changelog
 
-### Unreleased
-
-#### Bugfixes
-
-- Fix `drop_all_indexes_on_table()` and its component macros (`drop_pk_constraints()`, `drop_fk_constraints()`, `drop_xml_indexes()`, `drop_spatial_indexes()`) matching tables by name only. A post-hook on a model dropped the primary key, inbound foreign keys, and XML/spatial indexes of every same-named table in *other* schemas of the same database. All four now filter on the model's schema as well. Identifiers in the generated dynamic SQL are also wrapped in `QUOTENAME()`.
-
 ### v1.11.0
 
 #### Features
@@ -22,6 +16,7 @@
 
 #### Bugfixes
 
+- Fix `drop_all_indexes_on_table()` and its component macros (`drop_pk_constraints()`, `drop_fk_constraints()`, `drop_xml_indexes()`, `drop_spatial_indexes()`) matching tables by name only. A post-hook on a model dropped the primary key, inbound foreign keys, and XML/spatial indexes of every same-named table in *other* schemas of the same database. All four now filter on the model's schema as well. Identifiers in the generated dynamic SQL are also wrapped in `QUOTENAME()`.
 - **Behavior change:** `SET XACT_ABORT ON` is now a session-level default on every connection the adapter opens, fixing silent, committed data loss on the DML table refresh path (and any other multi-statement batch): a mid-batch run-time error (e.g. a `NOT NULL`/constraint violation on the swap `INSERT`) previously aborted only the failing statement, not the batch, so a trailing `COMMIT` could still commit a partial result — most notably an emptied target after the `DELETE` succeeded and the `INSERT` failed. This is on by default starting in this release; opt out per profile with `xact_abort: false` if you rely on continue-on-error batch semantics in custom hooks. [#718](https://github.com/dbt-msft/dbt-sqlserver/issues/718)
 
 #### Under the hood
