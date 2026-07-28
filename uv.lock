@@ -743,6 +743,7 @@ dev = [
     { name = "azure-identity" },
     { name = "build" },
     { name = "bumpversion" },
+    { name = "dbt-core-experimental-parser" },
     { name = "dbt-tests-adapter" },
     { name = "flaky" },
     { name = "freezegun" },
@@ -781,6 +782,7 @@ dev = [
     { name = "azure-identity", specifier = ">=1.12.0" },
     { name = "build" },
     { name = "bumpversion" },
+    { name = "dbt-core-experimental-parser", specifier = ">=2.0.0a5" },
     { name = "dbt-tests-adapter", specifier = ">=1.20.0,<2.0" },
     { name = "flaky" },
     { name = "freezegun", specifier = ">=1.5.0,<2.0" },
@@ -2257,6 +2259,17 @@ version = "3.14.5"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2c/21/ef6157213316e85790041254259907eb722e00b03480256c0545d98acd33/rapidfuzz-3.14.5.tar.gz", hash = "sha256:ba10ac57884ce82112f7ed910b67e7fb6072d8ef2c06e30dc63c0f604a112e0e", size = 57901753, upload-time = "2026-04-07T11:16:31.931Z" }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/b1/d6d6e7737fe3d0eb2ac2ac337686420d538f83f28495acc3cc32201c0dbf/rapidfuzz-3.14.5-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:071d96b957a33b9296b9284b6350a0fb6d030b154a04efd7c15e56b98b79a517", size = 1953508, upload-time = "2026-04-07T11:13:37.733Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/7b/94c1c953ac818bdd88b43213a9d38e4a41e953b786af3c3b2444d4a8f96d/rapidfuzz-3.14.5-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:667f40fe9c81ad129b198d236881b00dd9e8314d9cc72d03c3e16bdfe5879051", size = 1160895, upload-time = "2026-04-07T11:13:39.278Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/60/a67a7ca7c2532c6c1a4b5cd797917780eed43798b82c98b6df734a086c95/rapidfuzz-3.14.5-cp310-cp310-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f9fff308486bbd2c8c24f25e8e152c7594d3fe8db265a2d6a1ce24d58671127f", size = 1382245, upload-time = "2026-04-07T11:13:41.054Z" },
+    { url = "https://files.pythonhosted.org/packages/95/ff/a42c9ce9f9e90ceb5b51136e0b8e8e6e5113ba0b45d986effbd671e7dddf/rapidfuzz-3.14.5-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:dfa552338f51aec280f17b02d28bace1e162d1a84ccd80e3339a57f98aedb56b", size = 3163974, upload-time = "2026-04-07T11:13:42.662Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/3c/11e2d41075e6e48b7dad373631b379b7e40491f71d5412c5a98d3c58f60f/rapidfuzz-3.14.5-cp310-cp310-manylinux_2_39_riscv64.whl", hash = "sha256:068b3e965ca9d9ee4debe40001ae7c3938ba646308afd33cf0c66618147db65c", size = 1475540, upload-time = "2026-04-07T11:13:44.687Z" },
+    { url = "https://files.pythonhosted.org/packages/29/fa/09be143dcc22c79f09cf90168a574725dbda49f02cbbd55d0447da8bec86/rapidfuzz-3.14.5-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:88b7d31ff1cc5e9bc0e4406e6b1fa00b6d37163d50bb58091e9b976ff1129faa", size = 2404128, upload-time = "2026-04-07T11:13:46.641Z" },
+    { url = "https://files.pythonhosted.org/packages/32/f9/1aeb504cdcfde42881825e9c86f48238d4e01ba8a1530491e82eb17e5689/rapidfuzz-3.14.5-cp310-cp310-musllinux_1_2_riscv64.whl", hash = "sha256:eacb434410b8d9ca99a8d42352ef085cf423e3c76c1f0b86be2fcba3bff2952c", size = 2508455, upload-time = "2026-04-07T11:13:48.726Z" },
+    { url = "https://files.pythonhosted.org/packages/10/8e/b1b5eed8d887a29b0e18fd3222c46ca60fddfb528e7e1c41267ce42d5522/rapidfuzz-3.14.5-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:649712823f3abcdc48427147a5384fac15623ba435d0013959b52e6462521397", size = 4274060, upload-time = "2026-04-07T11:13:50.805Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/c4/7e5b0353693d4f47b8b0f96e941efc377cfb2034b67ef92d082ac4441a0f/rapidfuzz-3.14.5-cp310-cp310-win32.whl", hash = "sha256:13cb79c23ef5516e4c4e3830877be8b19aa75203636be1163d690d37803f6504", size = 1727457, upload-time = "2026-04-07T11:13:52.45Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/6e/f530a39b946fa71c009bc9c81fdb6b48a77bbc57ee8572ac0302b3bf6308/rapidfuzz-3.14.5-cp310-cp310-win_amd64.whl", hash = "sha256:f2073495a7f9b75e57e600747ac09510d67683fd64d3228e009740b7ef88f9fe", size = 1544657, upload-time = "2026-04-07T11:13:54.952Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/01/02fa075f9f59ff766d374fecbd042b3ac9782dcd5abc52d909a54f587eeb/rapidfuzz-3.14.5-cp310-cp310-win_arm64.whl", hash = "sha256:8166efddea49fdbc61185559f47593239e4794fd7c9044dd5a789d1a90af852d", size = 816587, upload-time = "2026-04-07T11:13:56.418Z" },
     { url = "https://files.pythonhosted.org/packages/e1/f9/3c41a7be8855803f4f6c713b472226a98d31d41869d98f64f4ca790510d6/rapidfuzz-3.14.5-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:e251126d48615e1f02b4a178f2cd0cd4f0332b8a019c01a2e10480f7552554b4", size = 1952372, upload-time = "2026-04-07T11:13:58.32Z" },
     { url = "https://files.pythonhosted.org/packages/9e/89/c2557e37531d03465193bff0ab9de70b468420a807d71a26a65100635459/rapidfuzz-3.14.5-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:5ab449c9abd0d4e1f8145dce0798a4c822a1a1933d613c764a641bea88b8bdab", size = 1159782, upload-time = "2026-04-07T11:14:00.127Z" },
     { url = "https://files.pythonhosted.org/packages/1a/b2/ffeeb7eca1a897d51b998f4c0ef0281696c3b06abcca4f88f9def708ffe1/rapidfuzz-3.14.5-cp311-cp311-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cb2829fedd672dd7107267189dabe2bbe07972801d636014417c6861eb89e358", size = 1383677, upload-time = "2026-04-07T11:14:01.696Z" },
