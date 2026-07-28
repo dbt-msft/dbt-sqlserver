@@ -878,7 +878,7 @@ def index_summary(rows):
 class TestSQLServerIndexAdvanced:
     """Each test below targets an independent model/snapshot via an explicit
     --models/--select/--vars scope, so none of them can see or interfere with
-    another test's node — that's what lets them share one project fixture
+    another test's node --- that's what lets them share one project fixture
     instead of one per case. Kept separate from this class: anything with its
     own project_config_update (TestSQLServerIndex, TestSQLServerProjectLevelIndexes),
     since that rewrites dbt_project.yml for the whole project and would leak into

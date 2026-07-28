@@ -68,9 +68,11 @@
       {% endif %}
     {% endif %}
 
-    {% call statement('main') -%}
-      {{ sqlserver__create_table_as_prebuilt(target_relation, sql) }}
-    {%- endcall %}
+    {#- create_table_as_prebuilt issues its own statement() calls (including
+        'main') rather than being wrapped in one here, so it can commit its
+        in-progress marker independently of the load that follows - see the
+        macro for why. -#}
+    {% do sqlserver__create_table_as_prebuilt(target_relation, sql) %}
 
     {#- the prebuilt path lands the table via raw SQL, not a cache-maintaining
         adapter method (rename_relation), and above it may have dropped the

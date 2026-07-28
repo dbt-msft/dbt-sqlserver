@@ -49,7 +49,7 @@ def is_azure(request: FixtureRequest) -> bool:
 
 
 def _all_profiles_base():
-    backend = os.getenv("SQLSERVER_TEST_BACKEND", "pyodbc")
+    backend = os.getenv("SQLSERVER_TEST_BACKEND", "mssql-python")
 
     return {
         "type": "sqlserver",

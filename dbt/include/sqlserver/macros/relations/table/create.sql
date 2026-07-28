@@ -92,32 +92,57 @@
     {%- endif -%}
 
     {%- do adapter.drop_relation(tmp_relation) -%}
-    USE [{{ relation.database }}];
-    {{ get_create_view_as_sql(tmp_relation, sql) }}
 
-    {#- drop any physical target before the bare CREATE / SELECT ... INTO below.
-        OBJECT_ID reads the database directly, so this is robust to dbt's
-        relation cache being stale (reporting none while the table exists) -
-        which would otherwise collide with Msg 2714 (object already exists) -#}
-    IF OBJECT_ID('{{ escape_single_quotes(relation.schema) }}.{{ escape_single_quotes(relation.identifier) }}', 'U') IS NOT NULL
-        EXEC('DROP TABLE {{ relation }}');
+    {#- Setup runs as its own statement (named 'main', so dbt's compiled-SQL
+        artifacts and adapter_response still resolve normally), separate from
+        the load below: the extended-property marker set here exists to
+        survive a failed load, so it must not share a transaction with it.
+        With dbt_sqlserver_use_dbt_transactions on (default), the
+        materialization's whole build - including this statement - runs
+        inside one continuous ambient transaction; without the split below, a
+        later failure during the load would roll the marker back right along
+        with it, defeating the point. -#}
+    {%- set setup_sql -%}
+        USE [{{ relation.database }}];
+        {{ get_create_view_as_sql(tmp_relation, sql) }}
 
-    {% if contract_enforced %}
-        {%- set ddl_query -%}
-            CREATE TABLE {{ relation }}
-            {{ get_assert_columns_equivalent(sql)  }}
-            {{ build_columns_constraints(relation) }}
-        {%- endset -%}
-        EXEC('{{- escape_single_quotes(ddl_query) -}}')
-    {% else %}
-        EXEC('SELECT TOP 0 * INTO {{ relation }} FROM {{ tmp_relation }}')
-    {% endif %}
+        {#- drop any physical target before the bare CREATE / SELECT ... INTO
+            below. OBJECT_ID reads the database directly, so this is robust to
+            dbt's relation cache being stale (reporting none while the table
+            exists) - which would otherwise collide with Msg 2714 (object
+            already exists) -#}
+        IF OBJECT_ID('{{ escape_single_quotes(relation.schema) }}.{{ escape_single_quotes(relation.identifier) }}', 'U') IS NOT NULL
+            EXEC('DROP TABLE {{ relation }}');
 
-    {# mark the rebuild in progress; removed atomically with the load below #}
-    EXEC sp_addextendedproperty @name = N'dbt_full_refresh_incomplete', @value = '1',
-        @level0type = N'SCHEMA', @level0name = N'{{ escape_single_quotes(relation.schema) }}',
-        @level1type = N'TABLE', @level1name = N'{{ escape_single_quotes(relation.identifier) }}'
+        {% if contract_enforced %}
+            {%- set ddl_query -%}
+                CREATE TABLE {{ relation }}
+                {{ get_assert_columns_equivalent(sql)  }}
+                {{ build_columns_constraints(relation) }}
+            {%- endset -%}
+            EXEC('{{- escape_single_quotes(ddl_query) -}}')
+        {% else %}
+            EXEC('SELECT TOP 0 * INTO {{ relation }} FROM {{ tmp_relation }}')
+        {% endif %}
 
+        {# mark the rebuild in progress; removed atomically with the load below #}
+        EXEC sp_addextendedproperty @name = N'dbt_full_refresh_incomplete', @value = '1',
+            @level0type = N'SCHEMA', @level0name = N'{{ escape_single_quotes(relation.schema) }}',
+            @level1type = N'TABLE', @level1name = N'{{ escape_single_quotes(relation.identifier) }}'
+    {%- endset %}
+    {% call statement('main') -%}
+        {{ setup_sql }}
+    {%- endcall %}
+
+    {#- Commit the marker onto its own, then reopen so the load below (and
+        the rest of the materialization: grants, persist_docs, its own
+        trailing adapter.commit()) is unaffected. See adapter.commit_if_open /
+        begin_if_closed; 'main' above always opens a transaction (default
+        auto_begin), so this always actually commits here. -#}
+    {{ adapter.commit_if_open() }}
+    {{ adapter.begin_if_closed() }}
+
+    {%- set load_sql -%}
     {% if as_columnstore %}
         {{ sqlserver__create_clustered_columnstore_index(relation) }}
     {% elif prebuilt_ns.clustered_dict is not none %}
@@ -156,7 +181,10 @@
     EXEC('{{- escape_single_quotes(insert_query) -}}')
 
     EXEC('DROP VIEW IF EXISTS {{ tmp_relation.include(database=False) }}')
-
+    {%- endset %}
+    {% call statement('create_table_as_prebuilt_load') -%}
+        {{ load_sql }}
+    {%- endcall %}
 {% endmacro %}
 
 
@@ -172,6 +200,19 @@
         ~ " @level0type = N'SCHEMA', @level0name = N'" ~ relation.schema ~ "',"
         ~ " @level1type = N'TABLE', @level1name = N'" ~ relation.identifier ~ "'"
     ) %}
+    {#- This marker exists to survive a failed rebuild, so it must not ride on
+        the same transaction as the rebuild it's guarding: if a prior
+        statement this run (e.g. a pre-hook) already opened the ambient
+        dbt-managed transaction, a later failure would roll the marker back
+        right along with it, defeating the point. Commit it, then reopen so
+        later code sees a transaction open exactly as it would without this
+        pair (begin_if_closed always leaves one open, whether or not
+        commit_if_open just found one to close) - commit_if_open alone is a
+        no-op when run_query above ran standalone, i.e. the common case of
+        this being the first statement of the run. See adapter.commit_if_open
+        / begin_if_closed. -#}
+    {{ adapter.commit_if_open() }}
+    {{ adapter.begin_if_closed() }}
 {%- endmacro %}
 
 

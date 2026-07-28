@@ -73,7 +73,7 @@ _xact_abort_warning_logged = False
 class SQLServerConnectionManager(SQLConnectionManager):
     TYPE = "sqlserver"
 
-    _dbt_sqlserver_use_dbt_transactions: bool = False
+    _dbt_sqlserver_use_dbt_transactions: bool = True
 
     @contextmanager
     def exception_handler(self, sql):

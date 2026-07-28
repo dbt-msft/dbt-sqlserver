@@ -453,12 +453,51 @@
   {%- do adapter.validate_indexes(
       raw_indexes, as_columnstore, config.get('drop_unmanaged_indexes', default=false)
   ) -%}
+  {%- set creates_no_txn = [] -%}
   {%- for _index_dict in raw_indexes %}
     {%- set create_index_sql = get_create_index_sql(relation, _index_dict) -%}
     {% if create_index_sql %}
-      {% do run_query(create_index_sql) %}
+      {% if adapter.index_needs_own_batch(_index_dict) %}
+        {%- do creates_no_txn.append(_index_dict) -%}
+      {% else %}
+        {% do run_query(create_index_sql) %}
+      {% endif %}
     {% endif %}
   {%- endfor %}
+  {% do sqlserver__create_indexes_no_txn(relation, creates_no_txn) %}
+{% endmacro %}
+
+
+{% macro sqlserver__create_indexes_no_txn(relation, index_dicts) %}
+  {#-
+    Build ONLINE / RESUMABLE indexes as standalone (non-transactional)
+    statements. SQL Server forbids RESUMABLE in a user transaction, and an
+    ONLINE build wrapped in one holds its locks until commit, negating the
+    non-blocking intent.
+
+    With dbt_sqlserver_use_dbt_transactions on (default), the
+    materialization's whole build - from the first statement through its own
+    trailing adapter.commit() - runs inside one continuous ambient
+    transaction, so run_query's auto_begin=false is not enough on its own to
+    escape it: commit it first (see adapter.commit_if_open), before ANY of
+    these run - committing between them would just reopen one and land the
+    next create right back inside it - then reopen once after the whole
+    batch (adapter.begin_if_closed), which always leaves one open afterward
+    even if none was open before, so later code (grants, persist_docs, the
+    materialization's own trailing adapter.commit(), which raises if it
+    finds nothing open) sees one exactly as it would without this macro.
+    When the flag is off, or no earlier statement this run has opened one,
+    commit_if_open is a no-op and these still run standalone via run_query's
+    auto_begin=false.
+  -#}
+  {% if index_dicts %}
+    {{ adapter.commit_if_open() }}
+    {% for index_dict in index_dicts %}
+      {% do log("Creating ONLINE/RESUMABLE index outside the transaction on " ~ relation, info=true) %}
+      {% do run_query(get_create_index_sql(relation, index_dict)) %}
+    {% endfor %}
+    {{ adapter.begin_if_closed() }}
+  {% endif %}
 {% endmacro %}
 
 
@@ -500,15 +539,13 @@
         ~ ";\ncommit transaction;"
     ) %}
   {% endif %}
-  {#- ONLINE / RESUMABLE creates cannot run inside the transaction above
-      (SQL Server forbids RESUMABLE in a user transaction, and an ONLINE build
-      wrapped in one holds its locks until commit, negating the non-blocking
-      intent). Apply them individually in autocommit. The drops above have
-      already committed, so a replacement index still builds after its
-      predecessor is gone; these are not part of the atomic batch, so there is
-      a brief window where the new index is absent for readers. -#}
-  {%- for index_dict in result['creates_no_txn'] %}
-    {% do log("Creating ONLINE/RESUMABLE index outside the reconcile transaction on " ~ relation, info=true) %}
-    {% do run_query(sqlserver__get_create_index_sql(relation, index_dict)) %}
-  {%- endfor %}
+  {#- ONLINE / RESUMABLE creates cannot run inside the transaction above, nor
+      inside the ambient dbt-managed transaction that wraps the whole
+      materialization when dbt_sqlserver_use_dbt_transactions is on - see
+      sqlserver__create_indexes_no_txn. The drops (and any transactional
+      creates) above have already committed by the time these run, so a
+      replacement index still builds after its predecessor is gone; these are
+      not part of the atomic batch, so there is a brief window where the new
+      index is absent for readers. -#}
+  {% do sqlserver__create_indexes_no_txn(relation, result['creates_no_txn']) %}
 {% endmacro %}
