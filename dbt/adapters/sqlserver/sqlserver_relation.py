@@ -15,7 +15,7 @@ from dbt.adapters.utils import classproperty
 
 @dataclass(frozen=True, eq=False, repr=False)
 class SQLServerRelation(BaseRelation):
-    type: Optional[SQLServerRelationType] = None  # type: ignore
+    type: Optional[SQLServerRelationType] = None
     include_policy: SQLServerIncludePolicy = field(
         default_factory=lambda: SQLServerIncludePolicy()
     )

@@ -24,6 +24,10 @@
 - **Behavior change (generated SQL only):** the few macros that hand-formatted `[bracket]` identifiers now use `adapter.quote()`, matching the `"double quoted"` identifiers `{{ relation }}` already rendered, so one statement no longer mixes both styles. Affects `USE` (now via the existing `get_use_database_sql()` helper), `CREATE SCHEMA`, contract column lists, grantees, index/constraint names and generated test view names. Server-side `QUOTENAME()` keeps brackets by design. Visible only if you parse dbt's generated SQL or have custom macros assuming brackets. [#785](https://github.com/dbt-msft/dbt-sqlserver/issues/785)
 - Identifier quoting escapes an embedded `"` by doubling it (`ab"cd` → `"ab""cd"`), in both `adapter.quote()` and relation rendering (`SQLServerRelation.quoted`). Needed twice over: a `"` requires no escaping inside `[brackets]` but does inside double quotes, so the delimiter change above would otherwise have rejected names the adapter previously accepted; and the string-literal fix above renders identifiers through the relation, so a schema containing a `"` depends on it. [#785](https://github.com/dbt-msft/dbt-sqlserver/issues/785)
 
+#### Under the hood
+
+- Replace mypy with [`ty`](https://docs.astral.sh/ty/) for type checking, completing the move to a single Astral toolchain (Ruff for lint and format, `ty` for types). Same scope as before (`dbt/adapters`, unresolvable `dbt.*` imports ignored), configured in `pyproject.toml`. `ty` runs in a new Type check workflow rather than on pre-commit.ci, which blocks the network access it needs. [#712](https://github.com/dbt-msft/dbt-sqlserver/issues/712)
+
 ### v1.11.0
 
 #### Features

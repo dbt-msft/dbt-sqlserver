@@ -6,10 +6,10 @@ dev: ## Installs adapter in develop mode along with development dependencies
 	@\
 	uv sync --all-extras && uv run pre-commit install
 
-.PHONY: mypy
-mypy: ## Runs mypy against staged changes for static type checking.
+.PHONY: ty
+ty: ## Runs ty over the adapter package for static type checking.
 	@\
-	uv run pre-commit run --hook-stage manual mypy-check
+	uv run pre-commit run --hook-stage manual ty
 
 .PHONY: ruff
 ruff: ## Runs ruff against staged changes to enforce style guide.
@@ -22,10 +22,10 @@ format: ## Runs ruff format against staged changes to enforce style guide.
 	uv run pre-commit run --hook-stage manual ruff-format-check -v
 
 .PHONY: lint
-lint: ## Runs ruff and mypy code checks against staged changes.
+lint: ## Runs ruff and ty code checks against staged changes.
 	@status=0; \
 	uv run pre-commit run ruff-check-manual --hook-stage manual || status=1; \
-	uv run pre-commit run mypy-check --hook-stage manual || status=1; \
+	uv run pre-commit run ty --hook-stage manual || status=1; \
 	exit $$status
 
 .PHONY: all
@@ -49,7 +49,7 @@ test: ## Runs unit tests and code checks against staged changes.
 	uv run pytest -n auto -ra -v tests/unit || status=1; \
 	uv run pre-commit run ruff-format-check --hook-stage manual || status=1; \
 	uv run pre-commit run ruff-check-manual --hook-stage manual || status=1; \
-	uv run pre-commit run mypy-check --hook-stage manual || status=1; \
+	uv run pre-commit run ty --hook-stage manual || status=1; \
 	exit $$status
 
 .PHONY: server
