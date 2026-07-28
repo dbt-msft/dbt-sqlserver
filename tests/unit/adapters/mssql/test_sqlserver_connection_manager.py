@@ -265,6 +265,48 @@ def test_connection_keys_do_not_mutate_authentication() -> None:
     assert credentials.authentication == original_authentication
 
 
+def test_sqlserver_backend_adbc_enum_member_exists() -> None:
+    """ADBC backend must be a recognised member of SQLServerBackend."""
+    assert str(SQLServerBackend.adbc) == "adbc"
+
+
+def test_coerce_backend_accepts_adbc() -> None:
+    """coerce_backend('adbc') must return SQLServerBackend.adbc."""
+    from dbt.adapters.sqlserver.sqlserver_credentials import coerce_backend
+
+    assert coerce_backend("adbc") is SQLServerBackend.adbc
+
+
+def test_coerce_backend_rejects_unknown_with_adbc_in_message() -> None:
+    """coerce_backend('unknown') must raise DbtRuntimeError mentioning adbc."""
+    from dbt.adapters.sqlserver.sqlserver_credentials import coerce_backend
+
+    with pytest.raises(DbtRuntimeError, match="adbc"):
+        coerce_backend("unknown")
+
+
+def test_supported_backends_includes_adbc() -> None:
+    """SUPPORTED_SQLSERVER_BACKENDS must include 'adbc'."""
+    from dbt.adapters.sqlserver.sqlserver_constants import SUPPORTED_SQLSERVER_BACKENDS
+
+    assert "adbc" in SUPPORTED_SQLSERVER_BACKENDS
+
+
+def test_connection_keys_exclude_driver_for_adbc() -> None:
+    """adbc backend must not include 'driver' in connection keys (like mssql-python)."""
+    adbc_credentials = SQLServerCredentials(
+        backend=SQLServerBackend.adbc,
+        driver="ODBC Driver 18 for SQL Server",
+        host="fake.sql.sqlserver.net",
+        database="dbt",
+        schema="sqlserver",
+    )
+
+    assert "driver" not in adbc_credentials._connection_keys()
+    assert "windows_login" in adbc_credentials._connection_keys()
+    assert "backend" in adbc_credentials._connection_keys()
+
+
 def test_connection_keys_include_driver_only_for_pyodbc() -> None:
     pyodbc_credentials = SQLServerCredentials(
         backend=SQLServerBackend.pyodbc,
@@ -643,12 +685,33 @@ def test_exception_handler_routes_backend_database_errors_without_falling_throug
         reset_runtime_state_for_test()
 
 
-def test_data_type_code_to_name_handles_repr_and_rejects_integer_codes() -> None:
+def test_data_type_code_to_name_handles_repr_and_arrow_codes() -> None:
+    # Existing pyodbc / mssql-python string repr handling still works.
     assert SQLServerConnectionManager.data_type_code_to_name("<class 'str'>") == "varchar"
     assert SQLServerConnectionManager.data_type_code_to_name("int") == "int"
 
-    with pytest.raises(DbtRuntimeError, match="integer type codes are not mapped"):
-        SQLServerConnectionManager.data_type_code_to_name(7)
+    # Arrow integer type codes (ADBC path).
+    assert SQLServerConnectionManager.data_type_code_to_name(1) == "bit"  # bool_
+    assert SQLServerConnectionManager.data_type_code_to_name(3) == "varchar"  # string / utf8
+    assert SQLServerConnectionManager.data_type_code_to_name(8) == "int"  # int32
+    assert SQLServerConnectionManager.data_type_code_to_name(7) == "float"  # float64
+    assert SQLServerConnectionManager.data_type_code_to_name(17) == "datetime2(6)"  # timestamp
+    assert SQLServerConnectionManager.data_type_code_to_name(10) == "smallint"  # int8
+    assert SQLServerConnectionManager.data_type_code_to_name(5) == "varchar(max)"  # large_string
+
+    # Unrecognised Arrow integer code raises rather than silently
+    # mis-reporting the column type.
+    with pytest.raises(DbtRuntimeError, match="99"):
+        SQLServerConnectionManager.data_type_code_to_name(99)
+
+    # Arrow string type names (ADBC path).
+    assert SQLServerConnectionManager.data_type_code_to_name("int32") == "int"
+    assert SQLServerConnectionManager.data_type_code_to_name("utf8") == "varchar"
+    assert SQLServerConnectionManager.data_type_code_to_name("timestamp") == "datetime2(6)"
+
+    # Unknown string codes still raise on the non-ADBC path.
+    with pytest.raises(DbtRuntimeError, match="no matching entry found"):
+        SQLServerConnectionManager.data_type_code_to_name("nonexistent_type")
 
 
 def test_mssql_python_active_directory_default_passes() -> None:

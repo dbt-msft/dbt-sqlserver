@@ -97,9 +97,19 @@ jobs:
             sqlserver_version: "2025"
             msodbc_version: "18"
             collation: SQL_Latin1_General_CP1_CS_AS
+          # ADBC (experimental, see docs/adbc_backend.md) gets a single
+          # coverage row on the latest Python and SQL Server baseline.
+          - backend: adbc
+            python_version: "3.13"
+            sqlserver_version: "2025"
+            msodbc_version: "18"
+            collation: SQL_Latin1_General_CP1_CI_AS
     runs-on: ubuntu-latest
+    # The ADBC backend is experimental (docs/adbc_backend.md): don't block
+    # the required check on it while it's still stabilizing.
+    continue-on-error: ${{ matrix.backend == 'adbc' }}
     container:
-      image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-${{ matrix.backend == 'pyodbc' && format('msodbc{0}', matrix.msodbc_version) || 'mssql' }}
+      image: ghcr.io/${{ github.repository }}:CI-${{ matrix.python_version }}-${{ matrix.backend == 'pyodbc' && format('msodbc{0}', matrix.msodbc_version) || (matrix.backend == 'adbc' && 'adbc' || 'mssql') }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -121,7 +131,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          INSTALL_EXTRA: ${{ matrix.backend == 'pyodbc' && 'pyodbc' || 'mssql' }}
+          INSTALL_EXTRA: ${{ matrix.backend == 'pyodbc' && 'pyodbc' || (matrix.backend == 'adbc' && 'adbc' || 'mssql') }}
         run: uv pip install --system -e ".[$INSTALL_EXTRA]" --group dev
 
       - name: Run functional tests

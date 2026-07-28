@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import dbt_common.exceptions
 
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.sqlserver.sqlserver_auth import (
     is_active_directory_authentication,
     is_mssql_python_backend,
@@ -24,6 +25,8 @@ from dbt.adapters.sqlserver.sqlserver_constants import (
     MSSQL_PYTHON_UNSUPPORTED_AUTHENTICATIONS,
     SENSITIVE_CONNECTION_STRING_KEYS,
 )
+
+logger = AdapterLogger("sqlserver")
 
 if TYPE_CHECKING:
     from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
@@ -107,6 +110,39 @@ def validate_mssql_python_requirements(credentials: SQLServerCredentials) -> Non
             "`sql`, `ActiveDirectoryPassword`, `ActiveDirectoryInteractive`, "
             "`ActiveDirectoryIntegrated`, `ActiveDirectoryMSI`, "
             "`ActiveDirectoryDeviceCode`, or `ActiveDirectoryDefault`."
+        )
+
+
+def validate_adbc_requirements(credentials: SQLServerCredentials) -> None:
+    """Backend-specific validation for the ADBC connection path.
+
+    ADBC currently supports SQL authentication only. Windows login and all
+    Azure Active Directory modes are rejected with a clear message.
+    """
+
+    if credentials.windows_login:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "Windows login is not supported with the ADBC backend."
+        )
+
+    authentication = normalize_connection_authentication(credentials.authentication, True)
+
+    if authentication and is_active_directory_authentication(authentication):
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "Azure AD authentication is not yet supported with the ADBC backend. "
+            "Use authentication: 'sql' or use the pyodbc/mssql-python backend."
+        )
+
+    if not credentials.UID or not credentials.PWD:
+        raise dbt_common.exceptions.DbtRuntimeError(
+            "The ADBC backend requires a user (UID) and password (PWD) for SQL authentication."
+        )
+
+    if credentials.query_timeout not in (None, 0):
+        logger.warning(
+            "query_timeout=%r is set but the ADBC backend may not support "
+            "per-connection query timeouts; the setting will be ignored.",
+            credentials.query_timeout,
         )
 
 

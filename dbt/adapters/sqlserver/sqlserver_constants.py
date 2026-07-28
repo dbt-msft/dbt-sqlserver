@@ -4,11 +4,15 @@ from __future__ import annotations
 
 SQLSERVER_BACKEND_PYODBC = "pyodbc"
 SQLSERVER_BACKEND_MSSQL_PYTHON = "mssql-python"
+SQLSERVER_BACKEND_ADBC = "adbc"
 SUPPORTED_SQLSERVER_BACKENDS = (
     SQLSERVER_BACKEND_PYODBC,
     SQLSERVER_BACKEND_MSSQL_PYTHON,
+    SQLSERVER_BACKEND_ADBC,
 )
-SUPPORTED_SQLSERVER_BACKENDS_MESSAGE = "Supported backends are 'pyodbc' and 'mssql-python'."
+SUPPORTED_SQLSERVER_BACKENDS_MESSAGE = (
+    "Supported backends are 'pyodbc', 'mssql-python', and 'adbc'."
+)
 
 MSSQL_AUTH_ACTIVE_DIRECTORY_MSI = "ActiveDirectoryMSI"
 MSSQL_AUTH_ACTIVE_DIRECTORY_INTEGRATED = "ActiveDirectoryIntegrated"

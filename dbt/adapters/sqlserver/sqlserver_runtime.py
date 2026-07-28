@@ -65,6 +65,16 @@ class MssqlPythonModuleProtocol(Protocol):
     def connect(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
+class AdbcModuleProtocol(Protocol):
+    DatabaseError: type[Exception]
+    InternalError: type[Exception]
+    OperationalError: type[Exception]
+    InterfaceError: type[Exception]
+    Cursor: type
+
+    def connect(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
 @dataclass
 class AccessToken:
     token: str
@@ -79,6 +89,8 @@ class SQLServerRuntimeSnapshot:
     pyodbc_import_error: Optional[ModuleNotFoundError]
     mssql_python_module: Any
     mssql_python_import_error: Optional[ModuleNotFoundError]
+    adbc_module: Any
+    adbc_import_error: Optional[ModuleNotFoundError]
     azure_credentials_module: Any
     azure_credentials_import_error: Optional[ModuleNotFoundError]
     azure_identity_module: Any
@@ -108,6 +120,9 @@ class SQLServerRuntimeState:
         self.pyodbc_import_error: Optional[ModuleNotFoundError] = None
         self.mssql_python_module: Any = None
         self.mssql_python_import_error: Optional[ModuleNotFoundError] = None
+        self.adbc_module: Optional[AdbcModuleProtocol] = None
+        self.adbc_import_error: Optional[ModuleNotFoundError] = None
+        self._adbc_db_error: Optional[type[Exception]] = None
         self.azure_credentials_module: Any = None
         self.azure_credentials_import_error: Optional[ModuleNotFoundError] = None
         self.azure_identity_module: Any = None
@@ -127,6 +142,9 @@ class SQLServerRuntimeState:
             self.pyodbc_import_error = None
             self.mssql_python_module = None
             self.mssql_python_import_error = None
+            self.adbc_module = None
+            self.adbc_import_error = None
+            self._adbc_db_error = None
             self.azure_credentials_module = None
             self.azure_credentials_import_error = None
             self.azure_identity_module = None
@@ -165,6 +183,15 @@ class SQLServerRuntimeState:
                 return self._mssql_python_db_error
         return None
 
+    def get_adbc_database_error(self) -> Optional[type[Exception]]:
+        with self.module_load_lock:
+            if self._adbc_db_error is not None:
+                return self._adbc_db_error
+            if self.adbc_module is not None:
+                self._adbc_db_error = self.adbc_module.DatabaseError
+                return self._adbc_db_error
+        return None
+
     def get_cached_access_token(
         self,
         cache_key: Any,
@@ -201,6 +228,8 @@ class SQLServerRuntimeState:
             pyodbc_import_error = self.pyodbc_import_error
             mssql_python_module = self.mssql_python_module
             mssql_python_import_error = self.mssql_python_import_error
+            adbc_module = self.adbc_module
+            adbc_import_error = self.adbc_import_error
             azure_credentials_module = self.azure_credentials_module
             azure_credentials_import_error = self.azure_credentials_import_error
             azure_identity_module = self.azure_identity_module
@@ -215,6 +244,8 @@ class SQLServerRuntimeState:
             pyodbc_import_error=pyodbc_import_error,
             mssql_python_module=mssql_python_module,
             mssql_python_import_error=mssql_python_import_error,
+            adbc_module=adbc_module,
+            adbc_import_error=adbc_import_error,
             azure_credentials_module=azure_credentials_module,
             azure_credentials_import_error=azure_credentials_import_error,
             azure_identity_module=azure_identity_module,
@@ -230,6 +261,8 @@ class SQLServerRuntimeState:
         pyodbc_import_error: Any = _UNSET,
         mssql_python_module: Any = _UNSET,
         mssql_python_import_error: Any = _UNSET,
+        adbc_module: Any = _UNSET,
+        adbc_import_error: Any = _UNSET,
         azure_credentials_module: Any = _UNSET,
         azure_credentials_import_error: Any = _UNSET,
         azure_identity_module: Any = _UNSET,
@@ -248,6 +281,10 @@ class SQLServerRuntimeState:
                 self.mssql_python_module = mssql_python_module
             if mssql_python_import_error is not _UNSET:
                 self.mssql_python_import_error = mssql_python_import_error
+            if adbc_module is not _UNSET:
+                self.adbc_module = adbc_module
+            if adbc_import_error is not _UNSET:
+                self.adbc_import_error = adbc_import_error
             if azure_credentials_module is not _UNSET:
                 self.azure_credentials_module = azure_credentials_module
             if azure_credentials_import_error is not _UNSET:
@@ -448,3 +485,44 @@ def _get_cached_access_token(
 
     cache_key = _access_token_cache_key(credentials, authentication, scope)
     return cast(AccessTokenProtocol, _RUNTIME_STATE.get_cached_access_token(cache_key, loader))
+
+
+def _missing_adbc_error() -> dbt_common.exceptions.DbtRuntimeError:
+    return dbt_common.exceptions.DbtRuntimeError(
+        "The `adbc` backend was requested, but the optional dependency "
+        "`adbc-driver-manager` is not installed. Install it with "
+        "`pip install adbc-driver-manager adbc-driver-mssql`. "
+        "Then set `backend: adbc` in your profile."
+    )
+
+
+def _get_adbc() -> AdbcModuleProtocol:
+    """Import and cache ADBC DBAPI module on first use.
+
+    Expected Inputs: None.
+    Invariants: Thread-safe lazy import protected by module_load_lock. Raises
+    DbtRuntimeError if adbc-driver-manager is missing.
+    Integration: Provides the ADBC dbapi module to the connection manager.
+    """
+
+    with _RUNTIME_STATE.module_load_lock:
+        if _RUNTIME_STATE.adbc_module is not None:
+            return _RUNTIME_STATE.adbc_module
+
+        if _RUNTIME_STATE.adbc_import_error is not None:
+            raise _missing_adbc_error() from _RUNTIME_STATE.adbc_import_error
+
+        try:
+            # type: ignore[import]
+            import adbc_driver_manager.dbapi as imported_adbc
+        except ModuleNotFoundError as exc:
+            _RUNTIME_STATE.adbc_import_error = exc
+            raise _missing_adbc_error() from exc
+
+        _RUNTIME_STATE.adbc_module = cast(AdbcModuleProtocol, imported_adbc)
+        return _RUNTIME_STATE.adbc_module
+
+
+def get_adbc_database_error() -> Optional[type[Exception]]:
+    """Return the cached ADBC DatabaseError type for exception handling."""
+    return _RUNTIME_STATE.get_adbc_database_error()

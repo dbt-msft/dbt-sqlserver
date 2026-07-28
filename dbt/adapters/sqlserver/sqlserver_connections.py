@@ -4,6 +4,9 @@ import traceback
 from contextlib import contextmanager
 from typing import (
     Any,
+    Dict,
+    Iterable,
+    Iterator,
     Optional,
     Tuple,
     Type,
@@ -32,13 +35,17 @@ from dbt.adapters.events.types import (
 )
 from dbt.adapters.sql.connections import SQLConnectionManager
 from dbt.adapters.sqlserver.sqlserver_auth import (
+    is_adbc_backend,
     is_mssql_python_backend,
 )
 from dbt.adapters.sqlserver.sqlserver_backend import (
+    _connect_adbc,
     _connect_mssql_python,
     _connect_pyodbc,
+    build_adbc_connection_uri,
     build_mssql_python_connection_string,
     build_pyodbc_connection_string,
+    get_adbc_retryable_exceptions,
     get_mssql_python_retryable_exceptions,
     get_pyodbc_retryable_exceptions,
     handle_backend_database_error,
@@ -49,17 +56,237 @@ from dbt.adapters.sqlserver.sqlserver_constants import datatypes
 from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerCredentials
 from dbt.adapters.sqlserver.sqlserver_helpers import (
     byte_array_to_datetime,
+    validate_adbc_requirements,
     validate_connection_requirements,
     validate_mssql_python_requirements,
     validate_pyodbc_requirements,
 )
 from dbt.adapters.sqlserver.sqlserver_runtime import (
     _RUNTIME_STATE,
+    _get_adbc,
     _get_mssql_python,
     _get_pyodbc,
 )
 
 logger = AdapterLogger("sqlserver")
+
+
+def _cursor_is_adbc(cursor: Any) -> bool:
+    """Return True if *cursor* came from an ADBC dbapi connection."""
+    return type(cursor).__module__ == "adbc_driver_manager.dbapi"
+
+
+def _skip_quoted_span(sql: str, i: int) -> Optional[int]:
+    """If ``sql[i]`` opens a bracket-quoted identifier (``[...]``) or a
+    single-quoted string literal (``'...'``), return the index just past
+    its matching close quote (``]]``/``''`` are escaped doubled quotes).
+    Returns ``None`` if ``sql[i]`` does not open either.
+    """
+    ch = sql[i]
+    if ch not in ("[", "'"):
+        return None
+    close = "]" if ch == "[" else "'"
+    n = len(sql)
+    end = i + 1
+    while end < n:
+        if sql[end] == close:
+            if end + 1 < n and sql[end + 1] == close:
+                end += 2
+                continue
+            return end + 1
+        end += 1
+    return end
+
+
+def _replace_qmark_with_at_pn(sql: str, num_bindings: int) -> str:
+    """Replace ``?`` placeholders with ``@p1``, ``@p2``, ... for ADBC.
+
+    ADBC's go-mssqldb driver does not recognise PEP 249 ``qmark``
+    placeholders but accepts T-SQL named parameters (``@p1``, ``@p2``,
+    ...) that are bound positionally by the driver manager.
+
+    Only ``?`` characters outside bracket-quoted identifiers (``[...]``,
+    e.g. a seed column named ``[satisfied?]``) and single-quoted string
+    literals (``'...'``) are treated as placeholders -- either may
+    legally contain a literal ``?`` that must not consume a binding.
+    """
+    out = []
+    i = 0
+    n = len(sql)
+    placeholder_num = 1
+    while i < n:
+        span_end = _skip_quoted_span(sql, i)
+        if span_end is not None:
+            out.append(sql[i:span_end])
+            i = span_end
+            continue
+        ch = sql[i]
+        if ch == "?" and placeholder_num <= num_bindings:
+            out.append(f"@p{placeholder_num}")
+            placeholder_num += 1
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _split_sql_statements(sql: str) -> Iterator[str]:
+    """Split *sql* on top-level ``;`` statement separators.
+
+    ``;`` characters inside bracket-quoted identifiers or string literals
+    are not treated as separators.
+    """
+    start = 0
+    i = 0
+    n = len(sql)
+    while i < n:
+        span_end = _skip_quoted_span(sql, i)
+        if span_end is not None:
+            i = span_end
+            continue
+        if sql[i] == ";":
+            yield sql[start:i]
+            i += 1
+            start = i
+            continue
+        i += 1
+    yield sql[start:]
+
+
+def _get_adbc_rowcount(handle: Any) -> int:
+    """Query ``@@ROWCOUNT`` on a temporary ADBC cursor.
+
+    Must be called **before** draining the original cursor's resultsets
+    (``nextset()``), as ``nextset()`` resets ``@@ROWCOUNT`` on the server.
+    """
+    try:
+        rc_cursor = handle.cursor()
+        try:
+            rc_cursor.execute("SELECT @@ROWCOUNT AS rc")
+            row = rc_cursor.fetchone()
+            if row and row[0] is not None and row[0] >= 0:
+                return int(row[0])
+        finally:
+            rc_cursor.close()
+    except Exception:
+        pass
+    return 0
+
+
+_ADBC_ROWCOUNT_DML_KEYWORDS = ("INSERT", "UPDATE", "DELETE", "MERGE")
+
+
+def _sql_affects_rows(sql: str) -> bool:
+    """Best-effort check that *sql* contains DML whose row count dbt reports.
+
+    dbt frequently batches multiple ``;``-separated statements into one
+    string -- e.g. the delete+insert incremental strategy emits
+    ``SET NOCOUNT ON; delete ...; SET NOCOUNT OFF; insert ...`` as a single
+    call to ``add_query``. Checking only the leading keyword of the whole
+    string would miss the DML hiding behind a leading ``SET`` or comment,
+    so every top-level statement is checked: if any one of them leads with
+    INSERT/UPDATE/DELETE/MERGE, the ADBC ``@@ROWCOUNT`` round trip (see
+    ``_get_adbc_rowcount``) is worth paying for. Pure DDL, SELECT, and
+    transaction-control (BEGIN/COMMIT/ROLLBACK) batches skip it.
+    """
+    for statement in _split_sql_statements(sql):
+        text = statement
+        while True:
+            text = text.lstrip()
+            if text.startswith("/*"):
+                end = text.find("*/")
+                if end == -1:
+                    text = ""
+                    break
+                text = text[end + 2 :]
+                continue
+            if text.startswith("--"):
+                newline = text.find("\n")
+                text = "" if newline == -1 else text[newline + 1 :]
+                continue
+            break
+        if text.upper().startswith(_ADBC_ROWCOUNT_DML_KEYWORDS):
+            return True
+    return False
+
+
+def _try_drain_nextset(cursor: Any) -> bool:
+    """Drain one additional result set from *cursor*, if supported.
+
+    Returns ``True`` if a further result set was consumed, ``False`` if the
+    cursor has no more result sets, or the backend does not support
+    ``nextset()`` (notably ADBC).
+    """
+    try:
+        return bool(cursor.nextset())
+    except Exception as e:
+        # Duck-typed on purpose: adbc_driver_manager is an optional
+        # dependency, so it cannot be imported unconditionally to check
+        # ``isinstance(e, NotSupportedError)`` here. The message text is
+        # not checked -- only the DB-API 2.0-mandated exception name and
+        # the module that raised it, both of which are stable across
+        # adbc_driver_manager versions (unlike free-form message wording).
+        if type(e).__name__ == "NotSupportedError" and type(e).__module__.startswith(
+            "adbc_driver_manager"
+        ):
+            return False
+        raise
+
+
+# Mapping of Apache Arrow type codes (integers) to SQL Server type names.
+# ADBC cursors report column types as Arrow type codes; this map translates
+# them for use in get_column_schema_from_query() and related column expansion.
+# Reference: pyarrow type enum values (pa.int32().__class__.__name__ yields the
+# Arrow type name string, and the type's ``id`` property is the integer code).
+ARROW_TYPE_CODE_TO_NAME: dict[int, str] = {
+    1: "bit",  # pa.bool_()
+    3: "varchar",  # pa.string() / pa.utf8()
+    4: "varbinary",  # pa.binary()
+    5: "varchar(max)",  # pa.large_string() / pa.large_utf8()
+    6: "real",  # pa.float32()
+    7: "float",  # pa.float64()
+    8: "int",  # pa.int32()
+    9: "bigint",  # pa.int64()
+    10: "smallint",  # pa.int8()
+    11: "smallint",  # pa.int16()
+    12: "decimal",  # pa.decimal128()
+    14: "date",  # pa.date32()
+    16: "date",  # pa.date64()
+    17: "datetime2(6)",  # pa.timestamp()
+    18: "time",  # pa.time32()
+    19: "time",  # pa.time64()
+}
+
+# Some ADBC drivers / cursor implementations report the Arrow type name as a
+# string (e.g. "int32") rather than the integer code.  Map those here.
+ARROW_STRING_TYPE_TO_NAME: dict[str, str] = {
+    "int8": "smallint",
+    "int16": "smallint",
+    "int32": "int",
+    "int64": "bigint",
+    "float32": "real",
+    "float64": "float",
+    "float": "float",
+    "double": "float",
+    "string": "varchar",
+    "utf8": "varchar",
+    "large_string": "varchar(max)",
+    "large_utf8": "varchar(max)",
+    "bool": "bit",
+    "boolean": "bit",
+    "decimal128": "decimal",
+    "decimal": "decimal",
+    "date32": "date",
+    "date64": "date",
+    "date": "date",
+    "time32": "time",
+    "time64": "time",
+    "time": "time",
+    "timestamp": "datetime2(6)",
+    "binary": "varbinary",
+    "large_binary": "varbinary",
+}
 
 # Attribute used to stash the in-flight pyodbc / mssql-python cursor on a
 # Connection so cancel() can reach it from another thread. See cancel().
@@ -90,7 +317,9 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
         except Exception as e:
             credentials = self.get_thread_connection().credentials
-            if is_mssql_python_backend(credentials.backend):
+            if is_adbc_backend(credentials.backend):
+                database_error = _RUNTIME_STATE.get_adbc_database_error()
+            elif is_mssql_python_backend(credentials.backend):
                 database_error = _RUNTIME_STATE.get_mssql_python_database_error()
             else:
                 database_error = _RUNTIME_STATE.get_pyodbc_database_error()
@@ -129,6 +358,16 @@ class SQLServerConnectionManager(SQLConnectionManager):
             def connect() -> Any:
                 log_connection_string(con_str_concat)
                 return _connect_mssql_python(mssql_python, credentials, con_str_concat)
+
+        elif is_adbc_backend(credentials.backend):
+            _get_adbc()
+            validate_adbc_requirements(credentials)
+            con_str_concat = build_adbc_connection_uri(credentials)
+            retryable_exceptions = get_adbc_retryable_exceptions()
+
+            def connect() -> Any:
+                log_connection_string(con_str_concat)
+                return _connect_adbc(credentials, con_str_concat)
 
         else:
             pyodbc = _get_pyodbc()
@@ -174,7 +413,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             finally:
                 cursor.close()
 
-            if not connection.handle.autocommit:
+            if getattr(connection.handle, "autocommit", True) is False:
                 connection.handle.commit()
         except Exception:
             connection.handle.close()
@@ -316,6 +555,8 @@ class SQLServerConnectionManager(SQLConnectionManager):
                         (binding.isoformat() if isinstance(binding, dt.datetime) else binding)
                         for binding in bindings
                     ]
+                    if _cursor_is_adbc(cursor):
+                        sql = _replace_qmark_with_at_pn(sql, len(bindings))
                     cursor.execute(sql, bindings)
             except retryable_exceptions as e:
                 if attempt >= retry_limit:
@@ -399,6 +640,22 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 )
             )
 
+            # ADBC cursor.rowcount is always -1 (the dbapi always calls
+            # execute_query). Capture @@ROWCOUNT now, BEFORE any draining
+            # or subsequent statements reset it -- but only when it's both
+            # meaningful (DML) and safe: opening a second cursor on the
+            # same connection while this cursor's result set is still
+            # unfetched would race an unfetched SELECT, since go-mssqldb
+            # has no MARS support. ``cursor.description`` is empty for
+            # DML/DDL (no pending rows to fetch) and populated for
+            # anything that returns a result set.
+            if _cursor_is_adbc(cursor) and not cursor.description and _sql_affects_rows(sql):
+                setattr(
+                    cursor,
+                    "__dbt_sqlserver_adbc_rowcount",
+                    _get_adbc_rowcount(connection.handle),
+                )
+
             return connection, cursor
 
     @classmethod
@@ -406,9 +663,46 @@ class SQLServerConnectionManager(SQLConnectionManager):
         return credentials
 
     @classmethod
+    def process_results(
+        cls, column_names: "Iterable[str]", rows: "Iterable[Any]"
+    ) -> "Iterator[Dict[str, Any]]":
+        """Normalize datetime values by stripping timezone info.
+
+        ADBC cursors return Arrow-backed timestamps with ``tzinfo=UTC``,
+        but dbt and its test suite expect naive datetimes.  This override
+        ensures consistent output across all backends.
+        """
+        unique_col_names: "dict[str, int]" = {}
+        col_names_list = list(column_names)
+        for idx, col_name in enumerate(col_names_list):
+            if col_name in unique_col_names:
+                unique_col_names[col_name] += 1
+                col_names_list[idx] = f"{col_name}_{unique_col_names[col_name]}"
+            else:
+                unique_col_names[col_name] = 1
+
+        for row in rows:
+            normalized = tuple(
+                (
+                    val.replace(tzinfo=None)
+                    if isinstance(val, dt.datetime) and val.tzinfo is not None
+                    else val
+                )
+                for val in row
+            )
+            yield dict(zip(col_names_list, normalized))
+
+    @classmethod
     def get_response(cls, cursor: Any) -> AdapterResponse:
         message = "OK"
         rows = cursor.rowcount
+        if _cursor_is_adbc(cursor) and rows is not None and rows < 0:
+            # Only the ADBC path needs recovering: its rowcount is always
+            # -1. pyodbc/mssql-python already report a real rowcount, or
+            # -1 for statements (e.g. SELECT) where "unknown" is the
+            # correct, historical value -- that must pass through as-is.
+            stashed = getattr(cursor, "__dbt_sqlserver_adbc_rowcount", None)
+            rows = stashed if stashed is not None else rows
         return AdapterResponse(
             _message=message,
             rows_affected=rows,
@@ -416,12 +710,34 @@ class SQLServerConnectionManager(SQLConnectionManager):
 
     @classmethod
     def data_type_code_to_name(cls, type_code: Union[int, str]) -> str:
+        # Arrow integer type codes (from ADBC cursors) take priority.
+        # Non-ADBC backends (pyodbc / mssql-python) never emit bare integers,
+        # so receiving one is a reliable signal that we are on the ADBC path.
         if isinstance(type_code, int):
+            if type_code in ARROW_TYPE_CODE_TO_NAME:
+                return ARROW_TYPE_CODE_TO_NAME[type_code]
             raise dbt_common.exceptions.DbtRuntimeError(
                 "Unsupported SQL Server type code "
-                f"{type_code!r}: integer type codes are not mapped"
+                f"{type_code!r}: no matching entry found in datatypes mapping"
             )
 
+        # Arrow DataType objects (e.g. ``DataType(int32)``) from ADBC cursors.
+        # We convert to string and check the known Arrow type-name map.
+        if not isinstance(type_code, (int, str)):
+            as_str = str(type_code)
+            # Strip precision/tz qualifiers: "timestamp[us, tz=UTC]" -> "timestamp"
+            # and "decimal128(5, 2)" -> "decimal128"
+            base_type = as_str.split("[")[0].split("(")[0]
+            if base_type in ARROW_STRING_TYPE_TO_NAME:
+                return ARROW_STRING_TYPE_TO_NAME[base_type]
+            if as_str in ARROW_STRING_TYPE_TO_NAME:
+                return ARROW_STRING_TYPE_TO_NAME[as_str]
+
+        # Arrow type name strings ("int32", "utf8", …) also from ADBC cursors.
+        if isinstance(type_code, str) and type_code in ARROW_STRING_TYPE_TO_NAME:
+            return ARROW_STRING_TYPE_TO_NAME[type_code]
+
+        # --- existing pyodbc / mssql-python type-repr handling below ---
         if isinstance(type_code, str) and type_code in datatypes:
             return datatypes[type_code]
 
@@ -462,12 +778,12 @@ class SQLServerConnectionManager(SQLConnectionManager):
         try:
             response = self.get_response(cursor)
             if fetch:
-                while cursor.description is None and cursor.nextset():
+                while cursor.description is None and _try_drain_nextset(cursor):
                     pass
                 table = self.get_result_from_cursor(cursor, limit)
             else:
                 table = empty_table()
-            while cursor.nextset():
+            while _try_drain_nextset(cursor):
                 pass
             return response, table
         finally:

@@ -50,6 +50,17 @@ RUN apt-get update && \
     apt-get clean &&  \
     rm -rf /var/lib/apt/lists/*
 
+FROM base AS adbc
+
+# `dbc` is the driver-manager CLI for ADBC; it fetches the go-mssqldb-based
+# `adbc-driver-mssql` binary (not on PyPI) that the adbc-driver-manager
+# Python package talks to. See docs/adbc_backend.md.
+ENV ACCEPT_EULA=Y
+RUN pip install --no-cache-dir dbc && \
+    dbc install mssql
+
+ENV ADBC_DRIVER_PATH="/root/.config/adbc/drivers"
+
 FROM base AS msodbc17
 
 # install ODBC driver 17
