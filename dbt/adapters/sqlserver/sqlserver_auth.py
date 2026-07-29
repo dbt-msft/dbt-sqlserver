@@ -43,6 +43,14 @@ def is_mssql_python_backend(backend: "SQLServerBackend") -> bool:
     return backend.value == SQLSERVER_BACKEND_MSSQL_PYTHON
 
 
+def is_adbc_backend(backend: "SQLServerBackend") -> bool:
+    """Return whether the coerced backend enum targets ``adbc``."""
+
+    from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerBackend
+
+    return backend == SQLServerBackend.adbc
+
+
 def normalize_authentication_key(value: Optional[str]) -> str:
     """Normalize a SQL Server auth or lookup key for cross-layer comparisons."""
 

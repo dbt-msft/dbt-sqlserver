@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional
+import datetime as _dt
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import agate
 import dbt_common.exceptions
@@ -35,6 +36,44 @@ from dbt.adapters.sqlserver.sqlserver_mask import resolve_masks as _resolve_mask
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
 logger = AdapterLogger("SQLServer")
+
+
+def _normalize_result_datetimes(
+    result: Union[Tuple, List[Tuple], None],
+) -> Union[Tuple, List[Tuple], None]:
+    """Strip spurious ``tzinfo=UTC`` that ADBC attaches to SQL Server
+    DATETIME2 / DATETIME values.
+
+    SQL Server does **not** store timezone offsets for these types, so the
+    correct Python representation is a naive ``datetime``.  ADBC's Arrow
+    backend wraps every ``timestamp`` column as ``timestamp[us, tz=UTC]``
+    regardless of the source semantics, producing ``datetime(…, tzinfo=UTC)``.
+    We revert that to match SQL Server semantics and to stay compatible with
+    the existing pyodbc / mssql-python backends.
+    """
+    if result is None:
+        return None
+
+    if isinstance(result, tuple):
+        return tuple(
+            (v.replace(tzinfo=None) if isinstance(v, _dt.datetime) and v.tzinfo is not None else v)
+            for v in result
+        )
+
+    if isinstance(result, list):
+        return [
+            tuple(
+                (
+                    v.replace(tzinfo=None)
+                    if isinstance(v, _dt.datetime) and v.tzinfo is not None
+                    else v
+                )
+                for v in row
+            )
+            for row in result
+        ]
+
+    return result
 
 
 class SQLServerAdapter(SQLAdapter):
@@ -267,9 +306,9 @@ class SQLServerAdapter(SQLAdapter):
             if not fetch:
                 conn.handle.commit()
             if fetch == "one":
-                return cursor.fetchone()
+                return _normalize_result_datetimes(cursor.fetchone())
             elif fetch == "all":
-                return cursor.fetchall()
+                return _normalize_result_datetimes(cursor.fetchall())
             else:
                 return
         except BaseException:

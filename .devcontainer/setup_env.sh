@@ -25,4 +25,18 @@ source .venv/bin/activate
 # plus the dev dependency group (pre-commit, pytest, etc.). Groups are installed
 # explicitly rather than relying on uv's default-group behaviour, which varies by version.
 uv sync --all-extras --group dev
+
+# `--all-extras` above installs the adbc-driver-manager/pyarrow *client
+# library* for the adbc extra, but not the driver binary that speaks the SQL
+# Server wire protocol -- that ships separately via the `dbc` CLI and is not
+# on PyPI. See docs/adbc_backend.md. `dbc` installs into $VIRTUAL_ENV when a
+# venv is active (it is here), so point ADBC_DRIVER_PATH there.
+pip install --quiet dbc
+dbc install mssql
+ADBC_DRIVER_PATH="$(pwd)/.venv/etc/adbc/drivers"
+if ! grep -qF 'ADBC_DRIVER_PATH' ~/.bashrc 2>/dev/null; then
+  echo "export ADBC_DRIVER_PATH=\"$ADBC_DRIVER_PATH\"" >> ~/.bashrc
+fi
+export ADBC_DRIVER_PATH
+
 uv run pre-commit install

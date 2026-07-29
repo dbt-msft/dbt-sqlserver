@@ -8,6 +8,7 @@ lives in ``sqlserver_runtime.py`` and is orchestrated by
 
 from __future__ import annotations
 
+import urllib.parse
 from contextlib import suppress
 from typing import Any, Callable, Tuple
 
@@ -42,6 +43,7 @@ from dbt.adapters.sqlserver.sqlserver_runtime import (
     _RUNTIME_STATE,
     MssqlPythonModuleProtocol,
     PyodbcModuleProtocol,
+    _get_adbc,
 )
 
 logger = AdapterLogger("sqlserver")
@@ -259,11 +261,18 @@ def log_connection_string(connection_string: str) -> None:
 
 
 def is_pyodbc_handle(handle: Any) -> bool:
-    """Detect a pyodbc handle without importing pyodbc from the caller."""
+    """Detect a pyodbc handle without importing pyodbc from the caller.
+
+    ADBC handles (from ``adbc_driver_manager``) must always return False,
+    even when the handle is a mock in test code.
+    """
 
     handle_type = type(handle)
     module_name = getattr(handle_type, "__module__", "") or ""
     class_name = getattr(handle_type, "__name__", "") or ""
+
+    if "adbc" in module_name.lower() or "adbc" in class_name.lower():
+        return False
 
     if "pyodbc" in module_name or "pyodbc" in class_name:
         return True
@@ -340,3 +349,88 @@ def _connect_pyodbc(
         timeout=credentials.login_timeout,
     )
     return _finalize_connection_handle(handle, credentials)
+
+
+def _sanitize_adbc_uri_for_logging(uri: str) -> str:
+    """Redact the password component of an ADBC URI for safe logging."""
+    parsed = urllib.parse.urlparse(uri)
+    if parsed.password:
+        safe_netloc = parsed.netloc.replace(
+            f":{parsed.password}@",
+            ":***@",
+        )
+        sanitized = parsed._replace(netloc=safe_netloc).geturl()
+        return sanitized
+    return uri
+
+
+def build_adbc_connection_uri(credentials: SQLServerCredentials) -> str:
+    """Build a go-mssqldb URI for the ADBC backend.
+
+    Constructs URIs in the format:
+      ``sqlserver://[user:password@]host[:port]?query_params``
+
+    - User and password are URL-encoded so special characters (``@``, ``:``,
+      ``/``, etc.) are escaped per RFC 3986.
+    - Named instances (host containing ``\\``) omit the port.
+    - Query parameters: ``database``, ``encrypt``, ``TrustServerCertificate``,
+      and optional ``connection timeout``.
+    """
+
+    host = (credentials.host or "").strip()
+    port = credentials.port or 1433
+    database = credentials.database or ""
+    uid = credentials.UID or ""
+    pwd = credentials.PWD or ""
+
+    userinfo = f"{urllib.parse.quote(uid, safe='')}:{urllib.parse.quote(pwd, safe='')}"
+
+    if "\\" in host:
+        authority = f"{userinfo}@{host}"
+    else:
+        authority = f"{userinfo}@{host}:{port}"
+
+    query_parts = [
+        f"database={urllib.parse.quote(database, safe='')}",
+        f"encrypt={str(credentials.encrypt).lower()}",
+        f"TrustServerCertificate={str(credentials.trust_cert).lower()}",
+    ]
+
+    if credentials.login_timeout and credentials.login_timeout > 0:
+        query_parts.append(f"connection timeout={credentials.login_timeout}")
+
+    query_string = "&".join(query_parts)
+    return f"sqlserver://{authority}?{query_string}"
+
+
+def _connect_adbc(credentials: SQLServerCredentials, uri: str) -> Any:
+    """Open an ADBC connection using the constructed go-mssqldb URI.
+
+    The ADBC mssql driver (``"mssql"``) is the only supported driver.
+    Connections are opened with ``autocommit=True`` so that DDL statements
+    (``CREATE SCHEMA``, ``CREATE TABLE``, …) auto-commit without extra
+    round-trips.  When ``dbt_sqlserver_use_dbt_transactions: true``, dbt
+    emits explicit ``BEGIN TRANSACTION`` / ``COMMIT TRANSACTION`` SQL
+    that correctly nests on top of the autocommit session -- exactly the
+    same strategy used by the pyodbc backend.
+    """
+
+    sanitized = _sanitize_adbc_uri_for_logging(uri)
+    logger.debug(f"Connecting to SQL Server with ADBC: {sanitized}")
+
+    adbc_module = _get_adbc()
+    return adbc_module.connect(
+        driver="mssql",
+        db_kwargs={"uri": uri},
+        autocommit=True,
+    )
+
+
+def get_adbc_retryable_exceptions() -> Tuple[type[Exception], ...]:
+    """Return the ADBC exception types that the connection manager may retry."""
+
+    adbc_module = _get_adbc()
+    return (
+        adbc_module.InternalError,
+        adbc_module.OperationalError,
+    )

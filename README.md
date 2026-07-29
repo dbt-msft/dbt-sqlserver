@@ -54,6 +54,7 @@ Latest pre-release: ![GitHub tag (latest SemVer pre-release)](https://img.shield
 |---|---|---|
 | `pyodbc` | `dbt-sqlserver[pyodbc]` or `pyodbc` | `unixodbc-dev` plus the Microsoft ODBC Driver for SQL Server |
 | `mssql-python` | `dbt-sqlserver[mssql]` or `mssql-python` | `libltdl7`, `libkrb5-3`, `libgssapi-krb5-2` |
+| `adbc` *(experimental)* | `dbt-sqlserver[adbc]` | none (driver binary installed separately via the `dbc` CLI) |
 
 
 ### `pyodbc` backend
@@ -118,6 +119,16 @@ your_profile:
       backend: mssql-python  # <-- enables this backend
 ```
 
+### `adbc` backend *(experimental)*
+
+An Arrow-native backend built on [ADBC](https://arrow.apache.org/adbc/), avoiding the row-based ODBC/DB-API bridge entirely. SQL Server authentication only (no Azure AD / Windows auth yet).
+
+```shell
+pip install -U "dbt-sqlserver[adbc]"
+```
+
+The driver binary is not on PyPI and must be installed once via the `dbc` CLI. See [docs/adbc_backend.md](docs/adbc_backend.md) for the full setup, configuration, and known-differences guide.
+
 ## Changelog
 
 See [the changelog](CHANGELOG.md)
@@ -151,7 +162,7 @@ The same setting is also honoured via `vars:` for backwards compatibility; the b
 
 ### `backend`
 
-*(default: `pyodbc`)* Set to `mssql-python` in a profile target to use the `mssql-python` backend instead of `pyodbc`. The adapter fails if the required backend package (Python dependency), such as `pyodbc` or `mssql-python`, is not installed.
+*(default: `pyodbc`)* Set to `mssql-python` or `adbc` (experimental, see [docs/adbc_backend.md](docs/adbc_backend.md)) in a profile target to use that backend instead of `pyodbc`. The adapter fails if the required backend package (Python dependency), such as `pyodbc`, `mssql-python`, or `adbc-driver-manager`, is not installed.
 
 ### `dbt_sqlserver_enable_safe_type_expansion`
 
