@@ -1,0 +1,40 @@
+---
+name: Sync default branches
+on:  # yamllint disable-line rule:truthy
+  schedule:
+    - cron: '0 0 * * 1'  # weekly on Monday
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/sync-master.yml'
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.repository == 'dbt-msft/dbt-sqlserver'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: master
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync main to master
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -B main origin/main 2>/dev/null || git checkout -b main
+          if git merge --ff-only origin/master; then
+            echo "HAS_CHANGES=true" >> "$GITHUB_ENV"
+          else
+            echo "HAS_CHANGES=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Push main
+        if: env.HAS_CHANGES == 'true' && github.event_name != 'pull_request'
+        run: git push origin main
+
+        # After default branch is switched to main, swap the logic above:
+        #   - checkout main, sync master <- main, push master
