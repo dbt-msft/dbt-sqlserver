@@ -58,15 +58,25 @@
 
     {{ log("Running drop_fk_constraints() macro...") }}
 
-    {# The schema filter applies to the referenced table (this model). The
-       constraint itself is dropped from the referencing (parent) table, which
-       may legitimately live in another schema, so it is not filtered. #}
+    {# Both directions are dropped (issue #632): the inbound keys of other
+       tables that reference this model, and this model's own outbound keys.
+       An inbound key blocks dropping this table or its primary key; an
+       outbound one blocks a truncate/rebuild of the table it points at and
+       would otherwise survive a rebuild of this one.
+
+       The schema filter applies to this model's table only, so same-named
+       tables in other schemas keep their constraints. The counterparty of
+       either key may legitimately live in another schema and is not filtered.
+       ALTER TABLE always targets the constraint's own schema and parent table,
+       which is correct in both directions. #}
 
     declare @drop_fk_constraints nvarchar(max);
     select @drop_fk_constraints = (
         select 'IF OBJECT_ID(''' + REPLACE(QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(sys.foreign_keys.[name]), '''', '''''') + ''', ''F'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.foreign_keys.[parent_object_id])) + ' DROP CONSTRAINT ' + QUOTENAME(sys.foreign_keys.[name]) + ';'
-        from sys.foreign_keys
-        inner join sys.tables on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
+        from sys.foreign_keys {{ information_schema_hints() }}
+        inner join sys.tables {{ information_schema_hints() }}
+            on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
+            or sys.foreign_keys.[parent_object_id] = sys.tables.[object_id]
         where SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
@@ -90,8 +100,8 @@
     declare @drop_pk_constraints nvarchar(max);
     select @drop_pk_constraints = (
         select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ' + QUOTENAME(sys.indexes.[name], '''') + ', ''IndexId'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.tables.[schema_id])) + '.' + QUOTENAME(sys.tables.[name]) + ' DROP CONSTRAINT ' + QUOTENAME(sys.indexes.[name]) + ';'
-        from sys.indexes
-        inner join sys.tables on sys.indexes.[object_id] = sys.tables.[object_id]
+        from sys.indexes {{ information_schema_hints() }}
+        inner join sys.tables {{ information_schema_hints() }} on sys.indexes.[object_id] = sys.tables.[object_id]
         where sys.indexes.is_primary_key = 1
         and SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
@@ -187,18 +197,18 @@
       col1.name AS [column],
       tab2.name AS [referenced_table],
       col2.name AS [referenced_column]
-      FROM sys.foreign_key_columns fkc
-      INNER JOIN sys.objects obj
+      FROM sys.foreign_key_columns fkc {{ information_schema_hints() }}
+      INNER JOIN sys.objects obj {{ information_schema_hints() }}
           ON obj.object_id = fkc.constraint_object_id
-      INNER JOIN sys.tables tab1
+      INNER JOIN sys.tables tab1 {{ information_schema_hints() }}
           ON tab1.object_id = fkc.parent_object_id
-      INNER JOIN sys.schemas sch
+      INNER JOIN sys.schemas sch {{ information_schema_hints() }}
           ON tab1.schema_id = sch.schema_id
-      INNER JOIN sys.columns col1
+      INNER JOIN sys.columns col1 {{ information_schema_hints() }}
           ON col1.column_id = parent_column_id AND col1.object_id = tab1.object_id
-      INNER JOIN sys.tables tab2
+      INNER JOIN sys.tables tab2 {{ information_schema_hints() }}
           ON tab2.object_id = fkc.referenced_object_id
-      INNER JOIN sys.columns col2
+      INNER JOIN sys.columns col2 {{ information_schema_hints() }}
           ON col2.column_id = referenced_column_id AND col2.object_id = tab2.object_id
       WHERE sch.name = '{{ relation.schema }}' and tab2.name = '{{ relation.identifier }}'
   {% endcall %}
@@ -216,8 +226,8 @@
     SELECT i.name AS index_name
     , i.name + '__dbt_backup' as index_new_name
     , COL_NAME(ic.object_id,ic.column_id) AS column_name
-    FROM sys.indexes AS i
-    INNER JOIN sys.index_columns AS ic
+    FROM sys.indexes AS i {{ information_schema_hints() }}
+    INNER JOIN sys.index_columns AS ic {{ information_schema_hints() }}
         ON i.object_id = ic.object_id AND i.index_id = ic.index_id and i.type <> 5
     WHERE i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
 
@@ -226,18 +236,18 @@
     SELECT  obj.name AS index_name
     , obj.name + '__dbt_backup' as index_new_name
     , col1.name AS column_name
-    FROM sys.foreign_key_columns fkc
-    INNER JOIN sys.objects obj
+    FROM sys.foreign_key_columns fkc {{ information_schema_hints() }}
+    INNER JOIN sys.objects obj {{ information_schema_hints() }}
         ON obj.object_id = fkc.constraint_object_id
-    INNER JOIN sys.tables tab1
+    INNER JOIN sys.tables tab1 {{ information_schema_hints() }}
         ON tab1.object_id = fkc.parent_object_id
-    INNER JOIN sys.schemas sch
+    INNER JOIN sys.schemas sch {{ information_schema_hints() }}
         ON tab1.schema_id = sch.schema_id
-    INNER JOIN sys.columns col1
+    INNER JOIN sys.columns col1 {{ information_schema_hints() }}
         ON col1.column_id = parent_column_id AND col1.object_id = tab1.object_id
-    INNER JOIN sys.tables tab2
+    INNER JOIN sys.tables tab2 {{ information_schema_hints() }}
         ON tab2.object_id = fkc.referenced_object_id
-    INNER JOIN sys.columns col2
+    INNER JOIN sys.columns col2 {{ information_schema_hints() }}
         ON col2.column_id = referenced_column_id AND col2.object_id = tab2.object_id
     WHERE sch.name = '{{ relation.schema }}' and tab1.name = '{{ relation.identifier }}'
 
@@ -453,12 +463,51 @@
   {%- do adapter.validate_indexes(
       raw_indexes, as_columnstore, config.get('drop_unmanaged_indexes', default=false)
   ) -%}
+  {%- set creates_no_txn = [] -%}
   {%- for _index_dict in raw_indexes %}
     {%- set create_index_sql = get_create_index_sql(relation, _index_dict) -%}
     {% if create_index_sql %}
-      {% do run_query(create_index_sql) %}
+      {% if adapter.index_needs_own_batch(_index_dict) %}
+        {%- do creates_no_txn.append(_index_dict) -%}
+      {% else %}
+        {% do run_query(create_index_sql) %}
+      {% endif %}
     {% endif %}
   {%- endfor %}
+  {% do sqlserver__create_indexes_no_txn(relation, creates_no_txn) %}
+{% endmacro %}
+
+
+{% macro sqlserver__create_indexes_no_txn(relation, index_dicts) %}
+  {#-
+    Build ONLINE / RESUMABLE indexes as standalone (non-transactional)
+    statements. SQL Server forbids RESUMABLE in a user transaction, and an
+    ONLINE build wrapped in one holds its locks until commit, negating the
+    non-blocking intent.
+
+    With dbt_sqlserver_use_dbt_transactions on (default), the
+    materialization's whole build - from the first statement through its own
+    trailing adapter.commit() - runs inside one continuous ambient
+    transaction, so run_query's auto_begin=false is not enough on its own to
+    escape it: commit it first (see adapter.commit_if_open), before ANY of
+    these run - committing between them would just reopen one and land the
+    next create right back inside it - then reopen once after the whole
+    batch (adapter.begin_if_closed), which always leaves one open afterward
+    even if none was open before, so later code (grants, persist_docs, the
+    materialization's own trailing adapter.commit(), which raises if it
+    finds nothing open) sees one exactly as it would without this macro.
+    When the flag is off, or no earlier statement this run has opened one,
+    commit_if_open is a no-op and these still run standalone via run_query's
+    auto_begin=false.
+  -#}
+  {% if index_dicts %}
+    {{ adapter.commit_if_open() }}
+    {% for index_dict in index_dicts %}
+      {% do log("Creating ONLINE/RESUMABLE index outside the transaction on " ~ relation, info=true) %}
+      {% do run_query(get_create_index_sql(relation, index_dict)) %}
+    {% endfor %}
+    {{ adapter.begin_if_closed() }}
+  {% endif %}
 {% endmacro %}
 
 
@@ -500,15 +549,13 @@
         ~ ";\ncommit transaction;"
     ) %}
   {% endif %}
-  {#- ONLINE / RESUMABLE creates cannot run inside the transaction above
-      (SQL Server forbids RESUMABLE in a user transaction, and an ONLINE build
-      wrapped in one holds its locks until commit, negating the non-blocking
-      intent). Apply them individually in autocommit. The drops above have
-      already committed, so a replacement index still builds after its
-      predecessor is gone; these are not part of the atomic batch, so there is
-      a brief window where the new index is absent for readers. -#}
-  {%- for index_dict in result['creates_no_txn'] %}
-    {% do log("Creating ONLINE/RESUMABLE index outside the reconcile transaction on " ~ relation, info=true) %}
-    {% do run_query(sqlserver__get_create_index_sql(relation, index_dict)) %}
-  {%- endfor %}
+  {#- ONLINE / RESUMABLE creates cannot run inside the transaction above, nor
+      inside the ambient dbt-managed transaction that wraps the whole
+      materialization when dbt_sqlserver_use_dbt_transactions is on - see
+      sqlserver__create_indexes_no_txn. The drops (and any transactional
+      creates) above have already committed by the time these run, so a
+      replacement index still builds after its predecessor is gone; these are
+      not part of the atomic batch, so there is a brief window where the new
+      index is absent for readers. -#}
+  {% do sqlserver__create_indexes_no_txn(relation, result['creates_no_txn']) %}
 {% endmacro %}

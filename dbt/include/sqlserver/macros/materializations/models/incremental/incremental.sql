@@ -30,14 +30,24 @@
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
   {% set to_drop = [] %}
+  {% set prebuilt_handled = false %}
+  {#- true only where the statement('main') batch below carries create_table_as
+      DDL, i.e. the fresh-create / full-refresh branches. The incremental
+      branch's strategy DML stays transactional, so it leaves this false. -#}
+  {% set build_sql_is_create_table_as = false %}
 
   {% if existing_relation is none %}
     {% if config.get('full_refresh_build', 'heap_then_index') == 'prebuilt' %}
-      {#- first build: load straight into the clustered design -#}
-      {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+      {#- first build: load straight into the clustered design. Calls its own
+          statement() blocks (including 'main') rather than returning SQL to
+          run below, so it can commit its in-progress marker independently of
+          the load that follows - see the macro for why. -#}
+      {% do sqlserver__create_table_as_prebuilt(target_relation, sql) %}
       {% set prebuilt_cache_add = true %}
+      {% set prebuilt_handled = true %}
     {% else %}
       {% set build_sql = get_create_table_as_sql(False, target_relation, sql) %}
+      {% set build_sql_is_create_table_as = true %}
     {% endif %}
   {% elif full_refresh_mode %}
     {#- the target is marked as having a full refresh in flight (blocking
@@ -59,10 +69,12 @@
         {% do sqlserver__mark_full_refresh_incomplete(existing_relation) %}
       {% endif %}
       {% do adapter.drop_relation(existing_relation) %}
-      {% set build_sql = sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+      {% do sqlserver__create_table_as_prebuilt(target_relation, sql) %}
       {% set prebuilt_cache_add = true %}
+      {% set prebuilt_handled = true %}
     {% else %}
       {% set build_sql = get_create_table_as_sql(False, intermediate_relation, sql) %}
+      {% set build_sql_is_create_table_as = true %}
       {% if existing_relation.type == 'table' %}
         {% do sqlserver__mark_full_refresh_incomplete(existing_relation) %}
       {% endif %}
@@ -76,6 +88,14 @@
       {% do sqlserver__assert_no_incomplete_full_refresh(existing_relation) %}
     {% endif %}
 
+    {#- The temp build is all catalog DDL (CREATE OR ALTER VIEW / SELECT *
+        INTO / DROP VIEW) and must not share the ambient transaction with the
+        strategy DML: held to commit, its sysschobjs X keylocks deadlock a
+        second worker. Nothing opens a transaction here - run_query never
+        auto-begins, and find_references (relation.sql) no longer does either -
+        so each statement autocommits and drops its catalog locks as it
+        finishes. The strategy DML below still runs transactionally, via
+        statement('main')'s default auto_begin through to adapter.commit(). -#}
     {% do run_query(get_create_table_as_sql(True, temp_relation, sql)) %}
 
     {% set contract_config = config.get('contract') %}
@@ -102,9 +122,30 @@
     {% do to_drop.append(temp_relation) %}
   {% endif %}
 
-  {% call statement("main") %}
-      {{ build_sql }}
-  {% endcall %}
+  {% if not prebuilt_handled %}
+    {% if build_sql_is_create_table_as %}
+      {#- Same reason as the temp build above: this batch is create_table_as
+          catalog DDL, so letting statement() open the ambient transaction
+          would hold its sysschobjs X keylocks until adapter.commit() and
+          deadlock a second worker. -#}
+      {% call statement("main", auto_begin=False) %}
+          {{ build_sql }}
+      {% endcall %}
+    {% else %}
+      {% call statement("main") %}
+          {{ build_sql }}
+      {% endcall %}
+    {% endif %}
+    {% if build_sql_is_create_table_as %}
+      {#- Reopen the ambient transaction the batch above declined to start,
+          so the swap and the tail (grants/persist_docs/masks/indexes/
+          post-hooks) keep their semantics and adapter.commit() below has a
+          matching BEGIN rather than raising Msg 3902. No-op when the flag is
+          off. -#}
+      {% do adapter.commit_if_open() %}
+      {% do adapter.begin_if_closed() %}
+    {% endif %}
+  {% endif %}
 
   {% if need_swap %}
       {% do adapter.rename_relation(target_relation, backup_relation) %}
