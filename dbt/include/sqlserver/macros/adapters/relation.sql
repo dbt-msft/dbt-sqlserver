@@ -19,10 +19,10 @@
         select
             sch.name as schema_name,
             obj.name as view_name
-        from sys.sql_expression_dependencies refs
-        inner join sys.objects obj
+        from sys.sql_expression_dependencies refs {{ information_schema_hints() }}
+        inner join sys.objects obj {{ information_schema_hints() }}
         on refs.referencing_id = obj.object_id
-        inner join sys.schemas sch
+        inner join sys.schemas sch {{ information_schema_hints() }}
         on obj.schema_id = sch.schema_id
         where refs.referenced_database_name = '{{ relation.database }}'
         and refs.referenced_schema_name = '{{ relation.schema }}'
