@@ -37,7 +37,7 @@
 
         {% set listColumns %}
             {% for column in model['columns'] %}
-                {{ "["~column~"]" }}{{ ", " if not loop.last }}
+                {{ adapter.quote(column) }}{{ ", " if not loop.last }}
             {% endfor %}
         {%endset%}
 

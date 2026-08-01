@@ -1,17 +1,28 @@
+{#- Quoted, comma-separated column list for index DDL. -#}
+{% macro quote_column_list(columns) -%}
+    {%- set quoted = [] -%}
+    {%- for column in columns -%}
+        {%- do quoted.append(adapter.quote(column)) -%}
+    {%- endfor -%}
+    {{- quoted | join(', ') -}}
+{%- endmacro %}
+
+
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
+    {#- cci_name embeds the schema, so it must be quoted as an identifier
+        (raw only in the string comparison below) -- issue #409 -#}
     {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
     {%- set relation_name = relation.include(database=False) -%}
-    {%- set full_relation = '"' ~ relation.schema ~ '"."' ~ relation.identifier ~ '"' -%}
-    use [{{ relation.database }}];
+    {{ get_use_database_sql(relation.database) }}
     if EXISTS (
         SELECT *
         FROM sys.indexes {{ information_schema_hints() }}
-        WHERE name = '{{cci_name}}'
-        AND object_id=object_id('{{relation_name}}')
+        WHERE name = '{{ escape_single_quotes(cci_name) }}'
+        AND object_id=object_id('{{ escape_single_quotes(relation_name) }}')
     )
-    DROP index {{full_relation}}.{{cci_name}}
-    CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
-    ON {{full_relation}}
+    DROP index {{ relation_name }}.{{ adapter.quote(cci_name) }}
+    CREATE CLUSTERED COLUMNSTORE INDEX {{ adapter.quote(cci_name) }}
+    ON {{ relation_name }}
 {% endmacro %}
 
 {% macro drop_xml_indexes() -%}
@@ -58,15 +69,25 @@
 
     {{ log("Running drop_fk_constraints() macro...") }}
 
-    {# The schema filter applies to the referenced table (this model). The
-       constraint itself is dropped from the referencing (parent) table, which
-       may legitimately live in another schema, so it is not filtered. #}
+    {# Both directions are dropped (issue #632): the inbound keys of other
+       tables that reference this model, and this model's own outbound keys.
+       An inbound key blocks dropping this table or its primary key; an
+       outbound one blocks a truncate/rebuild of the table it points at and
+       would otherwise survive a rebuild of this one.
+
+       The schema filter applies to this model's table only, so same-named
+       tables in other schemas keep their constraints. The counterparty of
+       either key may legitimately live in another schema and is not filtered.
+       ALTER TABLE always targets the constraint's own schema and parent table,
+       which is correct in both directions. #}
 
     declare @drop_fk_constraints nvarchar(max);
     select @drop_fk_constraints = (
         select 'IF OBJECT_ID(''' + REPLACE(QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(sys.foreign_keys.[name]), '''', '''''') + ''', ''F'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.foreign_keys.[parent_object_id])) + ' DROP CONSTRAINT ' + QUOTENAME(sys.foreign_keys.[name]) + ';'
-        from sys.foreign_keys
-        inner join sys.tables on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
+        from sys.foreign_keys {{ information_schema_hints() }}
+        inner join sys.tables {{ information_schema_hints() }}
+            on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
+            or sys.foreign_keys.[parent_object_id] = sys.tables.[object_id]
         where SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
@@ -90,8 +111,8 @@
     declare @drop_pk_constraints nvarchar(max);
     select @drop_pk_constraints = (
         select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ' + QUOTENAME(sys.indexes.[name], '''') + ', ''IndexId'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.tables.[schema_id])) + '.' + QUOTENAME(sys.tables.[name]) + ' DROP CONSTRAINT ' + QUOTENAME(sys.indexes.[name]) + ';'
-        from sys.indexes
-        inner join sys.tables on sys.indexes.[object_id] = sys.tables.[object_id]
+        from sys.indexes {{ information_schema_hints() }}
+        inner join sys.tables {{ information_schema_hints() }} on sys.indexes.[object_id] = sys.tables.[object_id]
         where sys.indexes.is_primary_key = 1
         and SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
@@ -142,7 +163,7 @@
     {% endif %}
     clustered index
         {{ idx_name }}
-        on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
+        on {{ this }} ({{ quote_column_list(columns) }})
     end
 {%- endmacro %}
 
@@ -170,9 +191,9 @@
     begin
     create nonclustered index
         {{ idx_name }}
-        on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
+        on {{ this }} ({{ quote_column_list(columns) }})
         {% if includes -%}
-            include ({{ '[' + includes|join("], [") + ']' }})
+            include ({{ quote_column_list(includes) }})
         {% endif %}
     end
 {% endmacro %}
@@ -180,32 +201,32 @@
 
 {% macro drop_fk_indexes_on_table(relation) -%}
   {% call statement('find_references', fetch_result=true) %}
-      USE [{{ relation.database }}];
+      {{ get_use_database_sql(relation.database) }}
       SELECT  obj.name AS FK_NAME,
       sch.name AS [schema_name],
       tab1.name AS [table],
       col1.name AS [column],
       tab2.name AS [referenced_table],
       col2.name AS [referenced_column]
-      FROM sys.foreign_key_columns fkc
-      INNER JOIN sys.objects obj
+      FROM sys.foreign_key_columns fkc {{ information_schema_hints() }}
+      INNER JOIN sys.objects obj {{ information_schema_hints() }}
           ON obj.object_id = fkc.constraint_object_id
-      INNER JOIN sys.tables tab1
+      INNER JOIN sys.tables tab1 {{ information_schema_hints() }}
           ON tab1.object_id = fkc.parent_object_id
-      INNER JOIN sys.schemas sch
+      INNER JOIN sys.schemas sch {{ information_schema_hints() }}
           ON tab1.schema_id = sch.schema_id
-      INNER JOIN sys.columns col1
+      INNER JOIN sys.columns col1 {{ information_schema_hints() }}
           ON col1.column_id = parent_column_id AND col1.object_id = tab1.object_id
-      INNER JOIN sys.tables tab2
+      INNER JOIN sys.tables tab2 {{ information_schema_hints() }}
           ON tab2.object_id = fkc.referenced_object_id
-      INNER JOIN sys.columns col2
+      INNER JOIN sys.columns col2 {{ information_schema_hints() }}
           ON col2.column_id = referenced_column_id AND col2.object_id = tab2.object_id
       WHERE sch.name = '{{ relation.schema }}' and tab2.name = '{{ relation.identifier }}'
   {% endcall %}
       {% set references = load_result('find_references')['data'] %}
       {% for reference in references -%}
         {% call statement('main') -%}
-           alter table [{{reference[1]}}].[{{reference[2]}}] drop constraint [{{reference[0]}}]
+           alter table {{ adapter.quote(reference[1]) }}.{{ adapter.quote(reference[2]) }} drop constraint {{ adapter.quote(reference[0]) }}
         {%- endcall %}
       {% endfor %}
 {% endmacro %}
@@ -216,28 +237,28 @@
     SELECT i.name AS index_name
     , i.name + '__dbt_backup' as index_new_name
     , COL_NAME(ic.object_id,ic.column_id) AS column_name
-    FROM sys.indexes AS i
-    INNER JOIN sys.index_columns AS ic
+    FROM sys.indexes AS i {{ information_schema_hints() }}
+    INNER JOIN sys.index_columns AS ic {{ information_schema_hints() }}
         ON i.object_id = ic.object_id AND i.index_id = ic.index_id and i.type <> 5
-    WHERE i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+    WHERE i.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')
 
     UNION ALL
 
     SELECT  obj.name AS index_name
     , obj.name + '__dbt_backup' as index_new_name
     , col1.name AS column_name
-    FROM sys.foreign_key_columns fkc
-    INNER JOIN sys.objects obj
+    FROM sys.foreign_key_columns fkc {{ information_schema_hints() }}
+    INNER JOIN sys.objects obj {{ information_schema_hints() }}
         ON obj.object_id = fkc.constraint_object_id
-    INNER JOIN sys.tables tab1
+    INNER JOIN sys.tables tab1 {{ information_schema_hints() }}
         ON tab1.object_id = fkc.parent_object_id
-    INNER JOIN sys.schemas sch
+    INNER JOIN sys.schemas sch {{ information_schema_hints() }}
         ON tab1.schema_id = sch.schema_id
-    INNER JOIN sys.columns col1
+    INNER JOIN sys.columns col1 {{ information_schema_hints() }}
         ON col1.column_id = parent_column_id AND col1.object_id = tab1.object_id
-    INNER JOIN sys.tables tab2
+    INNER JOIN sys.tables tab2 {{ information_schema_hints() }}
         ON tab2.object_id = fkc.referenced_object_id
-    INNER JOIN sys.columns col2
+    INNER JOIN sys.columns col2 {{ information_schema_hints() }}
         ON col2.column_id = referenced_column_id AND col2.object_id = tab2.object_id
     WHERE sch.name = '{{ relation.schema }}' and tab1.name = '{{ relation.identifier }}'
 
@@ -273,21 +294,21 @@
                   and object_id = OBJECT_ID('{{ relation }}')
   )
   begin
-  {# key columns: bracket-quoted (with ]] escaping) plus per-column direction #}
+  {# key columns: quoted (adapter.quote escapes embedded quotes) plus per-column direction #}
   {%- set key_columns = [] -%}
   {%- for column in index_config.columns -%}
     {%- do key_columns.append(
-        '[' ~ column | replace(']', ']]') ~ ']'
+        adapter.quote(column)
         ~ (' desc' if column in index_config.descending_columns else '')
     ) -%}
   {%- endfor -%}
   {%- set include_columns = [] -%}
   {%- for column in index_config.included_columns -%}
-    {%- do include_columns.append('[' ~ column | replace(']', ']]') ~ ']') -%}
+    {%- do include_columns.append(adapter.quote(column)) -%}
   {%- endfor %}
   create
   {% if index_config.unique -%} unique {% endif %}{{ index_config.type }}
-  index [{{ index_name }}]
+  index {{ adapter.quote(index_name) }}
   on {{ relation }}
   ({{ key_columns | join(', ') }})
     {% if include_columns -%}
@@ -426,7 +447,7 @@
         from sys.partitions p {{ information_schema_hints() }}
         where p.object_id = i.object_id and p.index_id = i.index_id
     ) part
-    where i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+    where i.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')
       and i.index_id > 0
       and i.[type] not in (3, 4, 7)  /* xml, spatial, memory-optimized hash */
   {%- endcall %}
@@ -435,7 +456,7 @@
 
 
 {% macro sqlserver__get_drop_index_sql(relation, index_name) -%}
-    drop index [{{ index_name }}] on {{ relation }}
+    drop index {{ adapter.quote(index_name) }} on {{ relation }}
 {%- endmacro %}
 
 

@@ -1,19 +1,21 @@
 {% macro sqlserver__get_unit_test_sql(main_sql, expected_fixture_sql, expected_column_names) -%}
 
-  USE [{{ target.database }}];
+  {{ get_use_database_sql(target.database) }}
   IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ target.schema }}')
   BEGIN
-  EXEC('CREATE SCHEMA [{{ target.schema }}]')
+  EXEC('CREATE SCHEMA {{ adapter.quote(target.schema) }}')
   END
 
+  {% set test_view_name = "testview_" ~ local_md5(main_sql) ~ "_" ~ (range(1300, 19000) | random) %}
   {% set test_view %}
-      [{{ target.schema }}].[testview_{{ local_md5(main_sql) }}_{{ range(1300, 19000) | random }}]
+      {{ adapter.quote(target.schema) }}.{{ adapter.quote(test_view_name) }}
   {% endset %}
   {% set test_sql = main_sql.replace("'", "''")%}
   EXEC('create view {{test_view}} as {{ test_sql }};')
 
+  {% set expected_view_name = "expectedview_" ~ local_md5(expected_fixture_sql) ~ "_" ~ (range(1300, 19000) | random) %}
   {% set expected_view %}
-      [{{ target.schema }}].[expectedview_{{ local_md5(expected_fixture_sql) }}_{{ range(1300, 19000) | random }}]
+      {{ adapter.quote(target.schema) }}.{{ adapter.quote(expected_view_name) }}
   {% endset %}
   {% set expected_sql = expected_fixture_sql.replace("'", "''")%}
   EXEC('create view {{expected_view}} as {{ expected_sql }};')

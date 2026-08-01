@@ -109,7 +109,7 @@
 {% endmacro %}
 
 {%- macro sqlserver__get_use_database_sql(database) -%}
-  USE [{{database | replace('"', '')}}];
+  USE {{ adapter.quote(database | replace('"', '')) }};
 {%- endmacro -%}
 
 {% macro sqlserver__list_schemas(database) %}
@@ -194,8 +194,8 @@
             , s.name as [schema]
             , o.modify_date as last_modified
             , current_timestamp as snapshotted_at
-        from sys.objects o
-        inner join sys.schemas s on o.schema_id = s.schema_id and [type] = 'U'
+        from sys.objects o {{ information_schema_hints() }}
+        inner join sys.schemas s {{ information_schema_hints() }} on o.schema_id = s.schema_id and [type] = 'U'
         where (
             {%- for relation in relations -%}
             (upper(s.name) = upper('{{ relation.schema }}') and

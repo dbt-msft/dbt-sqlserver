@@ -1,9 +1,9 @@
 {% macro sqlserver__create_schema(relation) -%}
   {% call statement('create_schema') -%}
-    USE [{{ relation.database }}];
+    {{ get_use_database_sql(relation.database) }}
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA [{{ relation.schema }}]')
+    EXEC('CREATE SCHEMA {{ adapter.quote(relation.schema) }}')
     END
   {% endcall %}
 {% endmacro %}
@@ -13,7 +13,7 @@
     {{ get_use_database_sql(relation.database) }}
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ relation.schema }}')
     BEGIN
-    EXEC('CREATE SCHEMA [{{ relation.schema }}] AUTHORIZATION [{{ schema_authorization }}]')
+    EXEC('CREATE SCHEMA {{ adapter.quote(relation.schema) }} AUTHORIZATION {{ adapter.quote(schema_authorization) }}')
     END
   {% endcall %}
 {% endmacro %}

@@ -33,7 +33,7 @@
         c.name as name,
         c.masking_function as masking_function
     from sys.masked_columns c {{ information_schema_hints() }}
-    where c.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+    where c.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')
 {% endmacro %}
 
 
@@ -47,7 +47,7 @@
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
             on col.object_id = ic.object_id and col.column_id = ic.column_id
-        where ic.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+        where ic.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')
           and ic.is_included_column = 0
     {% endcall %}
     {% set result = [] %}
@@ -64,7 +64,7 @@
     {% call statement('get_unmaskable_columns', fetch_result=True) %}
         select col.name as name
         from sys.columns col {{ information_schema_hints() }}
-        where col.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+        where col.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')
           and (
                 col.is_computed = 1
              or col.is_filestream = 1

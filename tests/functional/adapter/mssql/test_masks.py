@@ -17,12 +17,13 @@ from dbt.tests.util import get_connection, run_dbt, run_dbt_and_capture
 # ---------------------------------------------------------------------------
 
 
-def masked_columns(project, table_name):
+def masked_columns(project, table_name, schema=None):
     """Return {column_name: masking_function} from sys.masked_columns."""
+    schema = schema or project.test_schema
     sql = f"""
         select c.name, c.masking_function
         from sys.masked_columns c
-        where c.object_id = OBJECT_ID('{project.test_schema}.{table_name}')
+        where c.object_id = OBJECT_ID('"{schema}"."{table_name}"')
     """
     with get_connection(project.adapter):
         _, table = project.adapter.execute(sql, fetch=True)
@@ -71,6 +72,22 @@ models:
         masked_with: 'partial(0,"XXXXXXXXXX",0)'
 """
 
+# A schema whose name needs delimiters: a dot made the bare OBJECT_ID() lookup
+# in the mask macros return NULL, so masks were silently never applied (#785).
+dotted_schema_model_sql = """
+{{ config(materialized="table", schema=target.schema ~ '.x') }}
+select cast('Smith' as varchar(50)) as surname
+"""
+
+dotted_schema_yml = """
+version: 2
+models:
+  - name: dotted_schema_model
+    columns:
+      - name: surname
+        masked_with: "default()"
+"""
+
 # model-level `masks` dict surface
 model_level_masks_sql = """
 {{ config(
@@ -95,7 +112,17 @@ class TestColumnPropertyMasks:
         return {
             "masked_model.sql": column_property_model_sql,
             "masked_model.yml": column_property_yml,
+            "dotted_schema_model.sql": dotted_schema_model_sql,
+            "dotted_schema_model.yml": dotted_schema_yml,
         }
+
+    @pytest.fixture(scope="class", autouse=True)
+    def drop_dotted_schema(self, project):
+        yield
+        schema = f"{project.test_schema}.x"
+        with get_connection(project.adapter):
+            project.adapter.execute(f'DROP TABLE IF EXISTS "{schema}".dotted_schema_model')
+            project.adapter.execute(f'DROP SCHEMA IF EXISTS "{schema}"')
 
     def test_masks_applied_and_survive_full_refresh(self, project):
         run_dbt(["run"])
@@ -110,6 +137,13 @@ class TestColumnPropertyMasks:
         masks = masked_columns(project, "masked_model")
         assert masks.get("surname") == "default()"
         assert masks.get("nhs_number") == 'partial(0, "XXXXXXXXXX", 0)'
+
+    def test_masks_applied_in_a_schema_needing_delimiters(self, project):
+        """A dot in the schema made OBJECT_ID() return NULL, so the mask
+        introspection found nothing and masks were silently skipped (#785)."""
+        run_dbt(["run"])
+        masks = masked_columns(project, "dotted_schema_model", schema=f"{project.test_schema}.x")
+        assert masks.get("surname") == "default()"
 
     def test_unprivileged_user_sees_masked_values(self, project):
         run_dbt(["run"])
