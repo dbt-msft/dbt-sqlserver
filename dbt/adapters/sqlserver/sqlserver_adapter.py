@@ -189,6 +189,22 @@ class SQLServerAdapter(SQLAdapter):
         return columns
 
     @classmethod
+    def quote(cls, identifier: str) -> str:
+        """Double-quote an identifier, doubling any embedded double quote.
+
+        ``SQLAdapter.quote`` interpolates the identifier verbatim, so a name
+        containing a ``"`` would close the quoted identifier early and the
+        remainder would parse as SQL. T-SQL escapes a delimiter by doubling
+        it -- the same rule ``QUOTENAME()`` applies to brackets -- so
+        ``ab"cd`` must render as ``"ab""cd"``.
+
+        This is the quoting used by every macro that formats an identifier
+        (see #785). Relation rendering escapes nothing, since it goes through
+        ``BaseRelation.quote_character`` upstream rather than this method.
+        """
+        return '"{}"'.format(str(identifier).replace('"', '""'))
+
+    @classmethod
     def convert_boolean_type(cls, agate_table, col_idx):
         return "bit"
 

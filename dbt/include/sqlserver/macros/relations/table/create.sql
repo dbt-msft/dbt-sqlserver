@@ -23,7 +23,7 @@
     {%- set build_into_temp = temporary or _ident.endswith('__dbt_tmp') or _ident.endswith('__dbt_tmp_vw') -%}
 
     {%- do adapter.drop_relation(tmp_relation) -%}
-    USE [{{ relation.database }}];
+    {{ get_use_database_sql(relation.database) }}
     {{ get_create_view_as_sql(tmp_relation, sql) }}
 
     {%- set table_name -%}
@@ -39,7 +39,7 @@
             {{ build_columns_constraints(relation) }}
             {% set listColumns %}
                 {% for column in model['columns'] %}
-                    {{ "["~column~"]" }}{{ ", " if not loop.last }}
+                    {{ adapter.quote(column) }}{{ ", " if not loop.last }}
                 {% endfor %}
             {%endset%}
             INSERT INTO {{relation}} WITH (TABLOCK) ({{listColumns}})
@@ -47,7 +47,7 @@
 
         {% else %}
             {%- if build_into_temp -%}
-            IF OBJECT_ID('{{ escape_single_quotes(relation.schema) }}.{{ escape_single_quotes(relation.identifier) }}', 'U') IS NOT NULL
+            IF OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}', 'U') IS NOT NULL
                 EXEC('DROP TABLE {{ relation }}');
             {%- endif -%}
             SELECT * INTO {{ table_name }} FROM {{ tmp_relation }} {{ query_label }}
@@ -120,7 +120,7 @@
         later failure during the load would roll the marker back right along
         with it, defeating the point. -#}
     {%- set setup_sql -%}
-        USE [{{ relation.database }}];
+        {{ get_use_database_sql(relation.database) }}
         {{ get_create_view_as_sql(tmp_relation, sql) }}
 
         {#- drop any physical target before the bare CREATE / SELECT ... INTO
@@ -128,7 +128,7 @@
             dbt's relation cache being stale (reporting none while the table
             exists) - which would otherwise collide with Msg 2714 (object
             already exists) -#}
-        IF OBJECT_ID('{{ escape_single_quotes(relation.schema) }}.{{ escape_single_quotes(relation.identifier) }}', 'U') IS NOT NULL
+        IF OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}', 'U') IS NOT NULL
             EXEC('DROP TABLE {{ relation }}');
 
         {% if contract_enforced %}
@@ -169,7 +169,7 @@
     {%- if contract_enforced -%}
         {%- set listColumns -%}
             {%- for column in model['columns'] -%}
-                {{ "["~column~"]" }}{{ ", " if not loop.last }}
+                {{ adapter.quote(column) }}{{ ", " if not loop.last }}
             {%- endfor -%}
         {%- endset -%}
         {%- set insert_statement -%}

@@ -109,7 +109,7 @@
 {% endmacro %}
 
 {%- macro sqlserver__get_use_database_sql(database) -%}
-  USE [{{database | replace('"', '')}}];
+  USE {{ adapter.quote(database | replace('"', '')) }};
 {%- endmacro -%}
 
 {% macro sqlserver__list_schemas(database) %}

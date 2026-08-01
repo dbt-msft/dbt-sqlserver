@@ -62,7 +62,7 @@
             drop column "{{ column_name }}";
         {%- endset %}
         {% set rename_column %}
-            exec sp_rename '{{ relation | replace('"', '') }}.{{ tmp_column }}', '{{ column_name }}', 'column'
+            exec sp_rename '{{ escape_single_quotes(relation.include(database=False)) }}.{{ escape_single_quotes(adapter.quote(tmp_column)) }}', '{{ escape_single_quotes(column_name) }}', 'column'
         {%- endset %}
 
         {% do run_query(add_column) %}

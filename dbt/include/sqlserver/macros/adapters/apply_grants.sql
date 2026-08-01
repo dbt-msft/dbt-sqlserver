@@ -48,7 +48,7 @@
 {%- macro sqlserver__get_grant_sql(relation, privilege, grantees) -%}
     {%- set grantees_safe = [] -%}
     {%- for grantee in grantees -%}
-        {%- set grantee_safe = "[" ~ grantee ~ "]" -%}
+        {%- set grantee_safe = adapter.quote(grantee) -%}
         {%- do grantees_safe.append(grantee_safe) -%}
     {%- endfor -%}
     grant {{ privilege }} on {{ relation }} to {{ grantees_safe | join(', ') }}
@@ -57,7 +57,7 @@
 {%- macro sqlserver__get_revoke_sql(relation, privilege, grantees) -%}
     {%- set grantees_safe = [] -%}
     {%- for grantee in grantees -%}
-        {%- set grantee_safe = "[" ~ grantee ~ "]" -%}
+        {%- set grantee_safe = adapter.quote(grantee) -%}
         {%- do grantees_safe.append(grantee_safe) -%}
     {%- endfor -%}
     revoke {{ privilege }} on {{ relation }} from {{ grantees_safe | join(', ') }}
@@ -66,6 +66,6 @@
 {% macro get_provision_sql(relation, privilege, grantees) %}
     {% for grantee in grantees %}
         if not exists(select name from sys.database_principals where name = '{{ grantee }}')
-        create user [{{ grantee }}] from external provider;
+        create user {{ adapter.quote(grantee) }} from external provider;
     {% endfor %}
 {% endmacro %}

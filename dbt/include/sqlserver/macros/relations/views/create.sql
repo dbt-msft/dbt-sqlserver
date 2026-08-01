@@ -24,7 +24,7 @@
         CREATE OR ALTER VIEW {{ relation.include(database=False) }} AS {{ sql }};
     {% endset %}
 
-    USE [{{ relation.database }}];
+    {{ get_use_database_sql(relation.database) }}
     EXEC('{{- escape_single_quotes(query) -}}')
 
 {% endmacro %}

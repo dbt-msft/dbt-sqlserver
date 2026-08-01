@@ -10,6 +10,16 @@
 - **Behavior change:** `dbt_sqlserver_use_native_string_types` now defaults to `True`: `STRING` maps to `VARCHAR(MAX)`, `NCHAR` to `NCHAR(1)`, and `NVARCHAR` to `NVARCHAR(4000)`, instead of the legacy `VARCHAR(8000)`/`CHAR(1)` mappings. The `False` (legacy) behavior is deprecated and will be removed in a future release.
 - Add an experimental `adbc` backend (`backend: adbc`), an alternative to `pyodbc`/`mssql-python` built on [ADBC](https://arrow.apache.org/adbc/) that talks to SQL Server via `go-mssqldb` instead of an ODBC/DB-API bridge. Install with `dbt-sqlserver[adbc]` plus the separate `dbc` CLI-installed driver binary; supports SQL Server (user/password) authentication only for now. See [docs/adbc_backend.md](docs/adbc_backend.md). [#771](https://github.com/dbt-msft/dbt-sqlserver/issues/771)
 
+#### Bugfixes
+
+- Fix models failing with `Incorrect syntax near '\'` when the schema name needs delimiters, such as a domain-qualified `domain\user`. The clustered columnstore index name embeds the schema and was emitted as a bare identifier, so the generated DDL did not parse. [#409](https://github.com/dbt-msft/dbt-sqlserver/issues/409)
+- Fix identifiers built inside string literals not being quoted, which broke schema names containing a `.` or a `"`. `OBJECT_ID('schema.table')` returns `NULL` rather than erroring for such a name, so the failures were silent: the drop-before-create guards in `create_table_as` treated an existing table as absent (then hit `Msg 2714`), and the mask introspection in `apply_masks` found no columns, so configured masks were never applied. `sp_rename` was affected too, failing the table rename-swap with `No item by the name of ...`. All now pass quoted, qualified names. [#785](https://github.com/dbt-msft/dbt-sqlserver/issues/785)
+
+#### Under the hood
+
+- **Behavior change (generated SQL only):** the few macros that hand-formatted `[bracket]` identifiers now use `adapter.quote()`, matching the `"double quoted"` identifiers `{{ relation }}` already rendered, so one statement no longer mixes both styles. Affects `USE` (now via the existing `get_use_database_sql()` helper), `CREATE SCHEMA`, contract column lists, grantees, index/constraint names and generated test view names. Server-side `QUOTENAME()` keeps brackets by design. Visible only if you parse dbt's generated SQL or have custom macros assuming brackets. [#785](https://github.com/dbt-msft/dbt-sqlserver/issues/785)
+- Identifier quoting escapes an embedded `"` by doubling it (`ab"cd` → `"ab""cd"`), in both `adapter.quote()` and relation rendering (`SQLServerRelation.quoted`). Needed twice over: a `"` requires no escaping inside `[brackets]` but does inside double quotes, so the delimiter change above would otherwise have rejected names the adapter previously accepted; and the string-literal fix above renders identifiers through the relation, so a schema containing a `"` depends on it. [#785](https://github.com/dbt-msft/dbt-sqlserver/issues/785)
+
 ### v1.11.0
 
 #### Features

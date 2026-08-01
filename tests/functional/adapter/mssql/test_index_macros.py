@@ -120,6 +120,14 @@ drop_both_fk_directions_model = """
 select * from {{ ref('raw_data') }}
 """
 
+# A schema name needing delimiters: the backslash reaches the generated CCI
+# name (#409), the dot and the quote reach identifiers built inside string
+# literals. Raw string: what is written here is exactly what Jinja parses.
+backslash_schema_model = r"""
+{{ config(materialized='table', schema=target.schema ~ '_dom\\usr.x\"q') }}
+select 1 as id
+"""
+
 
 class TestIndexMacros:
     """Every index-macro assertion in this module shares one project and one
@@ -151,6 +159,7 @@ class TestIndexMacros:
             "index_model.sql": drop_schema_model,
             "index_ccs_model.sql": model_sql_ccs,
             "fk_model.sql": drop_both_fk_directions_model,
+            "backslash_schema_model.sql": backslash_schema_model,
             "schema.yml": model_yml,
         }
 
@@ -207,12 +216,15 @@ class TestIndexMacros:
         drop_index = f"DROP INDEX IF EXISTS sample_schema ON {_schema}.index_model"
         drop_table = f"DROP TABLE IF EXISTS {_schema}.index_model"
         drop_schema = f"DROP SCHEMA IF EXISTS {_schema}"
+        bs_schema = (project.test_schema + '_dom\\usr.x"q').replace('"', '""')  # single backslash
 
         with get_connection(project.adapter):
             project.adapter.execute(drop_child_table, fetch=True)
             project.adapter.execute(drop_index)
             project.adapter.execute(drop_table)
             project.adapter.execute(drop_schema)
+            project.adapter.execute(f'DROP TABLE IF EXISTS "{bs_schema}".backslash_schema_model')
+            project.adapter.execute(f'DROP SCHEMA IF EXISTS "{bs_schema}"')
 
     def drop_fk_artifacts(self, project):
         # Ordered so teardown still works when the macro under test leaves a
@@ -267,6 +279,23 @@ class TestIndexMacros:
             "clustered unique": 1,
             "nonclustered": 4,
         }
+
+    def test_builds_in_a_schema_needing_delimiters(self, project):
+        """A backslash in the schema reaches the CCI name (#409)."""
+        with get_connection(project.adapter):
+            _, table = project.adapter.execute(
+                f"""
+                select i.type_desc
+                from sys.indexes i
+                join sys.tables t on t.object_id = i.object_id
+                join sys.schemas s on s.schema_id = t.schema_id
+                where s.name like '{project.test_schema}%' and s.name like '%\\%'
+                  and t.name = 'backslash_schema_model'
+                  and i.type_desc = 'CLUSTERED COLUMNSTORE'
+                """,
+                fetch=True,
+            )
+        assert len(table.rows) == 1, f"expected a clustered columnstore index, got {table.rows}"
 
     def test_leaves_other_schemas_alone(self, project):
         self.validate_other_schema(project)

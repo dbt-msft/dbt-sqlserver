@@ -1,17 +1,28 @@
+{#- Quoted, comma-separated column list for index DDL. -#}
+{% macro quote_column_list(columns) -%}
+    {%- set quoted = [] -%}
+    {%- for column in columns -%}
+        {%- do quoted.append(adapter.quote(column)) -%}
+    {%- endfor -%}
+    {{- quoted | join(', ') -}}
+{%- endmacro %}
+
+
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
+    {#- cci_name embeds the schema, so it must be quoted as an identifier
+        (raw only in the string comparison below) -- issue #409 -#}
     {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
     {%- set relation_name = relation.include(database=False) -%}
-    {%- set full_relation = '"' ~ relation.schema ~ '"."' ~ relation.identifier ~ '"' -%}
-    use [{{ relation.database }}];
+    {{ get_use_database_sql(relation.database) }}
     if EXISTS (
         SELECT *
         FROM sys.indexes {{ information_schema_hints() }}
-        WHERE name = '{{cci_name}}'
-        AND object_id=object_id('{{relation_name}}')
+        WHERE name = '{{ escape_single_quotes(cci_name) }}'
+        AND object_id=object_id('{{ escape_single_quotes(relation_name) }}')
     )
-    DROP index {{full_relation}}.{{cci_name}}
-    CREATE CLUSTERED COLUMNSTORE INDEX {{cci_name}}
-    ON {{full_relation}}
+    DROP index {{ relation_name }}.{{ adapter.quote(cci_name) }}
+    CREATE CLUSTERED COLUMNSTORE INDEX {{ adapter.quote(cci_name) }}
+    ON {{ relation_name }}
 {% endmacro %}
 
 {% macro drop_xml_indexes() -%}
@@ -152,7 +163,7 @@
     {% endif %}
     clustered index
         {{ idx_name }}
-        on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
+        on {{ this }} ({{ quote_column_list(columns) }})
     end
 {%- endmacro %}
 
@@ -180,9 +191,9 @@
     begin
     create nonclustered index
         {{ idx_name }}
-        on {{ this }} ({{ '[' + columns|join("], [") + ']' }})
+        on {{ this }} ({{ quote_column_list(columns) }})
         {% if includes -%}
-            include ({{ '[' + includes|join("], [") + ']' }})
+            include ({{ quote_column_list(includes) }})
         {% endif %}
     end
 {% endmacro %}
@@ -190,7 +201,7 @@
 
 {% macro drop_fk_indexes_on_table(relation) -%}
   {% call statement('find_references', fetch_result=true) %}
-      USE [{{ relation.database }}];
+      {{ get_use_database_sql(relation.database) }}
       SELECT  obj.name AS FK_NAME,
       sch.name AS [schema_name],
       tab1.name AS [table],
@@ -215,7 +226,7 @@
       {% set references = load_result('find_references')['data'] %}
       {% for reference in references -%}
         {% call statement('main') -%}
-           alter table [{{reference[1]}}].[{{reference[2]}}] drop constraint [{{reference[0]}}]
+           alter table {{ adapter.quote(reference[1]) }}.{{ adapter.quote(reference[2]) }} drop constraint {{ adapter.quote(reference[0]) }}
         {%- endcall %}
       {% endfor %}
 {% endmacro %}
@@ -229,7 +240,7 @@
     FROM sys.indexes AS i {{ information_schema_hints() }}
     INNER JOIN sys.index_columns AS ic {{ information_schema_hints() }}
         ON i.object_id = ic.object_id AND i.index_id = ic.index_id and i.type <> 5
-    WHERE i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+    WHERE i.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')
 
     UNION ALL
 
@@ -283,21 +294,21 @@
                   and object_id = OBJECT_ID('{{ relation }}')
   )
   begin
-  {# key columns: bracket-quoted (with ]] escaping) plus per-column direction #}
+  {# key columns: quoted (adapter.quote escapes embedded quotes) plus per-column direction #}
   {%- set key_columns = [] -%}
   {%- for column in index_config.columns -%}
     {%- do key_columns.append(
-        '[' ~ column | replace(']', ']]') ~ ']'
+        adapter.quote(column)
         ~ (' desc' if column in index_config.descending_columns else '')
     ) -%}
   {%- endfor -%}
   {%- set include_columns = [] -%}
   {%- for column in index_config.included_columns -%}
-    {%- do include_columns.append('[' ~ column | replace(']', ']]') ~ ']') -%}
+    {%- do include_columns.append(adapter.quote(column)) -%}
   {%- endfor %}
   create
   {% if index_config.unique -%} unique {% endif %}{{ index_config.type }}
-  index [{{ index_name }}]
+  index {{ adapter.quote(index_name) }}
   on {{ relation }}
   ({{ key_columns | join(', ') }})
     {% if include_columns -%}
@@ -436,7 +447,7 @@
         from sys.partitions p {{ information_schema_hints() }}
         where p.object_id = i.object_id and p.index_id = i.index_id
     ) part
-    where i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
+    where i.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')
       and i.index_id > 0
       and i.[type] not in (3, 4, 7)  /* xml, spatial, memory-optimized hash */
   {%- endcall %}
@@ -445,7 +456,7 @@
 
 
 {% macro sqlserver__get_drop_index_sql(relation, index_name) -%}
-    drop index [{{ index_name }}] on {{ relation }}
+    drop index {{ adapter.quote(index_name) }} on {{ relation }}
 {%- endmacro %}
 
 

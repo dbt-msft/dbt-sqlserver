@@ -26,6 +26,15 @@ class SQLServerRelation(BaseRelation):
     def get_relation_type(cls) -> Type[SQLServerRelationType]:
         return SQLServerRelationType
 
+    def quoted(self, identifier):
+        """Quote a path part, doubling any embedded quote character (#785).
+
+        Not delegated to super(): that wraps verbatim, so pre-escaping the
+        input would double-escape if upstream ever starts escaping too.
+        """
+        quote_char = self.quote_character
+        return f"{quote_char}{str(identifier).replace(quote_char, quote_char * 2)}{quote_char}"
+
     def _render_limited_alias(self) -> str:
         if self.disable_empty_relation_aliases:
             return ""

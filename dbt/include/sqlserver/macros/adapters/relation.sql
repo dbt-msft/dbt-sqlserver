@@ -50,7 +50,8 @@
 {% macro sqlserver__rename_relation(from_relation, to_relation) -%}
   {% call statement('rename_relation') -%}
      {{ get_use_database_sql(from_relation.database) }}
-      EXEC sp_rename '{{ from_relation.schema }}.{{ from_relation.identifier }}', '{{ to_relation.identifier }}'
+      {#- @objname takes a quoted, qualified name; @newname must stay bare -#}
+      EXEC sp_rename '{{ escape_single_quotes(from_relation.include(database=False)) }}', '{{ escape_single_quotes(to_relation.identifier) }}'
   {%- endcall %}
 {% endmacro %}
 
