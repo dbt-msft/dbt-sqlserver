@@ -23,16 +23,32 @@ from dbt.tests.util import run_dbt
 
 _LINKED_SERVER_NAME = "LOCALLOOP"
 
-# Loopback linked server using the current Microsoft OLE DB provider
-# (MSOLEDBSQL). SQL auth via useself=true maps the local login to the
-# same-named remote login, so no password is embedded here.
-_CREATE_LINKED_SERVER_SQL = f"""
+
+def _create_linked_server_sql(major_version: int) -> str:
+    """Loopback linked server. Two settings vary by engine version.
+
+    Provider: MSOLEDBSQL only became a valid linked-server provider on Linux in
+    2019; 2017 rejects it with Msg 7222 and needs SQLNCLI.
+
+    Cert trust: from 2025 the provider negotiates encryption by default and the
+    loopback presents the instance's self-signed certificate, so the engine's
+    outbound handshake fails ("SSL Provider: The handle specified is invalid")
+    without it. Sent only where needed, so 2019/2022 generate identical SQL.
+
+    useself=true maps the local login to the same-named remote login, so no
+    password is embedded here.
+    """
+    # SQL Server 2017 leaves extended support on 2027-10-12; drop this branch
+    # and the 2017 CI leg after that date.
+    provider = "SQLNCLI" if major_version <= 14 else "MSOLEDBSQL"
+    provstr = "\n    @provstr = 'TrustServerCertificate=Yes'," if major_version >= 17 else ""
+    return f"""
 IF EXISTS (SELECT 1 FROM sys.servers WHERE name = '{_LINKED_SERVER_NAME}')
     EXEC sp_dropserver '{_LINKED_SERVER_NAME}', 'droplogins';
 EXEC sp_addlinkedserver
     @server = '{_LINKED_SERVER_NAME}',
     @srvproduct = '',
-    @provider = 'MSOLEDBSQL',
+    @provider = '{provider}',{provstr}
     @datasrc = '127.0.0.1,1433';
 EXEC sp_addlinkedsrvlogin
     @rmtsrvname = '{_LINKED_SERVER_NAME}',
@@ -42,6 +58,7 @@ EXEC sp_addlinkedsrvlogin
     @rmtpassword = NULL;
 EXEC sp_serveroption '{_LINKED_SERVER_NAME}', 'rpc out', true;
 """
+
 
 _DROP_LINKED_SERVER_SQL = f"""
 IF EXISTS (SELECT 1 FROM sys.servers WHERE name = '{_LINKED_SERVER_NAME}')
@@ -156,7 +173,12 @@ class TestOpenquery:
 
     @pytest.fixture(scope="class")
     def _linked_server(self, project):
-        project.run_sql(_CREATE_LINKED_SERVER_SQL)
+        major_version = int(
+            project.run_sql(
+                "SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int)", fetch="one"
+            )[0]
+        )
+        project.run_sql(_create_linked_server_sql(major_version))
         rows = project.run_sql(
             f"SELECT name FROM sys.servers WHERE name = '{_LINKED_SERVER_NAME}'",
             fetch="all",
