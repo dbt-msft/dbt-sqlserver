@@ -6,10 +6,12 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
+      - release/**
   pull_request:
     branches:
       - master
       - v*
+      - release/**
   schedule:
     - cron: '0 22 * * 0'
 

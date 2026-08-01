@@ -6,6 +6,7 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
+      - release/**
     paths:
       - 'dbt/**'
       - 'tests/functional/**'
@@ -20,6 +21,7 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - master
       - v*
+      - release/**
     paths:
       - 'dbt/**'
       - 'tests/functional/**'
