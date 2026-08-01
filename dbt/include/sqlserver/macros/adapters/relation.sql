@@ -8,7 +8,13 @@
 
 {% macro sqlserver__get_drop_sql(relation) -%}
   {% if relation.type == 'view' -%}
-      {% call statement('find_references', fetch_result=true) %}
+      {#- auto_begin=false, matching dbt-adapters' own relations/drop.sql: a
+          read-only lookup must not open the ambient transaction. This is the
+          first statement of the temp-relation build (create.sql ->
+          adapter.drop_relation), so with the default auto_begin=True it held
+          that build's sys.sysschobjs X locks until the materialization
+          committed, deadlocking a concurrent worker (error 1205). -#}
+      {% call statement('find_references', fetch_result=true, auto_begin=false) %}
         {{ get_use_database_sql(relation.database) }}
         select
             sch.name as schema_name,
