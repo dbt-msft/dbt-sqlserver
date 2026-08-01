@@ -58,15 +58,25 @@
 
     {{ log("Running drop_fk_constraints() macro...") }}
 
-    {# The schema filter applies to the referenced table (this model). The
-       constraint itself is dropped from the referencing (parent) table, which
-       may legitimately live in another schema, so it is not filtered. #}
+    {# Both directions are dropped (issue #632): the inbound keys of other
+       tables that reference this model, and this model's own outbound keys.
+       An inbound key blocks dropping this table or its primary key; an
+       outbound one blocks a truncate/rebuild of the table it points at and
+       would otherwise survive a rebuild of this one.
+
+       The schema filter applies to this model's table only, so same-named
+       tables in other schemas keep their constraints. The counterparty of
+       either key may legitimately live in another schema and is not filtered.
+       ALTER TABLE always targets the constraint's own schema and parent table,
+       which is correct in both directions. #}
 
     declare @drop_fk_constraints nvarchar(max);
     select @drop_fk_constraints = (
         select 'IF OBJECT_ID(''' + REPLACE(QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(sys.foreign_keys.[name]), '''', '''''') + ''', ''F'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.foreign_keys.[parent_object_id])) + ' DROP CONSTRAINT ' + QUOTENAME(sys.foreign_keys.[name]) + ';'
         from sys.foreign_keys {{ information_schema_hints() }}
-        inner join sys.tables {{ information_schema_hints() }} on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
+        inner join sys.tables {{ information_schema_hints() }}
+            on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
+            or sys.foreign_keys.[parent_object_id] = sys.tables.[object_id]
         where SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
