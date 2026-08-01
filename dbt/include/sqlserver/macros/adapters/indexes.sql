@@ -65,8 +65,8 @@
     declare @drop_fk_constraints nvarchar(max);
     select @drop_fk_constraints = (
         select 'IF OBJECT_ID(''' + REPLACE(QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(sys.foreign_keys.[name]), '''', '''''') + ''', ''F'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.foreign_keys.[schema_id])) + '.' + QUOTENAME(OBJECT_NAME(sys.foreign_keys.[parent_object_id])) + ' DROP CONSTRAINT ' + QUOTENAME(sys.foreign_keys.[name]) + ';'
-        from sys.foreign_keys
-        inner join sys.tables on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
+        from sys.foreign_keys {{ information_schema_hints() }}
+        inner join sys.tables {{ information_schema_hints() }} on sys.foreign_keys.[referenced_object_id] = sys.tables.[object_id]
         where SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
         for xml path('')
@@ -90,8 +90,8 @@
     declare @drop_pk_constraints nvarchar(max);
     select @drop_pk_constraints = (
         select 'IF INDEXPROPERTY(' + CONVERT(VARCHAR(MAX), sys.tables.[object_id]) + ', ' + QUOTENAME(sys.indexes.[name], '''') + ', ''IndexId'') IS NOT NULL ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(sys.tables.[schema_id])) + '.' + QUOTENAME(sys.tables.[name]) + ' DROP CONSTRAINT ' + QUOTENAME(sys.indexes.[name]) + ';'
-        from sys.indexes
-        inner join sys.tables on sys.indexes.[object_id] = sys.tables.[object_id]
+        from sys.indexes {{ information_schema_hints() }}
+        inner join sys.tables {{ information_schema_hints() }} on sys.indexes.[object_id] = sys.tables.[object_id]
         where sys.indexes.is_primary_key = 1
         and SCHEMA_NAME(sys.tables.[schema_id]) = '{{ this.schema }}'
         and sys.tables.[name] = '{{ this.table }}'
@@ -187,18 +187,18 @@
       col1.name AS [column],
       tab2.name AS [referenced_table],
       col2.name AS [referenced_column]
-      FROM sys.foreign_key_columns fkc
-      INNER JOIN sys.objects obj
+      FROM sys.foreign_key_columns fkc {{ information_schema_hints() }}
+      INNER JOIN sys.objects obj {{ information_schema_hints() }}
           ON obj.object_id = fkc.constraint_object_id
-      INNER JOIN sys.tables tab1
+      INNER JOIN sys.tables tab1 {{ information_schema_hints() }}
           ON tab1.object_id = fkc.parent_object_id
-      INNER JOIN sys.schemas sch
+      INNER JOIN sys.schemas sch {{ information_schema_hints() }}
           ON tab1.schema_id = sch.schema_id
-      INNER JOIN sys.columns col1
+      INNER JOIN sys.columns col1 {{ information_schema_hints() }}
           ON col1.column_id = parent_column_id AND col1.object_id = tab1.object_id
-      INNER JOIN sys.tables tab2
+      INNER JOIN sys.tables tab2 {{ information_schema_hints() }}
           ON tab2.object_id = fkc.referenced_object_id
-      INNER JOIN sys.columns col2
+      INNER JOIN sys.columns col2 {{ information_schema_hints() }}
           ON col2.column_id = referenced_column_id AND col2.object_id = tab2.object_id
       WHERE sch.name = '{{ relation.schema }}' and tab2.name = '{{ relation.identifier }}'
   {% endcall %}
@@ -216,8 +216,8 @@
     SELECT i.name AS index_name
     , i.name + '__dbt_backup' as index_new_name
     , COL_NAME(ic.object_id,ic.column_id) AS column_name
-    FROM sys.indexes AS i
-    INNER JOIN sys.index_columns AS ic
+    FROM sys.indexes AS i {{ information_schema_hints() }}
+    INNER JOIN sys.index_columns AS ic {{ information_schema_hints() }}
         ON i.object_id = ic.object_id AND i.index_id = ic.index_id and i.type <> 5
     WHERE i.object_id = OBJECT_ID('{{ relation.schema }}.{{ relation.identifier }}')
 
@@ -226,18 +226,18 @@
     SELECT  obj.name AS index_name
     , obj.name + '__dbt_backup' as index_new_name
     , col1.name AS column_name
-    FROM sys.foreign_key_columns fkc
-    INNER JOIN sys.objects obj
+    FROM sys.foreign_key_columns fkc {{ information_schema_hints() }}
+    INNER JOIN sys.objects obj {{ information_schema_hints() }}
         ON obj.object_id = fkc.constraint_object_id
-    INNER JOIN sys.tables tab1
+    INNER JOIN sys.tables tab1 {{ information_schema_hints() }}
         ON tab1.object_id = fkc.parent_object_id
-    INNER JOIN sys.schemas sch
+    INNER JOIN sys.schemas sch {{ information_schema_hints() }}
         ON tab1.schema_id = sch.schema_id
-    INNER JOIN sys.columns col1
+    INNER JOIN sys.columns col1 {{ information_schema_hints() }}
         ON col1.column_id = parent_column_id AND col1.object_id = tab1.object_id
-    INNER JOIN sys.tables tab2
+    INNER JOIN sys.tables tab2 {{ information_schema_hints() }}
         ON tab2.object_id = fkc.referenced_object_id
-    INNER JOIN sys.columns col2
+    INNER JOIN sys.columns col2 {{ information_schema_hints() }}
         ON col2.column_id = referenced_column_id AND col2.object_id = tab2.object_id
     WHERE sch.name = '{{ relation.schema }}' and tab1.name = '{{ relation.identifier }}'
 
