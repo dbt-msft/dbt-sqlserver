@@ -94,6 +94,13 @@
     {% do apply_grants(target_relation, preserved_grants, should_revoke=False) %}
   {% endif %}
 
+  {#-- Re-apply object-level DENYs after grants. A view is a valid securable and
+       is recreated on every run, so this is where an object-level DENY is lost
+       most often — unlike apply_masks, which is absent here (DDM attaches to
+       base-table columns only). --#}
+  {% set deny_config = adapter.resolve_denies(model, config.get('denies')) %}
+  {% do apply_denies(target_relation, deny_config, should_revoke=should_revoke) %}
+
   {% do persist_docs(target_relation, model) %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}

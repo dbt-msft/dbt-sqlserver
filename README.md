@@ -304,6 +304,23 @@ Behaviour:
 
 **Version notes.** All masking DDL the adapter emits (`ADD MASKED`, `MASKED WITH`, `DROP MASKED`) and the functions `default()`, `email()`, `random(a,b)` and `partial(...)` work on 2016+. The `datetime()` partial-date function and granular column/schema/table-scoped `UNMASK` are SQL Server 2022+ only; the adapter never emits them, but mask-function strings are passed through verbatim, so using a 2022-only function on an older server will be rejected by SQL Server.
 
+### Object-level DENY (`denies`)
+
+In SQL Server, an object-level `DENY` is the only way to carve an exception out of a schema-level `GRANT` — grant a principal `SELECT` on a whole schema, then `DENY SELECT` on the individual PII-bearing models. But a `DENY` is stored against the object's `object_id`, so dbt destroys it every time it drops and recreates the relation (which is *every* run for a view). The schema grant survives; its exceptions silently evaporate, leaving a **fail-open** posture that no run reports.
+
+The `denies` config re-applies object-level DENYs after each build, diffed against `sys.database_permissions`, the same way `masks` re-applies Dynamic Data Masking. Its shape mirrors `grants` — a `{privilege: [principals]}` map — and it is settable in the in-file `{{ config() }}`, the model's `.yml` `config:` block, or a directory-wide default in `dbt_project.yml` (merging key-wise across those levels, like `masks`):
+
+```sql
+{{ config(denies={'select': ['Restricted_Read_Only']}) }}
+```
+
+- **Survives rebuilds:** the DENY is present after `dbt run` and *still present after the next run*, for `table`, `view`, `incremental` (append and full-refresh) and `snapshot`. Unlike masks, this **includes views** — a view is a valid securable and is recreated on every run, which is where a DENY is lost most often.
+- **Reconciled:** the adapter diffs the config against the live DENY state and emits only what changed — `DENY` for configured-not-present, `REVOKE` for present-not-configured (a `REVOKE` removes a `DENY`). Removing a principal from `denies` revokes its DENY on the next run; a converged, persisted relation issues no DDL.
+- **Scope:** object-level DENY for the table privileges `select`, `insert`, `update`, `delete`, `references`. An unsupported privilege is warned and skipped (the warning surfaces the likely typo without taking down the build). Column-, database- and server-scoped permissions are out of scope (the latter survive a rebuild already).
+- **Absent principal:** a `DENY` to a non-existent database principal is warned-and-skipped (the run still succeeds), so one config runs unchanged across dev, CI and prod where the principal set differs.
+- **Ordering vs `grants`:** grants are applied first, then denies, so the final state is unambiguous. A `(privilege, principal)` pair appearing in both `grants` and `denies` is warned as a likely mistake (a DENY overrides a GRANT in SQL Server).
+- **Other adapters:** `denies` is a no-op on non-SQL-Server adapters, not an error. This is SQL-Server-specific by design — `DENY` is absent from the SQL standard and does not port.
+
 ## Contributing
 
 [![Unit tests](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/unit-tests.yml)

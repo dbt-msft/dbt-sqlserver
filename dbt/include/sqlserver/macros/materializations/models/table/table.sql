@@ -116,6 +116,12 @@
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
 
+  {#-- Re-apply object-level DENYs after grants, so the final permission state is
+       unambiguous. Runs on the common tail, so it covers the rename, prebuilt and
+       DML-refresh build paths alike. --#}
+  {% set deny_config = adapter.resolve_denies(model, config.get('denies')) %}
+  {% do apply_denies(target_relation, deny_config, should_revoke=should_revoke) %}
+
   {% do persist_docs(target_relation, model) %}
 
   -- `COMMIT` happens here

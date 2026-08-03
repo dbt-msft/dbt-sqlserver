@@ -30,6 +30,8 @@ from dbt.adapters.sqlserver.relation_configs.index import (
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sqlserver_deny import deny_changes as _deny_changes
+from dbt.adapters.sqlserver.sqlserver_deny import resolve_denies as _resolve_denies
 from dbt.adapters.sqlserver.sqlserver_mask import ColumnMask
 from dbt.adapters.sqlserver.sqlserver_mask import mask_changes as _mask_changes
 from dbt.adapters.sqlserver.sqlserver_mask import resolve_masks as _resolve_masks
@@ -662,6 +664,52 @@ class SQLServerAdapter(SQLAdapter):
             set(index_key_columns or []),
             existing_columns=(list(existing_columns) if existing_columns is not None else None),
         )
+
+    @available
+    def resolve_denies(self, model: Any, model_denies: Optional[dict] = None) -> Dict[str, list]:
+        """Normalise the model-level `denies` config into a `{privilege:
+        [principals]}` map for `apply_denies`.
+
+        `model` is the Jinja `model` dict (`node.to_dict()`); its `grants` config
+        (under `model['config']`) is read only to warn when a principal is both
+        granted and denied the same privilege. `model_denies` is
+        `config.get('denies')`, already surface-merged by dbt.
+
+        Unsupported privileges (anything other than the object-level table
+        privileges) are warned and skipped rather than failing the run — the
+        warning surfaces the likely typo without taking down the build.
+        """
+        model = model or {}
+        grant_config = (model.get("config") or {}).get("grants")
+        model_name = model.get("name") or model.get("alias") or "<unknown>"
+        resolved, warnings, unsupported = _resolve_denies(model_denies, grant_config, model_name)
+        for warning in warnings:
+            logger.warning(warning)
+        if unsupported:
+            from dbt.adapters.sqlserver.sqlserver_deny import SUPPORTED_PRIVILEGES
+
+            logger.warning(
+                f"On model '{model_name}', the `denies` config lists unsupported "
+                f"privilege(s): {', '.join(sorted(unsupported))}; skipping them. "
+                f"Object-level DENY is supported only for the table privileges: "
+                f"{', '.join(SUPPORTED_PRIVILEGES)}."
+            )
+        return resolved
+
+    @available
+    def deny_changes(self, existing_denies: Any, deny_config: Optional[dict]) -> dict:
+        """Diff a resolved deny map against current `sys.database_permissions`.
+
+        `existing_denies` is the agate table from `get_show_deny_sql` (columns
+        `grantee`, `privilege_type`). Returns plain lists for jinja: `denies` and
+        `revokes`, each a list of `[privilege, principal]` pairs. The macro emits
+        `DENY` for the former and `REVOKE` for the latter."""
+        rows = []
+        if existing_denies is not None:
+            column_names = existing_denies.column_names
+            for row in existing_denies.rows:
+                rows.append(dict(zip(column_names, row)))
+        return _deny_changes(rows, deny_config or {})
 
 
 COLUMNS_EQUAL_SQL = """
