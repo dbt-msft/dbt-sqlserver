@@ -835,3 +835,71 @@ class TestCteModelConstraintsColumnsEqual:
         relation = relation_from_name(project.adapter, "cte_contract_model")
         built = project.run_sql(f"select count(*) from {relation}", fetch="one")
         assert built[0] == _CTE_CONTRACT_ROWS
+
+
+# The type set the probe has to report consistently. Contract comparison reads
+# these, so whichever way the probe learns a query's shape must agree with the
+# other -- see TestCteProbeAvoidsExecution.
+_PROBE_TYPE_MATRIX = [
+    "bigint",
+    "int",
+    "smallint",
+    "tinyint",
+    "bit",
+    "decimal(10,2)",
+    "numeric(5,1)",
+    "money",
+    "float",
+    "real",
+    "date",
+    "time",
+    "datetime",
+    "datetime2(3)",
+    "char(5)",
+    "nchar(5)",
+    "varchar(10)",
+    "nvarchar(20)",
+    "varchar(max)",
+    "nvarchar(max)",
+    "uniqueidentifier",
+    "varbinary(10)",
+]
+
+
+class TestCteProbeAvoidsExecution:
+    """A CTE-headed query reaches get_column_schema_from_query unwrapped,
+    because sqlserver__get_empty_subquery_sql cannot neuter it with
+    `where 1 = 0`. Reading its shape should not mean running it."""
+
+    def test_cte_probe_does_not_execute_the_query(self, project):
+        # 1/0 compiles cleanly and only fails when the query actually runs, so
+        # getting columns back is proof the probe did not execute it.
+        sql = "with q as (select 1/0 as boom, cast('x' as varchar(10)) as t) select * from q"
+
+        with project.adapter.connection_named("_probe"):
+            columns = project.adapter.get_column_schema_from_query(sql)
+
+        assert [c.column for c in columns] == ["boom", "t"]
+
+    def test_cte_probe_reports_the_same_types_as_the_wrapped_probe(self, project):
+        """Guard, not a symptom: this has to hold before and after any change
+        to how the CTE branch reads metadata, or contract comparisons shift
+        under models that merely happen to open with a CTE."""
+        mismatches = []
+
+        with project.adapter.connection_named("_probe"):
+            for type_sql in _PROBE_TYPE_MATRIX:
+                plain = f"select cast(null as {type_sql}) as c"
+                wrapped = project.adapter.get_column_schema_from_query(
+                    f"select * from ({plain}) dbt_sbq_tmp where 1 = 0"
+                )
+                cte = project.adapter.get_column_schema_from_query(
+                    f"with q as ({plain}) select * from q"
+                )
+                if [(c.column, c.dtype) for c in cte] != [(c.column, c.dtype) for c in wrapped]:
+                    mismatches.append(
+                        f"{type_sql}: cte={[(c.column, c.dtype) for c in cte]} "
+                        f"wrapped={[(c.column, c.dtype) for c in wrapped]}"
+                    )
+
+        assert not mismatches, "probe branches disagree on:\n" + "\n".join(mismatches)

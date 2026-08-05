@@ -1,4 +1,5 @@
 import datetime as _dt
+import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import agate
@@ -27,6 +28,7 @@ from dbt.adapters.sqlserver.relation_configs.index import (
     index_config_changes,
     normalize_drop_unmanaged,
 )
+from dbt.adapters.sqlserver.sqlserver_auth import is_adbc_backend
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import (
@@ -39,6 +41,58 @@ from dbt.adapters.sqlserver.sqlserver_mask import resolve_masks as _resolve_mask
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
 
 logger = AdapterLogger("SQLServer")
+
+# Mirrors sqlserver__select_starts_with_cte
+# (dbt/include/sqlserver/macros/adapters/columns.sql): a query opening with a
+# CTE cannot be neutered as ``select * from (...) where 1 = 0``, so it reaches
+# get_column_schema_from_query unwrapped and would otherwise be executed in
+# full just to read its column names.
+_SQL_COMMENT = re.compile(r"(?s)/\*.*?\*/|--[^\n]*\n")
+
+# sp_describe_first_result_set reports true SQL Server types; reading
+# ``cursor.description`` reports Python classes, which collapse whole families
+# (every integer width arrives as ``int``, every string type as ``varchar``).
+# Contract comparison comes through this method either way, so the describe
+# path is mapped back onto exactly the names the execute path yields via
+# ``data_type_code_to_name``. TestCteProbeAvoidsExecution pins the two
+# together; a type missing from this map falls back to executing rather than
+# guessing.
+_SYSTEM_TYPE_TO_EXECUTED_NAME = {
+    "bigint": "int",
+    "int": "int",
+    "smallint": "int",
+    "tinyint": "int",
+    "bit": "bit",
+    "decimal": "decimal",
+    "numeric": "decimal",
+    "money": "decimal",
+    "smallmoney": "decimal",
+    "float": "float",
+    "real": "float",
+    "date": "date",
+    "time": "time",
+    "datetime": "datetime2(6)",
+    "smalldatetime": "datetime2(6)",
+    "datetime2": "datetime2(6)",
+    "char": "varchar",
+    "nchar": "varchar",
+    "varchar": "varchar",
+    "nvarchar": "varchar",
+    "text": "varchar",
+    "ntext": "varchar",
+    "xml": "varchar",
+    "uniqueidentifier": "varchar",
+    "binary": "varbinary",
+    "varbinary": "varbinary",
+    "image": "varbinary",
+    "timestamp": "varbinary",
+    "rowversion": "varbinary",
+    "datetimeoffset": "varbinary",
+    "sql_variant": "varbinary",
+    "hierarchyid": "varbinary",
+    "geography": "varbinary",
+    "geometry": "varbinary",
+}
 
 
 def _normalize_result_datetimes(
@@ -193,6 +247,11 @@ class SQLServerAdapter(SQLAdapter):
         Either way the cursor must not be abandoned holding rows -- see
         ``_discard_pending_results`` for what that costs.
         """
+        if _SQL_COMMENT.sub("", sql).strip().lower().startswith("with"):
+            described = self._describe_result_set(sql)
+            if described is not None:
+                return described
+
         _, cursor = self.connections.add_select_query(sql)
 
         try:
@@ -207,6 +266,80 @@ class SQLServerAdapter(SQLAdapter):
             _discard_pending_results(cursor)
 
         return columns
+
+    def _describe_result_set(self, sql: str) -> Optional[List[BaseColumn]]:
+        """Read a query's column shape without running it, or None to fall back.
+
+        ``sp_describe_first_result_set`` compiles the query and reports its
+        result shape, which is all this method ever wanted. It is already how
+        ``sqlserver__get_columns_in_query`` handles CTEs (#698).
+
+        Returns None -- deliberately, rather than raising -- whenever the
+        describe cannot be trusted to match what executing would have reported:
+        an unsupported backend, a query it refuses to describe (it cannot see
+        through ``#temp`` tables, where executing works), or a type absent from
+        ``_SYSTEM_TYPE_TO_EXECUTED_NAME``. The caller then executes as before,
+        which is slower but never disagrees with itself.
+        """
+        credentials = self.connections.profile.credentials
+        if is_adbc_backend(credentials.backend):
+            # ADBC derives its type names from Arrow codes (int64 -> bigint,
+            # large_string -> varchar(max)), so the map above -- built for the
+            # pyodbc/mssql-python collapse -- would make the two branches
+            # disagree on that backend.
+            return None
+
+        # Inline rather than bound: mssql-python binds str as varchar and the
+        # procedure demands nvarchar(max). columns.sql:24 escapes it the same
+        # way for the same reason.
+        describe_sql = "exec sp_describe_first_result_set @tsql = N'{}'".format(
+            sql.replace("'", "''")
+        )
+
+        try:
+            _, cursor = self.connections.add_select_query(describe_sql)
+        except Exception as e:
+            logger.debug(f"Could not describe a CTE query, falling back to executing it: {e}")
+            return None
+
+        try:
+            fields = [description[0].lower() for description in cursor.description]
+            rows = cursor.fetchall()
+        except Exception as e:
+            logger.debug(f"Could not read a described result set, executing the query: {e}")
+            return None
+        finally:
+            _discard_pending_results(cursor)
+
+        try:
+            hidden, name, type_name = (
+                fields.index("is_hidden"),
+                fields.index("name"),
+                fields.index("system_type_name"),
+            )
+        except ValueError:  # pragma: no cover - shape is fixed by SQL Server
+            return None
+
+        columns = []
+        for row in rows:
+            if row[hidden]:
+                continue
+            # "varchar(10)" / "decimal(10,2)" -> "varchar" / "decimal"
+            base_type = str(row[type_name]).split("(")[0].strip().lower()
+            executed_name = _SYSTEM_TYPE_TO_EXECUTED_NAME.get(base_type)
+            if executed_name is None or row[name] is None:
+                logger.debug(
+                    f"Describing a CTE query reported {base_type!r}, which has no "
+                    "equivalent in the executed path; executing it instead"
+                )
+                return None
+            columns.append(self.Column.create(row[name], executed_name))
+
+        # Every select has at least one column, so nothing described means
+        # sp_describe_first_result_set could not work the shape out. Returning
+        # an empty list would read as "this query has no columns" and surface
+        # as a baffling contract mismatch; execute instead.
+        return columns or None
 
     @classmethod
     def quote(cls, identifier: str) -> str:
