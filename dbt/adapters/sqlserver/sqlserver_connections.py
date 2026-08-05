@@ -234,6 +234,54 @@ def _try_drain_nextset(cursor: Any) -> bool:
         raise
 
 
+# Rows per round trip when shedding a result set nobody asked for. Large
+# enough that discarding even a big one costs a handful of round trips.
+_DISCARD_CHUNK_SIZE = 10000
+
+
+def _discard_pending_results(cursor: Any) -> None:
+    """Consume and close *cursor*, leaving nothing for the driver to cancel.
+
+    Closing a cursor whose result set the server is still producing makes the
+    driver cancel the request, and the cancel reaches SQL Server as an
+    *attention*. Every connection opened here runs ``SET XACT_ABORT ON``
+    (``_apply_session_settings``, for dbt-msft/dbt-sqlserver#718), and SQL
+    Server answers an attention under ``XACT_ABORT ON`` by rolling back the
+    open transaction.
+
+    None of that raises -- an attention is not an error -- so a materialization
+    that abandons a cursor part-way through a build silently loses whatever it
+    had already created inside that transaction, then fails further on against
+    relations that no longer exist. Fetching the rows first makes the close an
+    ordinary one.
+
+    Failures while discarding are logged and swallowed: the caller already has
+    what it came for, and the connection is about to be reused for real work,
+    so trouble shedding rows nobody wanted must not become the error the user
+    sees.
+    """
+    try:
+        while True:
+            # ``description`` is None for statements that return no rows at
+            # all, where fetching would raise rather than yield nothing.
+            if cursor.description is not None:
+                while cursor.fetchmany(_DISCARD_CHUNK_SIZE):
+                    pass
+            # nextset() only advances; whatever rows the set it lands on holds
+            # still have to be fetched, hence the outer loop.
+            if not _try_drain_nextset(cursor):
+                break
+    except Exception as e:
+        # AdapterLogger cannot serialize an exception as a log argument, so
+        # interpolate rather than passing ``e`` through.
+        logger.debug(f"Discarding a pending result set failed: {e}")
+
+    try:
+        cursor.close()
+    except Exception as e:
+        logger.debug(f"Closing a cursor failed: {e}")
+
+
 # Mapping of Apache Arrow type codes (integers) to SQL Server type names.
 # ADBC cursors report column types as Arrow type codes; this map translates
 # them for use in get_column_schema_from_query() and related column expansion.

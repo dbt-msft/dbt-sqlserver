@@ -127,3 +127,55 @@ class TestUnitTestingTypes(BaseUnitTestingTypes):
                 run_dbt(["test", "--select", "my_model"])
             except Exception:
                 raise AssertionError(f"unit test failed when testing model with {sql_value}")
+
+
+# The contract branch of sqlserver__unit_test_create_table_as had no coverage.
+# It reaches get_assert_columns_equivalent, and so the same probe that runs a
+# CTE-headed query in full for snapshots and contract-enforced models (see
+# tests/functional/adapter/dbt/test_constraints.py). It is safe here only
+# because a unit test's inputs are replaced by its fixture rows, so the query
+# being probed returns a handful of rows however large the real model is --
+# this pins that branch so a change to it does not go unnoticed.
+contract_unit_test_model_sql = """
+select tested_column from {{ ref('my_upstream_model') }}
+"""
+
+contract_unit_test_yml = """
+version: 2
+models:
+  - name: my_contract_model
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: tested_column
+        data_type: int
+unit_tests:
+  - name: test_my_contract_model
+    model: my_contract_model
+    given:
+      - input: ref('my_upstream_model')
+        rows:
+          - {tested_column: 1}
+    expect:
+      rows:
+        - {tested_column: 1}
+"""
+
+
+class TestUnitTestWithContract:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "my_upstream_model.sql": upstream_model_sql,
+            "my_contract_model.sql": contract_unit_test_model_sql,
+            "schema.yml": contract_unit_test_yml,
+        }
+
+    def test_unit_test_runs_under_an_enforced_contract(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+
+        results = run_dbt(["test", "--select", "my_contract_model"])
+        assert len(results) == 1
+        assert results[0].status == "pass"
