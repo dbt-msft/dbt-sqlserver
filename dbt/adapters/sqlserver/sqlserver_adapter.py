@@ -228,14 +228,15 @@ class SQLServerAdapter(SQLAdapter):
         return [  # ty: ignore[invalid-return-type]
             {  # ty: ignore[missing-typed-dict-key]
                 "name": "dbt_sqlserver_use_default_schema_concat",
-                "default": False,
+                "default": True,
                 "description": (
-                    "When True, uses dbt-core's standard schema concatenation "
+                    "When True (default), uses dbt-core's standard schema concatenation "
                     "(`target.schema` + `_` + `custom_schema_name`). "
-                    "When False (default), uses legacy adapter behaviour: "
+                    "When False, uses the legacy adapter behaviour: "
                     "`custom_schema_name` is used directly without prefixing `target.schema`. "
-                    "For a permanent solution, override the `sqlserver__generate_schema_name` "
-                    "macro in your project instead."
+                    "The legacy behaviour is deprecated and this override will be removed in a "
+                    "future release. For a permanent solution, override the "
+                    "`sqlserver__generate_schema_name` macro in your project instead."
                 ),
             },
             {  # ty: ignore[missing-typed-dict-key]

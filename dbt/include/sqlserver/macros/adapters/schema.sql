@@ -44,17 +44,18 @@
 {#
     Generates a schema name for a model.
 
-    By default (legacy adapter behaviour), the schema name is:
+    By default, this delegates to dbt-core's `default__generate_schema_name`, which
+    concatenates `target.schema` + `_` + `custom_schema_name`.
+
+    When the `dbt_sqlserver_use_default_schema_concat` flag is disabled, the legacy
+    adapter behaviour is used instead:
       - `target.schema`              when no custom schema is set
       - `custom_schema_name` (trim)  when a custom schema is set
 
-    When the `dbt_sqlserver_use_default_schema_concat` flag is enabled,
-    this delegates to dbt-core's `default__generate_schema_name`, which concatenates
-    `target.schema` + `_` + `custom_schema_name`.
-
-    Set the flag in `dbt_project.yml`:
+    The legacy behaviour is deprecated and this flag will be removed in a future
+    release. To opt back into it in the meantime, set the flag in `dbt_project.yml`:
       flags:
-        dbt_sqlserver_use_default_schema_concat: true
+        dbt_sqlserver_use_default_schema_concat: false
 
 #}
 {% macro sqlserver__generate_schema_name(custom_schema_name, node) -%}
