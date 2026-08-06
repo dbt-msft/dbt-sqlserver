@@ -29,10 +29,33 @@ _failing_model_sql = """
 select 1/0 as boom
 """
 
-_snapshot_seed_csv = """id,name,updated_at
-1,alice,2024-01-01 00:00:00
-2,bob,2024-01-01 00:00:00
-"""
+# The snapshot source is sized deliberately. A snapshot's second run probes the
+# shape of its staging query through get_column_schema_from_query
+# (check_time_data_types -> get_updated_at_column_data_type), and that query
+# starts with a CTE, so sqlserver__get_empty_subquery_sql cannot wrap it in
+# `where 1 = 0` and it runs in full. If the cursor holding that result set is
+# abandoned while the server is still working on the request, the driver
+# cancels it; the attention that sends rolls back the open transaction under
+# `SET XACT_ABORT ON`, silently, taking the staging table with it.
+#
+# The failure is a race rather than a size threshold -- measured against SQL
+# Server 2022, a few hundred rows is already enough at zero client delay, while
+# ~10ms of client-side work before the close makes even 20MB safe -- so there is
+# no constant to encode. These fixtures sit megabytes past the boundary so the
+# server is unambiguously still streaming, whatever the runner's speed. A
+# handful of narrow rows (which is what a seed gives you) never trips it, which
+# is why this went unnoticed.
+_SNAPSHOT_ROWS = 5000
+_SNAPSHOT_PAYLOAD_WIDTH = 500
+
+_snapshot_source_sql = """
+{{ config(materialized='table') }}
+select top (%d)
+    row_number() over (order by (select null)) as id,
+    cast(replicate('{{ var("payload_char", "x") }}', %d) as varchar(8000)) as payload,
+    cast('{{ var("snap_updated_at", "2024-01-01") }}' as datetime2) as updated_at
+from sys.all_objects a cross join sys.all_objects b
+""" % (_SNAPSHOT_ROWS, _SNAPSHOT_PAYLOAD_WIDTH)
 
 _snapshot_sql = """
 {% snapshot snap %}
@@ -42,7 +65,19 @@ _snapshot_sql = """
     strategy='timestamp',
     updated_at='updated_at',
 ) }}
-select * from {{ ref('snap_seed') }}
+select * from {{ ref('snap_source') }}
+{% endsnapshot %}
+"""
+
+_snapshot_check_sql = """
+{% snapshot snap_check %}
+{{ config(
+    target_schema=schema,
+    unique_key='id',
+    strategy='check',
+    check_cols=['payload'],
+) }}
+select * from {{ ref('snap_source') }}
 {% endsnapshot %}
 """
 
@@ -73,15 +108,12 @@ select 1 as id
 select 1/0 as boom
 """,
             "failing_model.sql": _failing_model_sql,
+            "snap_source.sql": _snapshot_source_sql,
         }
 
     @pytest.fixture(scope="class")
-    def seeds(self):
-        return {"snap_seed.csv": _snapshot_seed_csv}
-
-    @pytest.fixture(scope="class")
     def snapshots(self):
-        return {"snap.sql": _snapshot_sql}
+        return {"snap.sql": _snapshot_sql, "snap_check.sql": _snapshot_check_sql}
 
     def test_table_materialization(self, project):
         results = run_dbt(["run", "--models", "table_model"])
@@ -137,17 +169,49 @@ select 1/0 as boom
         assert rows[0] == 0
 
     def test_snapshot_create_and_merge(self, project):
-        run_dbt(["seed"])
+        """Timestamp strategy, with a second run that has changes to write.
+
+        The merge reads the staging table built earlier in the same
+        transaction, so a probe that silently rolls that transaction back
+        surfaces here as `Invalid object name '..._dbt_tmp'`.
+        """
+        run_dbt(["run", "--models", "snap_source"])
         results = run_dbt(["snapshot", "--select", "snap"])
         assert len(results) == 1
         assert results[0].status == "success"
 
         rows = project.run_sql("select count(*) from {schema}.snap", fetch="one")
-        assert rows[0] == 2
+        assert rows[0] == _SNAPSHOT_ROWS
 
+        # move every row's updated_at forward, so the second run has a full
+        # changeset to stage and merge rather than converging to zero rows
+        run_dbt(["run", "--models", "snap_source", "--vars", "snap_updated_at: '2024-06-01'"])
         results = run_dbt(["snapshot", "--select", "snap"])
         assert len(results) == 1
         assert results[0].status == "success"
+
+        rows = project.run_sql("select count(*) from {schema}.snap", fetch="one")
+        assert rows[0] == _SNAPSHOT_ROWS * 2
+
+    def test_snapshot_check_strategy_create_and_merge(self, project):
+        """Same path as above via the check strategy: both strategies build
+        their staging query through sqlserver__snapshot_staging_table, so both
+        hand the probe a CTE-headed query that runs in full."""
+        run_dbt(["run", "--models", "snap_source"])
+        results = run_dbt(["snapshot", "--select", "snap_check"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        rows = project.run_sql("select count(*) from {schema}.snap_check", fetch="one")
+        assert rows[0] == _SNAPSHOT_ROWS
+
+        run_dbt(["run", "--models", "snap_source", "--vars", "payload_char: y"])
+        results = run_dbt(["snapshot", "--select", "snap_check"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        rows = project.run_sql("select count(*) from {schema}.snap_check", fetch="one")
+        assert rows[0] == _SNAPSHOT_ROWS * 2
 
 
 class BaseFailingModelWithSideEffect:

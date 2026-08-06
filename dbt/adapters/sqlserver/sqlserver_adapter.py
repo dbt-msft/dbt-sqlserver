@@ -28,7 +28,10 @@ from dbt.adapters.sqlserver.relation_configs.index import (
 )
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
-from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sqlserver_connections import (
+    SQLServerConnectionManager,
+    _discard_pending_results,
+)
 from dbt.adapters.sqlserver.sqlserver_mask import ColumnMask
 from dbt.adapters.sqlserver.sqlserver_mask import mask_changes as _mask_changes
 from dbt.adapters.sqlserver.sqlserver_mask import resolve_masks as _resolve_masks
@@ -135,16 +138,33 @@ class SQLServerAdapter(SQLAdapter):
 
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> List[BaseColumn]:
-        """Get a list of the Columns with names and data types from the given sql."""
+        """Get a list of the Columns with names and data types from the given sql.
+
+        Only the result *shape* is wanted, but the query still runs, so the
+        cursor comes back holding the whole result set. Usually that set is
+        empty: dbt-core's ``get_column_schema_from_query`` macro wraps the
+        query first, and ``sqlserver__get_empty_subquery_sql`` renders that as
+        ``select * from (...) where 1 = 0``. A query that opens with a CTE
+        cannot be wrapped that way, though, and is passed through untouched
+        (dbt/include/sqlserver/macros/adapters/columns.sql), so snapshot
+        staging queries and CTE-headed contract models arrive here in full.
+
+        Either way the cursor must not be abandoned holding rows -- see
+        ``_discard_pending_results`` for what that costs.
+        """
         _, cursor = self.connections.add_select_query(sql)
 
-        columns = [
-            self.Column.create(
-                column_name, self.connections.data_type_code_to_name(column_type_code)
-            )
-            # https://peps.python.org/pep-0249/#description
-            for column_name, column_type_code, *_ in cursor.description
-        ]
+        try:
+            columns = [
+                self.Column.create(
+                    column_name, self.connections.data_type_code_to_name(column_type_code)
+                )
+                # https://peps.python.org/pep-0249/#description
+                for column_name, column_type_code, *_ in cursor.description
+            ]
+        finally:
+            _discard_pending_results(cursor)
+
         return columns
 
     @classmethod
@@ -324,7 +344,10 @@ class SQLServerAdapter(SQLAdapter):
         """Return the number of rows in the given relation."""
         sql = f"SELECT COUNT_BIG(*) FROM {relation}"
         _, cursor = self.connections.add_select_query(sql)
-        row = cursor.fetchone()
+        try:
+            row = cursor.fetchone()
+        finally:
+            _discard_pending_results(cursor)
         return int(row[0]) if row else 0
 
     def expand_column_types(self, goal, current, max_rows: int = 1000000):
