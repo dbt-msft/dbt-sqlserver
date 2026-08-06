@@ -137,23 +137,23 @@ See [the changelog](CHANGELOG.md)
 
 ### `dbt_sqlserver_use_default_schema_concat`
 
-*(default: `false`)* Controls schema name generation when a [custom schema](https://docs.getdbt.com/docs/build/custom-schemas) is set on a model.
+*(default: `true`)* Controls schema name generation when a [custom schema](https://docs.getdbt.com/docs/build/custom-schemas) is set on a model.
 
 | Flag value | `custom_schema_name` | Result |
 |---|---|---|
-| `false` (default, legacy) | *(none)* | `target.schema` |
-| `false` (default, legacy) | `"reporting"` | `reporting` |
-| `true` (dbt-core standard) | *(none)* | `target.schema` |
-| `true` (dbt-core standard) | `"reporting"` | `target.schema_reporting` |
+| `true` (default, dbt-core standard) | *(none)* | `target.schema` |
+| `true` (default, dbt-core standard) | `"reporting"` | `target.schema_reporting` |
+| `false` (legacy, deprecated) | *(none)* | `target.schema` |
+| `false` (legacy, deprecated) | `"reporting"` | `reporting` |
 
-When `false` (the default), the adapter uses its legacy behaviour: `custom_schema_name` is used **as-is** without being prefixed by `target.schema`.  
-When `true`, the adapter delegates to dbt-core's `default__generate_schema_name`, which concatenates `target.schema` + `_` + `custom_schema_name`.
+When `true` (the default), the adapter delegates to dbt-core's `default__generate_schema_name`, which concatenates `target.schema` + `_` + `custom_schema_name`. This also matches the behavior dbt-core v2 (Fusion) ships unconditionally.  
+When `false`, the adapter uses its legacy behaviour: `custom_schema_name` is used **as-is** without being prefixed by `target.schema`. This legacy behavior is deprecated and will be removed in a future release.
 
 **Example usage in `dbt_project.yml`:**
 
 ```yaml
 flags:
-  dbt_sqlserver_use_default_schema_concat: true  # Enable standard schema concatenation
+  dbt_sqlserver_use_default_schema_concat: false  # Opt back into the deprecated legacy behavior
 ```
 
 The same setting is also honoured via `vars:` for backwards compatibility; the behavior flag under `flags:` takes precedence when both are set.
