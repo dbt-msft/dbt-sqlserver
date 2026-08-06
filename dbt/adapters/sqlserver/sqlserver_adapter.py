@@ -1,4 +1,5 @@
 import datetime as _dt
+import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import agate
@@ -27,17 +28,119 @@ from dbt.adapters.sqlserver.relation_configs.index import (
     index_config_changes,
     normalize_drop_unmanaged,
 )
+from dbt.adapters.sqlserver.sqlserver_auth import is_adbc_backend, is_mssql_python_backend
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
-from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
+from dbt.adapters.sqlserver.sqlserver_connections import (
+    SQLServerConnectionManager,
+    _discard_pending_results,
+)
 from dbt.adapters.sqlserver.sqlserver_deny import deny_changes as _deny_changes
 from dbt.adapters.sqlserver.sqlserver_deny import resolve_denies as _resolve_denies
 from dbt.adapters.sqlserver.sqlserver_mask import ColumnMask
 from dbt.adapters.sqlserver.sqlserver_mask import mask_changes as _mask_changes
 from dbt.adapters.sqlserver.sqlserver_mask import resolve_masks as _resolve_masks
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
+from dbt.adapters.sqlserver.sqlserver_runtime import _get_pyodbc
 
 logger = AdapterLogger("SQLServer")
+
+# Mirrors sqlserver__select_starts_with_cte
+# (dbt/include/sqlserver/macros/adapters/columns.sql): a query opening with a
+# CTE cannot be neutered as ``select * from (...) where 1 = 0``, so it reaches
+# get_column_schema_from_query unwrapped and would otherwise be executed in
+# full just to read its column names.
+_SQL_COMMENT = re.compile(r"(?s)/\*.*?\*/|--[^\n]*\n")
+
+# sp_describe_first_result_set reports true SQL Server types; reading
+# ``cursor.description`` reports Python classes, which collapse whole families
+# (every integer width arrives as ``int``, every string type as ``varchar``).
+# Contract comparison comes through this method either way, so the describe
+# path is mapped back onto exactly the names the execute path yields via
+# ``data_type_code_to_name``. TestCteProbeAvoidsExecution pins the two
+# together; a type missing from this map falls back to executing rather than
+# guessing.
+#
+# The names below are pyodbc's. The class a driver picks for a column is its
+# own choice, not SQL Server's, and mssql-python decodes three of these
+# differently -- see ``_MSSQL_PYTHON_TYPE_OVERRIDES``.
+_SYSTEM_TYPE_TO_EXECUTED_NAME = {
+    "bigint": "int",
+    "int": "int",
+    "smallint": "int",
+    "tinyint": "int",
+    "bit": "bit",
+    "decimal": "decimal",
+    "numeric": "decimal",
+    "money": "decimal",
+    "smallmoney": "decimal",
+    "float": "float",
+    "real": "float",
+    "date": "date",
+    "time": "time",
+    "datetime": "datetime2(6)",
+    "smalldatetime": "datetime2(6)",
+    "datetime2": "datetime2(6)",
+    "char": "varchar",
+    "nchar": "varchar",
+    "varchar": "varchar",
+    "nvarchar": "varchar",
+    "text": "varchar",
+    "ntext": "varchar",
+    "xml": "varchar",
+    "uniqueidentifier": "varchar",
+    "binary": "varbinary",
+    "varbinary": "varbinary",
+    "image": "varbinary",
+    "timestamp": "varbinary",
+    "rowversion": "varbinary",
+    # datetimeoffset is deliberately absent *from this map*: add_query
+    # registers the -155 output converter after the execute that needed it,
+    # so pyodbc reports the column as bytearray on a connection's first query
+    # and as str on every one after. No fixed name mirrors that, so on pyodbc
+    # describing gives up and the query is executed -- which agrees with
+    # itself by construction. mssql-python needs no converter and is pinned
+    # in _MSSQL_PYTHON_TYPE_OVERRIDES.
+    "sql_variant": "varbinary",
+    "hierarchyid": "varbinary",
+    "geography": "varbinary",
+    "geometry": "varbinary",
+}
+
+# mssql-python decodes three types into richer Python objects than pyodbc
+# does: uniqueidentifier as ``uuid.UUID`` (pyodbc: ``str``), datetimeoffset
+# as ``datetime`` and sql_variant as ``str`` (pyodbc: ``bytearray`` for
+# both). Executing reports those classes, so describing has to agree.
+_MSSQL_PYTHON_TYPE_OVERRIDES = {
+    "uniqueidentifier": "uniqueidentifier",
+    "datetimeoffset": "datetime2(6)",
+    "sql_variant": "varchar",
+}
+
+
+def _executed_name_for_system_type(base_type: str, backend: Any) -> Optional[str]:
+    """The name the executed probe would report for a described column type.
+
+    None means "no confident answer" -- the caller then executes the query,
+    which is slower but cannot disagree with itself.
+    """
+    if is_mssql_python_backend(backend):
+        overridden = _MSSQL_PYTHON_TYPE_OVERRIDES.get(base_type)
+        if overridden is not None:
+            return overridden
+
+    elif base_type == "uniqueidentifier":
+        # pyodbc yields uuid.UUID or str for a GUID depending on its
+        # module-level ``native_uuid`` flag -- process-global state anything
+        # in the process can flip, so read it rather than assume a default.
+        try:
+            native_uuid = bool(_get_pyodbc().native_uuid)
+        except Exception as e:  # pragma: no cover - pyodbc is present if in use
+            logger.debug(f"Could not read pyodbc.native_uuid, executing the query: {e}")
+            return None
+        return "uniqueidentifier" if native_uuid else "varchar"
+
+    return _SYSTEM_TYPE_TO_EXECUTED_NAME.get(base_type)
 
 
 def _normalize_result_datetimes(
@@ -178,17 +281,113 @@ class SQLServerAdapter(SQLAdapter):
 
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> List[BaseColumn]:
-        """Get a list of the Columns with names and data types from the given sql."""
+        """Get a list of the Columns with names and data types from the given sql.
+
+        Only the result *shape* is wanted, but the query still runs, so the
+        cursor comes back holding the whole result set. Usually that set is
+        empty: dbt-core's ``get_column_schema_from_query`` macro wraps the
+        query first, and ``sqlserver__get_empty_subquery_sql`` renders that as
+        ``select * from (...) where 1 = 0``. A query that opens with a CTE
+        cannot be wrapped that way, though, and is passed through untouched
+        (dbt/include/sqlserver/macros/adapters/columns.sql), so snapshot
+        staging queries and CTE-headed contract models arrive here in full.
+
+        Either way the cursor must not be abandoned holding rows -- see
+        ``_discard_pending_results`` for what that costs.
+        """
+        if _SQL_COMMENT.sub("", sql).strip().lower().startswith("with"):
+            described = self._describe_result_set(sql)
+            if described is not None:
+                return described
+
         _, cursor = self.connections.add_select_query(sql)
 
-        columns = [
-            self.Column.create(
-                column_name, self.connections.data_type_code_to_name(column_type_code)
-            )
-            # https://peps.python.org/pep-0249/#description
-            for column_name, column_type_code, *_ in cursor.description
-        ]
+        try:
+            columns = [
+                self.Column.create(
+                    column_name, self.connections.data_type_code_to_name(column_type_code)
+                )
+                # https://peps.python.org/pep-0249/#description
+                for column_name, column_type_code, *_ in cursor.description
+            ]
+        finally:
+            _discard_pending_results(cursor)
+
         return columns
+
+    def _describe_result_set(self, sql: str) -> Optional[List[BaseColumn]]:
+        """Read a query's column shape without running it, or None to fall back.
+
+        ``sp_describe_first_result_set`` compiles the query and reports its
+        result shape, which is all this method ever wanted. It is already how
+        ``sqlserver__get_columns_in_query`` handles CTEs (#698).
+
+        Returns None -- deliberately, rather than raising -- whenever the
+        describe cannot be trusted to match what executing would have reported:
+        an unsupported backend, a query it refuses to describe (it cannot see
+        through ``#temp`` tables, where executing works), or a type this
+        backend's driver has no known executed name for. The caller then
+        executes as before, which is slower but never disagrees with itself.
+        """
+        credentials = self.connections.profile.credentials
+        if is_adbc_backend(credentials.backend):
+            # ADBC derives its type names from Arrow codes (int64 -> bigint,
+            # large_string -> varchar(max)), so the map above -- built for the
+            # pyodbc/mssql-python collapse -- would make the two branches
+            # disagree on that backend.
+            return None
+
+        # Inline rather than bound: mssql-python binds str as varchar and the
+        # procedure demands nvarchar(max). columns.sql:24 escapes it the same
+        # way for the same reason.
+        describe_sql = "exec sp_describe_first_result_set @tsql = N'{}'".format(
+            sql.replace("'", "''")
+        )
+
+        try:
+            _, cursor = self.connections.add_select_query(describe_sql)
+        except Exception as e:
+            logger.debug(f"Could not describe a CTE query, falling back to executing it: {e}")
+            return None
+
+        try:
+            fields = [description[0].lower() for description in cursor.description]
+            rows = cursor.fetchall()
+        except Exception as e:
+            logger.debug(f"Could not read a described result set, executing the query: {e}")
+            return None
+        finally:
+            _discard_pending_results(cursor)
+
+        try:
+            hidden, name, type_name = (
+                fields.index("is_hidden"),
+                fields.index("name"),
+                fields.index("system_type_name"),
+            )
+        except ValueError:  # pragma: no cover - shape is fixed by SQL Server
+            return None
+
+        columns = []
+        for row in rows:
+            if row[hidden]:
+                continue
+            # "varchar(10)" / "decimal(10,2)" -> "varchar" / "decimal"
+            base_type = str(row[type_name]).split("(")[0].strip().lower()
+            executed_name = _executed_name_for_system_type(base_type, credentials.backend)
+            if executed_name is None or row[name] is None:
+                logger.debug(
+                    f"Describing a CTE query reported {base_type!r}, which has no "
+                    "equivalent in the executed path; executing it instead"
+                )
+                return None
+            columns.append(self.Column.create(row[name], executed_name))
+
+        # Every select has at least one column, so nothing described means
+        # sp_describe_first_result_set could not work the shape out. Returning
+        # an empty list would read as "this query has no columns" and surface
+        # as a baffling contract mismatch; execute instead.
+        return columns or None
 
     @classmethod
     def quote(cls, identifier: str) -> str:
@@ -383,7 +582,10 @@ class SQLServerAdapter(SQLAdapter):
         """Return the number of rows in the given relation."""
         sql = f"SELECT COUNT_BIG(*) FROM {relation}"
         _, cursor = self.connections.add_select_query(sql)
-        row = cursor.fetchone()
+        try:
+            row = cursor.fetchone()
+        finally:
+            _discard_pending_results(cursor)
         return int(row[0]) if row else 0
 
     def expand_column_types(self, goal, current, max_rows: int = 1000000):

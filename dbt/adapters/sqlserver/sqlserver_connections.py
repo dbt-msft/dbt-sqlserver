@@ -234,28 +234,89 @@ def _try_drain_nextset(cursor: Any) -> bool:
         raise
 
 
+# Rows per round trip when shedding a result set nobody asked for. Large
+# enough that discarding even a big one costs a handful of round trips.
+_DISCARD_CHUNK_SIZE = 10000
+
+
+def _discard_pending_results(cursor: Any) -> None:
+    """Consume and close *cursor*, leaving nothing for the driver to cancel.
+
+    Closing a cursor whose result set the server is still producing makes the
+    driver cancel the request, and the cancel reaches SQL Server as an
+    *attention*. Every connection opened here runs ``SET XACT_ABORT ON``
+    (``_apply_session_settings``, for dbt-msft/dbt-sqlserver#718), and SQL
+    Server answers an attention under ``XACT_ABORT ON`` by rolling back the
+    open transaction.
+
+    None of that raises -- an attention is not an error -- so a materialization
+    that abandons a cursor part-way through a build silently loses whatever it
+    had already created inside that transaction, then fails further on against
+    relations that no longer exist. Fetching the rows first makes the close an
+    ordinary one.
+
+    Failures while discarding are logged and swallowed: the caller already has
+    what it came for, and the connection is about to be reused for real work,
+    so trouble shedding rows nobody wanted must not become the error the user
+    sees.
+    """
+    try:
+        while True:
+            # ``description`` is None for statements that return no rows at
+            # all, where fetching would raise rather than yield nothing.
+            if cursor.description is not None:
+                while cursor.fetchmany(_DISCARD_CHUNK_SIZE):
+                    pass
+            # nextset() only advances; whatever rows the set it lands on holds
+            # still have to be fetched, hence the outer loop.
+            if not _try_drain_nextset(cursor):
+                break
+    except Exception as e:
+        # AdapterLogger cannot serialize an exception as a log argument, so
+        # interpolate rather than passing ``e`` through.
+        logger.debug(f"Discarding a pending result set failed: {e}")
+
+    try:
+        cursor.close()
+    except Exception as e:
+        logger.debug(f"Closing a cursor failed: {e}")
+
+
 # Mapping of Apache Arrow type codes (integers) to SQL Server type names.
-# ADBC cursors report column types as Arrow type codes; this map translates
-# them for use in get_column_schema_from_query() and related column expansion.
-# Reference: pyarrow type enum values (pa.int32().__class__.__name__ yields the
-# Arrow type name string, and the type's ``id`` property is the integer code).
+# A cursor reporting a column type as a bare integer means the Arrow type id
+# -- ``pa.int32().id`` -- so the keys are exactly those ids, and the names
+# must agree with ARROW_STRING_TYPE_TO_NAME below, which is the same mapping
+# reached by the printed type name.
+#
+# The ADBC mssql driver does not take this path: it hands over pyarrow
+# ``DataType`` objects, which the string map handles. This is here for a
+# cursor implementation that reports ids instead.
+#
+# ``pa.uuid()`` is deliberately absent. Its id is 31, Arrow's generic
+# EXTENSION id, shared by every extension type -- an id alone cannot say
+# which one, so the name is the only reliable signal for it.
 ARROW_TYPE_CODE_TO_NAME: dict[int, str] = {
     1: "bit",  # pa.bool_()
-    3: "varchar",  # pa.string() / pa.utf8()
-    4: "varbinary",  # pa.binary()
-    5: "varchar(max)",  # pa.large_string() / pa.large_utf8()
-    6: "real",  # pa.float32()
-    7: "float",  # pa.float64()
-    8: "int",  # pa.int32()
+    2: "tinyint",  # pa.uint8()
+    3: "smallint",  # pa.int8()
+    4: "int",  # pa.uint16()
+    5: "smallint",  # pa.int16()
+    6: "bigint",  # pa.uint32()
+    7: "int",  # pa.int32()
     9: "bigint",  # pa.int64()
-    10: "smallint",  # pa.int8()
-    11: "smallint",  # pa.int16()
-    12: "decimal",  # pa.decimal128()
-    14: "date",  # pa.date32()
-    16: "date",  # pa.date64()
-    17: "datetime2(6)",  # pa.timestamp()
-    18: "time",  # pa.time32()
-    19: "time",  # pa.time64()
+    11: "real",  # pa.float32()
+    12: "float",  # pa.float64()
+    13: "varchar",  # pa.string() / pa.utf8()
+    14: "varbinary",  # pa.binary()
+    16: "date",  # pa.date32()
+    17: "date",  # pa.date64()
+    18: "datetime2(6)",  # pa.timestamp()
+    19: "time",  # pa.time32()
+    20: "time",  # pa.time64()
+    23: "decimal",  # pa.decimal128()
+    24: "decimal",  # pa.decimal256()
+    34: "varchar(max)",  # pa.large_string() / pa.large_utf8()
+    35: "varbinary",  # pa.large_binary()
 }
 
 # Some ADBC drivers / cursor implementations report the Arrow type name as a
@@ -265,9 +326,21 @@ ARROW_STRING_TYPE_TO_NAME: dict[str, str] = {
     "int16": "smallint",
     "int32": "int",
     "int64": "bigint",
+    # tinyint is SQL Server's only unsigned integer, and the ADBC mssql
+    # driver reports it as uint8 -- the one unsigned Arrow type reachable
+    # from a SQL Server result set. The wider unsigned types have no T-SQL
+    # equivalent and are widened to a signed type that holds their range;
+    # uint64 has none, so it is left to raise rather than silently truncate.
+    "uint8": "tinyint",
+    "uint16": "int",
+    "uint32": "bigint",
     "float32": "real",
     "float64": "float",
-    "float": "float",
+    # pyarrow prints float32 as "float" and float64 as "double", so a bare
+    # "float" here is Arrow's 4-byte float -- SQL Server's real, not its
+    # float. The pyodbc / mssql-python backends never reach this map: they
+    # report the Python class, which arrives as "<class 'float'>".
+    "float": "real",
     "double": "float",
     "string": "varchar",
     "utf8": "varchar",
@@ -276,6 +349,7 @@ ARROW_STRING_TYPE_TO_NAME: dict[str, str] = {
     "bool": "bit",
     "boolean": "bit",
     "decimal128": "decimal",
+    "decimal256": "decimal",
     "decimal": "decimal",
     "date32": "date",
     "date64": "date",
@@ -286,6 +360,11 @@ ARROW_STRING_TYPE_TO_NAME: dict[str, str] = {
     "timestamp": "datetime2(6)",
     "binary": "varbinary",
     "large_binary": "varbinary",
+    # uniqueidentifier arrives as the canonical Arrow UUID extension type,
+    # whose printed form carries no "[" or "(" for the base-type split to
+    # trim, so the full name is the key.
+    "extension<arrow.uuid>": "uniqueidentifier",
+    "uuid": "uniqueidentifier",
 }
 
 # Attribute used to stash the in-flight pyodbc / mssql-python cursor on a
