@@ -1,5 +1,12 @@
 # Changelog
 
+### v1.11.1
+
+#### Bugfixes
+
+- Fix a `view` model silently skipping a rebuild when text was removed from the *start* of its body (e.g. deleting a leading comment or CTE). The skip test compared the stored definition against the model with `endswith()`, so any edit whose new body was a tail of the old one looked unchanged: `dbt run` reported `PASS` but the change never reached the database, and `--full-refresh` did not fix it. The header (`CREATE [OR ALTER] VIEW <name> AS`) is now split off at its separating ` AS ` and the body compared exactly. The comparison also no longer lowercases or strips whitespace, both of which made genuinely different bodies (a string literal differing only in case, or any literal containing spaces) compare equal; where the definition cannot be parsed with certainty the view is rebuilt rather than skipped. [#807](https://github.com/dbt-msft/dbt-sqlserver/issues/807)
+- Fix snapshots failing on their second and later runs with `Invalid object name '..._dbt_tmp'`, and contract-enforced models silently losing their in-transaction `pre_hook` writes. `get_column_schema_from_query` reads a query's column shape by executing it, then returned without fetching the rows or closing the cursor. Closing a cursor whose result set the server is still producing makes the driver cancel the request, and SQL Server answers that cancel by rolling back the open transaction, since every connection runs `SET XACT_ABORT ON` (#718). Nothing is raised for any of it, so the snapshot lost the staging table it had just built and failed against it a statement later. The probe now drains and closes its cursor, as does the row-count probe in `expand_column_types`. Only queries opening with a CTE were affected - anything else is wrapped as `select * from (...) where 1 = 0` by `sqlserver__get_empty_subquery_sql` and returns no rows - which is why snapshot staging queries (`with snapshot_query as ...`, both `check` and `timestamp` strategies) and CTE-headed contract models were the ones that broke. A CTE-headed probe is now also described with `sp_describe_first_result_set` rather than executed, so it no longer runs its query twice per build. [#809](https://github.com/dbt-msft/dbt-sqlserver/issues/809)
+
 ### v1.11.0
 
 #### Features
