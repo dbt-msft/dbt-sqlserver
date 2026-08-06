@@ -2191,3 +2191,101 @@ def test_add_query_clears_in_flight_cursor_after_failure(
             manager.add_query("select 1", auto_begin=False)
 
     assert connection._dbt_sqlserver_in_flight_cursor is None
+
+
+class _MssqlPythonProgrammingError(Exception):
+    """Stand-in for mssql_python.ProgrammingError.
+
+    Real message observed in production (dbt-msft/dbt-sqlserver, mssql-python
+    1.12.0, dbt_sqlserver_use_dbt_transactions: false, threads > 1, an
+    incremental delete+insert model): the batch itself succeeded -- dbt's own
+    rowcount/response was already read -- but walking the trailing DONE/
+    DONE_IN_PROC chain via nextset() afterwards raised this from inside the
+    driver's DDBCSQLMoreResults. Matches microsoft/mssql-python#229 (open as
+    of this writing): multi-statement batches that don't hold SET NOCOUNT ON
+    for their *entire* duration leave intermediate DONE_IN_PROC tokens for
+    nextset() to walk -- our delete+insert strategy turns NOCOUNT back OFF
+    before the final INSERT specifically so its rowcount is reported, which
+    is exactly that shape.
+    """
+
+
+# The fix duck-types on the real exception's __module__ and __name__
+# (mssql_python.exceptions.ProgrammingError), so the fake must match both to
+# exercise the same branch a real driver error would.
+_MssqlPythonProgrammingError.__module__ = "mssql_python.exceptions"
+_MssqlPythonProgrammingError.__name__ = "ProgrammingError"
+_MssqlPythonProgrammingError.__qualname__ = "ProgrammingError"
+
+
+def test_execute_survives_a_spurious_mssql_python_error_during_trailing_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pins the bug as reported: a successful batch must not be killed by
+    drain. Without _drain_trailing_results, this raises out of execute()
+    from the exact call site in the report (execute -> _try_drain_nextset ->
+    cursor.nextset()). cursor.rowcount is set before nextset() is ever
+    called, matching "the SQL execution itself succeeds" from the report.
+    """
+    cursor = MagicMock()
+    cursor.rowcount = 5
+    cursor.nextset.side_effect = [
+        True,  # the DELETE's DONE_IN_PROC
+        _MssqlPythonProgrammingError(
+            "Driver Error: Syntax error or access violation; DDBC Error: "
+            "[Microsoft][SQL Server]New transaction is not allowed because "
+            "there are other threads running in the session."
+        ),
+    ]
+
+    manager, _connection = _build_cancel_test_manager(monkeypatch, cursor)
+    monkeypatch.setattr(manager, "_add_query_comment", lambda sql: sql)
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"):
+        response, _table = manager.execute(
+            "SET NOCOUNT ON; delete from t where id in (1,2,3); "
+            "SET NOCOUNT OFF; insert into t select * from s;",
+            auto_begin=False,
+            fetch=False,
+        )
+
+    # The batch's own result was already captured before the drain ran.
+    assert response.rows_affected == 5
+    # The trailing drain must not be allowed to fail the run: the cursor is
+    # still closed, and nothing about the already-captured response changes.
+    assert cursor.close.called
+
+
+def test_execute_still_raises_a_genuine_deferred_error_during_trailing_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real, different error from nextset() must still fail the run.
+
+    Regression guard for a mistake caught by
+    tests/functional/adapter/dbt/test_concurrency.py::TestConcurrency::test_concurrency:
+    an earlier version of this fix swallowed *every* exception from the
+    trailing drain, not just the known-spurious one. SQL Server's deferred
+    name resolution lets `CREATE VIEW ... AS SELECT bad_column FROM t`
+    succeed at create time; sqlserver__create_table_as's SELECT * INTO that
+    queries that view only fails once nextset() walks to it (not on the
+    initial execute()), so broadly swallowing nextset() errors here silently
+    turned a broken model's build into a reported success.
+    """
+    cursor = MagicMock()
+    cursor.rowcount = 0
+    cursor.nextset.side_effect = _MssqlPythonProgrammingError(
+        "Driver Error: Column not found; DDBC Error: "
+        "[Microsoft][SQL Server]Invalid column name 'a_field_that_does_not_exist'."
+    )
+
+    manager, _connection = _build_cancel_test_manager(monkeypatch, cursor)
+    monkeypatch.setattr(manager, "_add_query_comment", lambda sql: sql)
+
+    with patch("dbt.adapters.sqlserver.sqlserver_connections.fire_event"):
+        with pytest.raises(_MssqlPythonProgrammingError, match="Invalid column name"):
+            manager.execute(
+                "EXEC('CREATE OR ALTER VIEW v AS SELECT bad_column FROM t'); "
+                "EXEC('SELECT * INTO tgt FROM v');",
+                auto_begin=False,
+                fetch=False,
+            )

@@ -234,6 +234,74 @@ def _try_drain_nextset(cursor: Any) -> bool:
         raise
 
 
+# Substring of the exact SQL Server error text mssql-python has been observed
+# raising from nextset() after a *successful* multi-statement batch (see
+# _drain_trailing_results). Matched literally, not as a regex.
+_MSSQL_PYTHON_SPURIOUS_TRAILING_DRAIN_ERROR = (
+    "new transaction is not allowed because there are other threads running in the session"
+)
+
+
+def _is_spurious_mssql_python_trailing_drain_error(e: Exception) -> bool:
+    """True only for the exact known-spurious mssql-python nextset() defect.
+
+    nextset() can also raise a *real*, deferred error from a later statement
+    in the same batch -- SQL Server's deferred name resolution lets
+    ``CREATE VIEW ... AS SELECT bad_column FROM t`` succeed, so a query
+    against that view (e.g. the ``SELECT * INTO`` that follows it in
+    sqlserver__create_table_as) only fails once nextset() walks to it, not on
+    the initial execute(). Swallowing every nextset() exception here would
+    hide that failure and report a broken model as built (caught by
+    test_concurrency.py::TestConcurrency::test_concurrency, which asserts the
+    known-broken ``invalid`` model actually fails). Only the exact known
+    spurious message is treated as non-fatal; everything else -- a different
+    message, a different exception type, a different backend -- re-raises
+    unchanged.
+    """
+    return (
+        type(e).__name__ == "ProgrammingError"
+        and type(e).__module__.startswith("mssql_python")
+        and _MSSQL_PYTHON_SPURIOUS_TRAILING_DRAIN_ERROR in str(e).lower()
+    )
+
+
+def _drain_trailing_results(cursor: Any) -> None:
+    """Advance past whatever result sets are left after execute()'s own
+    response has already been read.
+
+    A multi-statement batch (e.g. the delete+insert incremental strategy's
+    ``SET NOCOUNT ON; delete ...; SET NOCOUNT OFF; insert ...``, or the DML
+    table-refresh swap's ``BEGIN TRANSACTION; delete ...; insert ...; COMMIT
+    TRANSACTION;``) leaves a DONE/DONE_IN_PROC token per statement for the
+    driver to walk through via nextset() -- dbt-msft/dbt-sqlserver#814:
+    mssql-python (>=1.7.1, confirmed through at least 1.12.0) can raise a
+    spurious "New transaction is not allowed because there are other threads
+    running in the session" from nextset() here, on a batch that already
+    completed successfully and with no other thread sharing the connection.
+    Matches an open upstream defect (microsoft/mssql-python#229): a
+    multi-statement batch that turns ``SET NOCOUNT`` back off before its
+    last statement -- done deliberately so that statement's rowcount is
+    reported -- leaves that statement's own DONE_IN_PROC token in the
+    stream, which the driver's SQLMoreResults handling does not always walk
+    cleanly.
+
+    Only that exact known-spurious error is swallowed (logged at debug).
+    nextset() can also carry a *real*, deferred error from a later statement
+    in the same batch -- SQL Server's deferred name resolution means a
+    referenced-but-nonexistent column in a ``CREATE VIEW`` only surfaces once
+    something queries the view, which can be a later statement walked to by
+    nextset() rather than the initial execute() call. Everything else
+    re-raises unchanged.
+    """
+    try:
+        while _try_drain_nextset(cursor):
+            pass
+    except Exception as e:
+        if not _is_spurious_mssql_python_trailing_drain_error(e):
+            raise
+        logger.debug(f"Draining trailing result sets failed: {e}")
+
+
 # Rows per round trip when shedding a result set nobody asked for. Large
 # enough that discarding even a big one costs a handful of round trips.
 _DISCARD_CHUNK_SIZE = 10000
@@ -862,8 +930,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 table = self.get_result_from_cursor(cursor, limit)
             else:
                 table = empty_table()
-            while _try_drain_nextset(cursor):
-                pass
+            _drain_trailing_results(cursor)
             return response, table
         finally:
             cursor.close()
