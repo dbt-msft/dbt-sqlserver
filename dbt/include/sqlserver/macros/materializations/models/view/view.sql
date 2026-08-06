@@ -43,10 +43,30 @@
   {% elif existing_relation is not none and existing_relation.type == 'view' %}
     {% set current_view_definition_table = run_query(get_view_definition_sql(existing_relation)) %}
     {% if current_view_definition_table is not none and current_view_definition_table.rows | length > 0 %}
-      {% set normalized_relation = target_relation.include(database=False) | lower | replace('\n', '') | replace('\r', '') | replace('\t', '') | replace(' ', '') | replace(';', '') %}
-      {% set normalized_sql = sql | lower | replace('\n', '') | replace('\r', '') | replace('\t', '') | replace(' ', '') | replace(';', '') %}
-      {% set normalized_definition = current_view_definition_table.rows[0][0] | lower | replace('\n', '') | replace('\r', '') | replace('\t', '') | replace(' ', '') | replace(';', '') %}
-      {% set should_skip_view_update = normalized_definition.endswith(normalized_sql) %}
+      {#- Compare the view *body* exactly, not by suffix. The stored definition is
+          the whole statement (CREATE [OR ALTER] VIEW <name> AS <body>); the model is
+          only the body. The header ends at the separating ' AS ' - split there and
+          compare the remainder verbatim. A suffix test (endswith) would wrongly skip
+          any edit whose new body is a tail of the old one, e.g. deleting a leading
+          comment or CTE - it lands as PASS but never reaches the database, and
+          --full-refresh does not fix it. Do NOT lowercase or strip whitespace: both
+          make genuinely different bodies compare equal (a string literal differing
+          only in case, or any literal containing spaces). The asymmetry is deliberate - a skip that
+          fails to fire costs one rebuild; a skip that fires wrongly costs correctness -
+          so when we cannot be certain, we rebuild. -#}
+      {% set stored = current_view_definition_table.rows[0][0] %}
+      {#- First ' as ' is the header/body separator: CREATE [OR ALTER] VIEW <quoted
+          relation> AS has no other, the relation being quoted. -#}
+      {% set marker = (stored | lower).find(' as ') %}
+      {% if marker < 0 %}
+        {% set should_skip_view_update = false %}
+      {% else %}
+        {% set stored_body = stored[marker + 4:] | replace('\r\n', '\n') | trim %}
+        {% set stored_body = (stored_body[:-1] if stored_body.endswith(';') else stored_body) | trim %}
+        {% set model_body = sql | replace('\r\n', '\n') | trim %}
+        {% set model_body = (model_body[:-1] if model_body.endswith(';') else model_body) | trim %}
+        {% set should_skip_view_update = stored_body == model_body %}
+      {% endif %}
     {% endif %}
     {% if should_skip_view_update %}
       {% set build_sql = 'declare @dbt_sqlserver_noop int;' %}
