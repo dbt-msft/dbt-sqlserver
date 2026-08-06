@@ -1,6 +1,6 @@
 import datetime as _dt
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import agate
 import dbt_common.exceptions
@@ -187,7 +187,8 @@ class SQLServerAdapter(SQLAdapter):
     """
 
     ConnectionManager = SQLServerConnectionManager
-    Column = SQLServerColumn
+    # Annotated because __init__ swaps in the SQLServerColumnNative subclass.
+    Column: Type[SQLServerColumn] = SQLServerColumn
     AdapterSpecificConfigs = SQLServerConfigs
     Relation = SQLServerRelation
 
@@ -220,8 +221,12 @@ class SQLServerAdapter(SQLAdapter):
 
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
-        return [
-            {
+        # dbt-common declares BehaviorFlag's optional keys with a NotRequired
+        # that falls back to Optional under a try/except ImportError shim, so a
+        # type checker reads `source` and `docs_url` as required and rejects
+        # every flag below. The suppressions go stale once that shim is dropped.
+        return [  # ty: ignore[invalid-return-type]
+            {  # ty: ignore[missing-typed-dict-key]
                 "name": "dbt_sqlserver_use_default_schema_concat",
                 "default": False,
                 "description": (
@@ -233,7 +238,7 @@ class SQLServerAdapter(SQLAdapter):
                     "macro in your project instead."
                 ),
             },
-            {
+            {  # ty: ignore[missing-typed-dict-key]
                 "name": "dbt_sqlserver_disable_empty_relation_aliases",
                 "default": True,
                 "description": (
@@ -242,7 +247,7 @@ class SQLServerAdapter(SQLAdapter):
                     "out of alias generation temporarily for testing."
                 ),
             },
-            {
+            {  # ty: ignore[missing-typed-dict-key]
                 "name": "dbt_sqlserver_use_native_string_types",
                 "default": True,
                 "description": (
@@ -254,7 +259,7 @@ class SQLServerAdapter(SQLAdapter):
                     "and will be removed in a future release."
                 ),
             },
-            {
+            {  # ty: ignore[missing-typed-dict-key]
                 "name": "dbt_sqlserver_enable_safe_type_expansion",
                 "default": False,
                 "description": (
@@ -264,7 +269,7 @@ class SQLServerAdapter(SQLAdapter):
                     "and numeric(p,s) -> numeric(p2,s2) using alter column."
                 ),
             },
-            {
+            {  # ty: ignore[missing-typed-dict-key]
                 "name": "dbt_sqlserver_use_dbt_transactions",
                 "default": True,
                 "description": (

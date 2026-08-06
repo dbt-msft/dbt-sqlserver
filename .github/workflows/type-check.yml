@@ -1,0 +1,33 @@
+---
+name: Type check
+on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - v*
+  pull_request:
+    branches:
+      - master
+      - v*
+
+# ty runs here rather than on pre-commit.ci, which blocks the network access ty
+# needs to resolve this project's dependencies.
+jobs:
+  ty:
+    name: ty
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          python-version: '3.11'
+
+      - name: Run ty
+        run: uv run --frozen ty check
