@@ -203,9 +203,9 @@ class TestOpenquery:
         return results
 
     def test_emits_openquery_and_returns_rows(self, project, _run_all):
-        """Happy path: bracketed server name, literal remote SQL, real rows."""
+        """Happy path: quoted server name, literal remote SQL, real rows."""
         sql = _find_compiled_sql(project, "basic_model.sql")
-        assert "OPENQUERY([LOCALLOOP], 'SELECT 1 AS id" in sql
+        assert 'OPENQUERY("LOCALLOOP", \'SELECT 1 AS id' in sql
         rows = project.run_sql(
             f"SELECT id, name FROM {project.test_schema}.basic_model ORDER BY id",
             fetch="all",
@@ -216,21 +216,21 @@ class TestOpenquery:
         """Quotes are doubled in the emitted SQL, and the remote literal
         round-trips to the value it's."""
         sql = _find_compiled_sql(project, "quotes_model.sql")
-        assert "OPENQUERY([LOCALLOOP], 'SELECT ''it''''s'' AS msg')" in sql
+        assert "OPENQUERY(\"LOCALLOOP\", 'SELECT ''it''''s'' AS msg')" in sql
         rows = project.run_sql(f"SELECT msg FROM {project.test_schema}.quotes_model", fetch="all")
         assert [row[0] for row in rows] == ["it's"]
 
     def test_carriage_returns_are_stripped_and_query_runs(self, project, _run_all):
         sql = _find_compiled_sql(project, "cr_model.sql")
         assert "\r" not in sql
-        assert "OPENQUERY([LOCALLOOP], 'SELECT 1" in sql
+        assert 'OPENQUERY("LOCALLOOP", \'SELECT 1' in sql
         rows = project.run_sql(f"SELECT id FROM {project.test_schema}.cr_model", fetch="all")
         assert [row[0] for row in rows] == [1]
 
     def test_max_length_boundary_compiles(self, project, _run_all):
         """Exactly 8000 escaped characters is allowed."""
         sql = _find_compiled_sql(project, "max_length_model.sql")
-        assert "OPENQUERY([LOCALLOOP], 'SELECT " in sql
+        assert 'OPENQUERY("LOCALLOOP", \'SELECT ' in sql
 
     @pytest.mark.parametrize(
         "model_name,expected",

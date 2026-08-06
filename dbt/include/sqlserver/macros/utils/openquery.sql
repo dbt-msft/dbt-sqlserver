@@ -17,5 +17,5 @@
             {{ exceptions.raise_compiler_error("openquery: query exceeds SQL Server OPENQUERY 8 KB limit (got " ~ (cleaned_sql | length) ~ " characters after escaping, max 8000). Use EXEC('...') AT <server> or a remote view/OPENROWSET for longer queries.") }}
         {%- endif -%}
     {%- endif -%}
-    OPENQUERY([{{ server_name }}], '{{ cleaned_sql }}')
+    OPENQUERY({{ adapter.quote(server_name) }}, '{{ cleaned_sql }}')
 {%- endmacro %}
