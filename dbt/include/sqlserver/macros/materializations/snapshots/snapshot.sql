@@ -107,6 +107,10 @@
   {% set should_revoke = should_revoke(target_relation_exists, full_refresh_mode=False) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
 
+  {#-- Re-apply object-level DENYs after grants. --#}
+  {% set deny_config = adapter.resolve_denies(model, config.get('denies')) %}
+  {% do apply_denies(target_relation, deny_config, should_revoke=should_revoke) %}
+
   {% do persist_docs(target_relation, model) %}
 
   {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}

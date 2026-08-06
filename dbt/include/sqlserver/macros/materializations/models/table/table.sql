@@ -80,6 +80,17 @@
         relation cache stays in sync with the database -#}
     {% do adapter.cache_added(target_relation) %}
 
+    {#-- Apply masks after the load but before create_indexes, mirroring the
+         standard build path so masks on nonclustered-index key columns land
+         before those indexes exist (mask-then-index). prebuilt builds the
+         clustered design inside create_table_as_prebuilt before we get here:
+         a CCI exposes no key columns so masks apply freely, but a mask on a
+         clustered *rowstore* key column cannot be added after the fact and
+         apply_masks raises a descriptive index-key error (recovery: switch
+         that model to the default heap_then_index). --#}
+    {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}
+    {% do apply_masks(target_relation, mask_config) %}
+
     {% do create_indexes(target_relation) %}
   {% else %}
     -- build model
@@ -115,6 +126,12 @@
 
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
+
+  {#-- Re-apply object-level DENYs after grants, so the final permission state is
+       unambiguous. Runs on the common tail, so it covers the rename, prebuilt and
+       DML-refresh build paths alike. --#}
+  {% set deny_config = adapter.resolve_denies(model, config.get('denies')) %}
+  {% do apply_denies(target_relation, deny_config, should_revoke=should_revoke) %}
 
   {% do persist_docs(target_relation, model) %}
 

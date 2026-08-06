@@ -25,3 +25,11 @@ class SQLServerConfigs(AdapterConfig):
     masks: Optional[Dict[str, Any]] = field(
         default_factory=dict, metadata=MergeBehavior.Update.meta()
     )
+    # privilege -> [principals] map for the model-level `denies` surface, shaped
+    # like `grants`. Re-applied after each build because an object-level DENY is
+    # stored against object_id and discarded on drop-and-recreate. Same key-wise
+    # MergeBehavior.Update as `masks`, so a directory-level default and a
+    # per-model tweak combine instead of one clobbering the whole dict.
+    denies: Optional[Dict[str, Any]] = field(
+        default_factory=dict, metadata=MergeBehavior.Update.meta()
+    )
