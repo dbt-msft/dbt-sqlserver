@@ -2,6 +2,7 @@ import re
 
 import pytest
 
+from dbt.adapters.sqlserver.sqlserver_auth import is_adbc_backend
 from dbt.tests.adapter.constraints.fixtures import (
     model_data_type_schema_yml,
     my_incremental_model_sql,
@@ -865,6 +866,16 @@ _PROBE_TYPE_MATRIX = [
     "varbinary(10)",
 ]
 
+# The ADBC mssql driver cannot represent these at all ("Unknown type
+# DATETIMEOFFSET", and sql_variant arrives as an Arrow struct), so selecting
+# one fails before the probe is reached. The ODBC-based backends read both,
+# and disagree with each other on what Python type they are -- exactly what
+# the describe branch has to follow -- so they are still worth pinning there.
+_PROBE_TYPE_MATRIX_NON_ADBC = [
+    "datetimeoffset",
+    "sql_variant",
+]
+
 
 class TestCteProbeAvoidsExecution:
     """A CTE-headed query reaches get_column_schema_from_query unwrapped,
@@ -886,9 +897,12 @@ class TestCteProbeAvoidsExecution:
         to how the CTE branch reads metadata, or contract comparisons shift
         under models that merely happen to open with a CTE."""
         mismatches = []
+        matrix = list(_PROBE_TYPE_MATRIX)
+        if not is_adbc_backend(project.adapter.config.credentials.backend):
+            matrix += _PROBE_TYPE_MATRIX_NON_ADBC
 
         with project.adapter.connection_named("_probe"):
-            for type_sql in _PROBE_TYPE_MATRIX:
+            for type_sql in matrix:
                 plain = f"select cast(null as {type_sql}) as c"
                 wrapped = project.adapter.get_column_schema_from_query(
                     f"select * from ({plain}) dbt_sbq_tmp where 1 = 0"

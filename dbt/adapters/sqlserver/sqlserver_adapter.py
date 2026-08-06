@@ -28,7 +28,7 @@ from dbt.adapters.sqlserver.relation_configs.index import (
     index_config_changes,
     normalize_drop_unmanaged,
 )
-from dbt.adapters.sqlserver.sqlserver_auth import is_adbc_backend
+from dbt.adapters.sqlserver.sqlserver_auth import is_adbc_backend, is_mssql_python_backend
 from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 from dbt.adapters.sqlserver.sqlserver_configs import SQLServerConfigs
 from dbt.adapters.sqlserver.sqlserver_connections import (
@@ -39,6 +39,7 @@ from dbt.adapters.sqlserver.sqlserver_mask import ColumnMask
 from dbt.adapters.sqlserver.sqlserver_mask import mask_changes as _mask_changes
 from dbt.adapters.sqlserver.sqlserver_mask import resolve_masks as _resolve_masks
 from dbt.adapters.sqlserver.sqlserver_relation import SQLServerRelation
+from dbt.adapters.sqlserver.sqlserver_runtime import _get_pyodbc
 
 logger = AdapterLogger("SQLServer")
 
@@ -57,6 +58,10 @@ _SQL_COMMENT = re.compile(r"(?s)/\*.*?\*/|--[^\n]*\n")
 # ``data_type_code_to_name``. TestCteProbeAvoidsExecution pins the two
 # together; a type missing from this map falls back to executing rather than
 # guessing.
+#
+# The names below are pyodbc's. The class a driver picks for a column is its
+# own choice, not SQL Server's, and mssql-python decodes three of these
+# differently -- see ``_MSSQL_PYTHON_TYPE_OVERRIDES``.
 _SYSTEM_TYPE_TO_EXECUTED_NAME = {
     "bigint": "int",
     "int": "int",
@@ -87,12 +92,53 @@ _SYSTEM_TYPE_TO_EXECUTED_NAME = {
     "image": "varbinary",
     "timestamp": "varbinary",
     "rowversion": "varbinary",
-    "datetimeoffset": "varbinary",
+    # datetimeoffset is deliberately absent *from this map*: add_query
+    # registers the -155 output converter after the execute that needed it,
+    # so pyodbc reports the column as bytearray on a connection's first query
+    # and as str on every one after. No fixed name mirrors that, so on pyodbc
+    # describing gives up and the query is executed -- which agrees with
+    # itself by construction. mssql-python needs no converter and is pinned
+    # in _MSSQL_PYTHON_TYPE_OVERRIDES.
     "sql_variant": "varbinary",
     "hierarchyid": "varbinary",
     "geography": "varbinary",
     "geometry": "varbinary",
 }
+
+# mssql-python decodes three types into richer Python objects than pyodbc
+# does: uniqueidentifier as ``uuid.UUID`` (pyodbc: ``str``), datetimeoffset
+# as ``datetime`` and sql_variant as ``str`` (pyodbc: ``bytearray`` for
+# both). Executing reports those classes, so describing has to agree.
+_MSSQL_PYTHON_TYPE_OVERRIDES = {
+    "uniqueidentifier": "uniqueidentifier",
+    "datetimeoffset": "datetime2(6)",
+    "sql_variant": "varchar",
+}
+
+
+def _executed_name_for_system_type(base_type: str, backend: Any) -> Optional[str]:
+    """The name the executed probe would report for a described column type.
+
+    None means "no confident answer" -- the caller then executes the query,
+    which is slower but cannot disagree with itself.
+    """
+    if is_mssql_python_backend(backend):
+        overridden = _MSSQL_PYTHON_TYPE_OVERRIDES.get(base_type)
+        if overridden is not None:
+            return overridden
+
+    elif base_type == "uniqueidentifier":
+        # pyodbc yields uuid.UUID or str for a GUID depending on its
+        # module-level ``native_uuid`` flag -- process-global state anything
+        # in the process can flip, so read it rather than assume a default.
+        try:
+            native_uuid = bool(_get_pyodbc().native_uuid)
+        except Exception as e:  # pragma: no cover - pyodbc is present if in use
+            logger.debug(f"Could not read pyodbc.native_uuid, executing the query: {e}")
+            return None
+        return "uniqueidentifier" if native_uuid else "varchar"
+
+    return _SYSTEM_TYPE_TO_EXECUTED_NAME.get(base_type)
 
 
 def _normalize_result_datetimes(
@@ -277,9 +323,9 @@ class SQLServerAdapter(SQLAdapter):
         Returns None -- deliberately, rather than raising -- whenever the
         describe cannot be trusted to match what executing would have reported:
         an unsupported backend, a query it refuses to describe (it cannot see
-        through ``#temp`` tables, where executing works), or a type absent from
-        ``_SYSTEM_TYPE_TO_EXECUTED_NAME``. The caller then executes as before,
-        which is slower but never disagrees with itself.
+        through ``#temp`` tables, where executing works), or a type this
+        backend's driver has no known executed name for. The caller then
+        executes as before, which is slower but never disagrees with itself.
         """
         credentials = self.connections.profile.credentials
         if is_adbc_backend(credentials.backend):
@@ -326,7 +372,7 @@ class SQLServerAdapter(SQLAdapter):
                 continue
             # "varchar(10)" / "decimal(10,2)" -> "varchar" / "decimal"
             base_type = str(row[type_name]).split("(")[0].strip().lower()
-            executed_name = _SYSTEM_TYPE_TO_EXECUTED_NAME.get(base_type)
+            executed_name = _executed_name_for_system_type(base_type, credentials.backend)
             if executed_name is None or row[name] is None:
                 logger.debug(
                     f"Describing a CTE query reported {base_type!r}, which has no "

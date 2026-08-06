@@ -15,11 +15,16 @@ probe in tests/functional/adapter/dbt/test_transactions.py and the contract
 probe in tests/functional/adapter/dbt/test_constraints.py.
 """
 
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dbt.adapters.sqlserver.sqlserver_adapter import SQLServerAdapter
+from dbt.adapters.sqlserver.sqlserver_adapter import (
+    SQLServerAdapter,
+    _executed_name_for_system_type,
+)
+from dbt.adapters.sqlserver.sqlserver_credentials import SQLServerBackend
 
 
 class FakeCursor:
@@ -136,3 +141,61 @@ class TestGetColumnSchemaFromQuery:
 
         assert [c.column for c in columns] == ["id", "payload"]
         assert cursor.closed
+
+
+class TestDescribedTypeFollowsTheBackend:
+    """``_describe_result_set`` reports the name the *executed* probe would
+    have reported, and that is the driver's choice of Python class, not SQL
+    Server's type. The two ODBC backends disagree on three types, so one
+    fixed table cannot serve both -- a CTE-headed model with a
+    uniqueidentifier column shifted its contract type when it did."""
+
+    @pytest.mark.parametrize(
+        "backend, system_type, expected",
+        [
+            # pyodbc: bytearray for sql_variant (uniqueidentifier is not here
+            # -- it depends on a live flag, see the next test).
+            (SQLServerBackend.pyodbc, "sql_variant", "varbinary"),
+            # ... except datetimeoffset, whose class depends on whether the
+            # -155 output converter was registered yet. No answer is better
+            # than a guess: None sends the caller back to executing.
+            (SQLServerBackend.pyodbc, "datetimeoffset", None),
+            # mssql-python: uuid.UUID, str, datetime
+            (SQLServerBackend.mssql_python, "uniqueidentifier", "uniqueidentifier"),
+            (SQLServerBackend.mssql_python, "sql_variant", "varchar"),
+            (SQLServerBackend.mssql_python, "datetimeoffset", "datetime2(6)"),
+            # Types both drivers collapse the same way are backend-independent.
+            (SQLServerBackend.pyodbc, "bigint", "int"),
+            (SQLServerBackend.mssql_python, "bigint", "int"),
+            (SQLServerBackend.pyodbc, "nvarchar", "varchar"),
+            (SQLServerBackend.mssql_python, "nvarchar", "varchar"),
+            # Unknown types fall back to executing on either backend.
+            (SQLServerBackend.pyodbc, "some_future_type", None),
+            (SQLServerBackend.mssql_python, "some_future_type", None),
+        ],
+    )
+    def test_executed_name_for_system_type(self, backend, system_type, expected):
+        assert _executed_name_for_system_type(system_type, backend) == expected
+
+    def test_pyodbc_guid_follows_the_native_uuid_flag(self):
+        """pyodbc hands back uuid.UUID instead of str when native_uuid is on.
+        It is process-global and anything in the process can set it, so the
+        describe branch reads it rather than assuming a default."""
+        for native_uuid, expected in ((True, "uniqueidentifier"), (False, "varchar")):
+            with patch(
+                "dbt.adapters.sqlserver.sqlserver_adapter._get_pyodbc",
+                return_value=SimpleNamespace(native_uuid=native_uuid),
+            ):
+                actual = _executed_name_for_system_type(
+                    "uniqueidentifier", SQLServerBackend.pyodbc
+                )
+            assert actual == expected
+
+    def test_an_unreadable_pyodbc_falls_back_to_executing(self):
+        with patch(
+            "dbt.adapters.sqlserver.sqlserver_adapter._get_pyodbc",
+            side_effect=RuntimeError("pyodbc is not importable"),
+        ):
+            actual = _executed_name_for_system_type("uniqueidentifier", SQLServerBackend.pyodbc)
+
+        assert actual is None
