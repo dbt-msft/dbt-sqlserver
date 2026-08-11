@@ -175,8 +175,10 @@ _BATCH_STUBS = """
 {% macro get_create_view_as_sql(relation, sql) %}CREATE OR ALTER VIEW {{ relation }} AS {{ sql }};
 {% endmacro %}
 {% macro escape_single_quotes(value) %}{{ value | replace("'", "''") }}{% endmacro %}
-{% macro sqlserver__create_clustered_columnstore_index(relation) %}CREATE CLUSTERED COLUMNSTORE
-INDEX cci ON {{ relation }};{% endmacro %}
+{% macro sqlserver__create_clustered_columnstore_index(
+    physical_relation, logical_relation
+) %}CREATE CLUSTERED COLUMNSTORE
+INDEX cci ON {{ physical_relation }};{% endmacro %}
 """
 
 
@@ -466,8 +468,8 @@ EXEC('CREATE OR ALTER VIEW {{ relation }} AS {{ sql }}')
 {% macro get_query_options(parse_options=False) %}"""
     + QUERY_LABEL
     + """{% endmacro %}
-{% macro sqlserver__create_clustered_columnstore_index(relation) %}
-/* CCI on {{ relation }} */
+{% macro sqlserver__create_clustered_columnstore_index(physical_relation, logical_relation) %}
+/* CCI on {{ physical_relation }} named from {{ logical_relation }} */
 {%- endmacro %}
 """
 )

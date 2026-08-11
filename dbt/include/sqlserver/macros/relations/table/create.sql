@@ -149,7 +149,7 @@
 {%- endmacro %}
 
 
-{% macro sqlserver__get_create_table_load_sql(temporary, relation, sql, drop_tmp_view=True) -%}
+{% macro sqlserver__get_create_table_load_sql(temporary, relation, sql, logical_relation=none, drop_tmp_view=True) -%}
     {#-
       Second half of a table build: load the object the stage half created,
       then clean up and add the clustered columnstore index.
@@ -187,11 +187,10 @@
     {% set as_columnstore = config.get('as_columnstore', default=true) %}
     {% if not temporary and as_columnstore -%}
         {#-
-        add columnstore index
-        this creates with dbt_temp as its coming from a temporary relation before renaming
-        could alter relation to drop the dbt_temp portion if needed
+        Add a clustered columnstore index. Name from the logical/final
+        relation, create on the physical relation built in this macro.
         -#}
-        {{ sqlserver__create_clustered_columnstore_index(relation) }}
+        {{ sqlserver__create_clustered_columnstore_index(relation, logical_relation or relation) }}
    {% endif %}
 {%- endmacro %}
 
@@ -208,7 +207,7 @@
       sqlserver__get_create_table_stage_sql for why that matters (#819).
     -#}
     {{ sqlserver__get_create_table_stage_sql(temporary, relation, sql) }}
-    {{ sqlserver__get_create_table_load_sql(temporary, relation, sql) }}
+    {{ sqlserver__get_create_table_load_sql(temporary, relation, sql, logical_relation=relation) }}
 {% endmacro %}
 
 
@@ -303,7 +302,7 @@
 
     {%- set load_sql -%}
     {% if as_columnstore %}
-        {{ sqlserver__create_clustered_columnstore_index(relation) }}
+        {{ sqlserver__create_clustered_columnstore_index(relation, relation) }}
     {% elif prebuilt_ns.clustered_dict is not none %}
         {{ sqlserver__get_create_index_sql(relation, prebuilt_ns.clustered_dict) }}
     {% endif %}

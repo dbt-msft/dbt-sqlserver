@@ -8,12 +8,16 @@
 {%- endmacro %}
 
 
-{% macro sqlserver__create_clustered_columnstore_index(relation) -%}
+{% macro sqlserver__create_clustered_columnstore_index(physical_relation, logical_relation=none) -%}
+    {%- if logical_relation is none -%}
+        {%- set logical_relation = physical_relation -%}
+    {%- endif -%}
     {#- cci_name embeds the schema, so it must be quoted as an identifier
         (raw only in the string comparison below) -- issue #409 -#}
-    {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
-    {%- set relation_name = relation.include(database=False) -%}
-    {{ get_use_database_sql(relation.database) }}
+    {%- set cci_name = (logical_relation.schema ~ '_' ~ logical_relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
+    {%- set legacy_cci_name = (physical_relation.schema ~ '_' ~ physical_relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
+    {%- set relation_name = physical_relation.include(database=False) -%}
+    {{ get_use_database_sql(physical_relation.database) }}
     if EXISTS (
         SELECT *
         FROM sys.indexes {{ information_schema_hints() }}
@@ -21,9 +25,24 @@
         AND object_id=object_id('{{ escape_single_quotes(relation_name) }}')
     )
     DROP index {{ relation_name }}.{{ adapter.quote(cci_name) }}
+    {#- Backward-compatibility for old CCI names created before the logical/physical
+        relation split. Drop the legacy index only when the name changed so older
+        custom macros and incremental models do not end up with two CCI names for the
+        same relation. -#}
+    {%- if cci_name != legacy_cci_name -%}
+        if EXISTS (
+            SELECT *
+            FROM sys.indexes {{ information_schema_hints() }}
+            WHERE name = '{{ escape_single_quotes(legacy_cci_name) }}'
+            AND object_id=object_id('{{ escape_single_quotes(relation_name) }}')
+        )
+        DROP index {{ relation_name }}.{{ adapter.quote(legacy_cci_name) }}
+    {%- endif -%}
+
     CREATE CLUSTERED COLUMNSTORE INDEX {{ adapter.quote(cci_name) }}
     ON {{ relation_name }}
-{% endmacro %}
+{%- endmacro %}
+
 
 {% macro drop_xml_indexes() -%}
     {{ log("Running drop_xml_indexes() macro...") }}
