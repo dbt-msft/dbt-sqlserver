@@ -5,9 +5,8 @@ pyodbc and mssql-python.  ADBC (Arrow Database Connectivity) uses the
 [Apache Arrow](https://arrow.apache.org/) columnar format natively, avoiding
 the overhead of row-based ODBC/DB-API bridges.
 
-> **Experimental.**  The ADBC backend is new and opt-in.  It passes the full
-> dbt-sqlserver functional test suite (320 passed, 0 failed, as of v1.12.0-rc1)
-> and is covered by a dedicated CI job against the latest SQL Server.  Please
+> **Experimental.**  The ADBC backend is new and opt-in. It is covered by a
+> dedicated CI job against the latest SQL Server. Please
 > report issues at
 > [dbt-msft/dbt-sqlserver#771](https://github.com/dbt-msft/dbt-sqlserver/issues/771).
 

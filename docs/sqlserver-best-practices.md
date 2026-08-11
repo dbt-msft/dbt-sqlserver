@@ -160,7 +160,7 @@ select * from {{ sqlserver__openquery(
 The adapter ships
 [`sqlserver__openquery`](../dbt/include/sqlserver/macros/utils/openquery.sql) for
 this: it doubles single quotes in the remote SQL, strips carriage returns,
-brackets the server name, and fails compilation with a specific message if the
+quotes the server name through `adapter.quote()`, and fails compilation with a specific message if the
 escaped query exceeds the 8 KB limit or either argument is empty. Writing
 `OPENQUERY(...)` by hand means escaping every literal yourself — the date
 predicate above would need `''2026-01-01''`.
