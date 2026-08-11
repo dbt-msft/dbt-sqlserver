@@ -2,8 +2,8 @@
 
 [dbt](https://www.getdbt.com) adapter for Microsoft SQL Server and Azure SQL services.
 
-The adapter supports dbt-core 1.11 or newer and follows the same versioning scheme.
-E.g. version 1.11.x of the adapter is compatible with dbt-core 1.11.x.
+The adapter supports dbt-core 1.12 or newer and follows the same versioning scheme.
+E.g. version 1.12.x of the adapter is compatible with dbt-core 1.12.x.
 
 ## Supported Python versions
 
@@ -15,6 +15,7 @@ The adapter is tested against:
 | 3.11 | Officially supported |
 | 3.12 | Officially supported |
 | 3.13 | Officially supported |
+| 3.14 | Officially supported |
 
 ## Supported SQL Server versions
 
@@ -178,19 +179,28 @@ Safe expansions are further gated by `column_type_expansion_max_rows` (default 1
 
 ### `dbt_sqlserver_use_dbt_transactions`
 
-_(default: `false`)_ When enabled, makes dbt's transaction hooks real at the SQL Server level by emitting `BEGIN TRANSACTION` / `COMMIT TRANSACTION` through the adapter's `add_begin_query` and `add_commit_query` methods. 
+_(default: `true`)_ Makes dbt's transaction hooks real at the SQL Server level by emitting `BEGIN TRANSACTION` / `COMMIT TRANSACTION` through the adapter's `add_begin_query` and `add_commit_query` methods.
 
-The default is `false`, preserving existing behavior where `begin`/`commit` hooks are logical no-ops and the ODBC driver auto-commits each statement. When `dbt_sqlserver_use_dbt_transactions: true`, the adapter emits real T-SQL transaction statements, and rollback uses `IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION`.
+The default is `true`, so dbt-managed transaction hooks emit real T-SQL transaction statements and rollback uses `IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION`. Set it to `false` to opt back into the deprecated legacy behavior where `begin`/`commit` hooks are logical no-ops and the driver auto-commits each statement.
 
 The driver connection remains in autocommit mode (`autocommit=true`) in both modes.
 
-This mode is opt-in and should be tested carefully with project-specific materializations and hooks.
+This is now the default and should be tested carefully with project-specific materializations and hooks. Projects that depend on autocommit-only behavior should set the flag to `false` during migration.
 
 ```yaml
 # dbt_project.yml
 flags:
   dbt_sqlserver_enable_safe_type_expansion: true
-  dbt_sqlserver_use_dbt_transactions: true # <-- opt-in; default is false
+  dbt_sqlserver_use_dbt_transactions: true # default
+```
+
+### `dbt_sqlserver_use_native_string_types`
+
+*(default: `true`)* Controls the SQL Server-native mappings used for dbt string types. With the default enabled, `STRING` maps to `VARCHAR(MAX)`, `NCHAR` maps to `NCHAR(1)`, and `NVARCHAR` maps to `NVARCHAR(4000)`. Set it to `false` to opt back into the deprecated legacy mappings: `STRING` and `NVARCHAR` map to `VARCHAR(8000)`, while `NCHAR` maps to `CHAR(1)`.
+
+```yaml
+flags:
+  dbt_sqlserver_use_native_string_types: false  # deprecated legacy behavior
 ```
 
 ### `xact_abort`

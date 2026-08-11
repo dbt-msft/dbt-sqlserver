@@ -124,7 +124,7 @@ select * from {{ ref('raw_data') }}
 # name (#409), the dot and the quote reach identifiers built inside string
 # literals. Raw string: what is written here is exactly what Jinja parses.
 backslash_schema_model = r"""
-{{ config(materialized='table', schema=target.schema ~ '_dom\\usr.x\"q') }}
+{{ config(materialized='table', schema='dom\\usr.x\"q') }}
 select 1 as id
 """
 
