@@ -9,6 +9,7 @@ These render the real macro file through Jinja2 - no database connection
 required - with stubs for the ambient dbt context the macros touch.
 """
 
+import re
 from pathlib import Path
 
 import jinja2
@@ -161,3 +162,58 @@ def test_load_does_not_reassert_the_contract(target, tmp_vw, contract_enforced):
         _insert(contract_enforced), target=target, tmp_vw=tmp_vw, query_label=QUERY_LABEL
     )
     assert "assert_columns_equivalent" not in sql
+
+
+# -- lock discipline at the call sites --
+#
+# Splitting the create from the load only helps if the two statements do not
+# share an open transaction: locks are held to commit, not to end-of-statement.
+# The call sites earn that with auto_begin=False and explicit commit
+# boundaries, and these tests keep it that way (#819).
+
+DML_REFRESH_SQL = CREATE_SQL.parents[2] / "materializations" / "models" / "table"
+DML_REFRESH_SQL = DML_REFRESH_SQL / "table_dml_refresh.sql"
+
+SWAP_MARKER = "statement('dml_refresh_swap'"
+
+
+def _dml_refresh_source():
+    source = DML_REFRESH_SQL.read_text()
+    assert SWAP_MARKER in source, "the swap statement is the boundary these tests split on"
+    before_swap, after_swap = source.split(SWAP_MARKER, 1)
+    return source, before_swap, after_swap
+
+
+def test_dml_refresh_scratch_build_is_split():
+    source, _before, _after = _dml_refresh_source()
+    assert "sqlserver__get_create_table_empty_sql" in source
+    assert "sqlserver__get_tablock_insert_sql" in source
+    # The fused form is the bug: one statement that both creates and loads.
+    assert "SELECT * INTO {{ refresh_relation }}" not in source
+
+
+def test_dml_refresh_declines_the_ambient_transaction_until_the_swap():
+    """Every statement in the scratch build has to autocommit, or its catalog
+    locks are held to the materialization's trailing commit anyway."""
+    _source, before_swap, _after = _dml_refresh_source()
+    # `call statement(`, so prose mentioning statement('main') is not a match.
+    statements = re.findall(r"call statement\((.*?)\)", before_swap, re.DOTALL)
+    assert statements, "expected the scratch build to issue statements"
+    offenders = [s for s in statements if "auto_begin=False" not in s]
+    assert not offenders, (
+        "statements before the swap must pass auto_begin=False so they do not "
+        f"open the ambient transaction (#819): {offenders}"
+    )
+
+
+def test_dml_refresh_commits_the_swap_before_the_tail():
+    """The DELETE holds X locks on the target until commit; index and mask
+    reconciliation must not sit inside that window."""
+    _source, _before, after_swap = _dml_refresh_source()
+    commit = after_swap.find("adapter.commit_if_open()")
+    reconcile = after_swap.find("sqlserver__reconcile_indexes")
+    assert commit != -1, "the swap must be committed rather than run to the trailing commit"
+    assert reconcile != -1
+    assert commit < reconcile, "commit the swap before reconciling indexes"
+    # And the tail needs a transaction again, or adapter.commit() raises.
+    assert "adapter.begin_if_closed()" in after_swap
