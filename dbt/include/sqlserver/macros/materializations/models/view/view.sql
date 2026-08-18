@@ -79,8 +79,11 @@
           re-derives that cached metadata from the table's current shape
           without re-running the CREATE, so a skip stays a skip (no DDL, no
           grant/deny churn) while the view keeps reporting the right columns. -#}
+      {#- sp_refreshview resolves its argument in the *current* database, so this needs
+          the same USE prefix every other name-resolving statement here carries -
+          without it a cross-database view model would refresh nothing and error. -#}
       {% set object_name = "quotename('" ~ target_relation.schema ~ "') + '.' + quotename('" ~ target_relation.identifier ~ "')" %}
-      {% set build_sql = "declare @dbt_sqlserver_refresh_target nvarchar(max) = " ~ object_name ~ "; exec sp_refreshview @dbt_sqlserver_refresh_target;" %}
+      {% set build_sql = get_use_database_sql(target_relation.database) ~ " declare @dbt_sqlserver_refresh_target nvarchar(max) = " ~ object_name ~ "; exec sp_refreshview @dbt_sqlserver_refresh_target;" %}
     {% else %}
       {% set build_sql = get_create_view_as_sql(target_relation, sql) %}
     {% endif %}
