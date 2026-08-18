@@ -94,9 +94,23 @@
     {% do create_indexes(target_relation) %}
   {% else %}
     -- build model
-    {% call statement('main') -%}
+    {#- auto_begin=False for the same reason as the incremental full-refresh
+        batch (see incremental.sql): this batch is create_table_as catalog DDL
+        plus the load, and inside the ambient transaction its locks - the new
+        table's Sch-M included - would be held to adapter.commit() rather than
+        released statement by statement. Holding Sch-M across the load blocks
+        every metadata reader for that object in every other session (#819),
+        and holding the sysschobjs key locks deadlocks a second worker. -#}
+    {% call statement('main', auto_begin=False) -%}
       {{ get_create_table_as_sql(False, intermediate_relation, sql) }}
     {%- endcall %}
+
+    {#- Reopen the ambient transaction the batch above declined to start, so
+        the renames below and the tail keep their semantics and
+        adapter.commit() has a matching BEGIN rather than raising. No-op when
+        the flag is off. -#}
+    {% do adapter.commit_if_open() %}
+    {% do adapter.begin_if_closed() %}
 
     -- cleanup
     {% if existing_relation is not none %}

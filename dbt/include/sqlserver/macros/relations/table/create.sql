@@ -107,11 +107,6 @@
     {{ get_use_database_sql(relation.database) }}
     {{ get_create_view_as_sql(tmp_relation, sql) }}
 
-    {%- set table_name -%}
-        {{ relation }}
-    {%- endset -%}
-
-
     {%- set contract_config = config.get('contract') -%}
     {#- not plain `contract_config.enforced`: contracts are suppressed for temp
         builds, and the shared macros take the resolved flag as a parameter -#}
@@ -125,7 +120,16 @@
             IF OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}', 'U') IS NOT NULL
                 EXEC('DROP TABLE {{ relation }}');
             {%- endif -%}
-            SELECT * INTO {{ table_name }} FROM {{ tmp_relation }} {{ query_label }}
+            {#- Create then load, rather than one fused `SELECT * INTO`: see
+                sqlserver__get_create_table_empty_sql for why (#819). Both
+                statements land in this one batch, so the create's Sch-M is
+                released when the create finishes only if the batch is not
+                inside a transaction - which is why every caller of this macro
+                declines the ambient transaction (table.sql, incremental.sql).
+                Contracts are never enforced on this branch by definition; the
+                gate above owns that case. -#}
+            {{ sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, false) }};
+            {{ sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, false) }}
         {% endif %}
     {%- endset -%}
 
