@@ -1,13 +1,15 @@
 """
 Unit tests for the sqlserver__generate_schema_name macro.
 
-These tests use Jinja2 directly - no database connection required.
+These tests use Jinja2 directly - no database connection required. Each case
+sets the rendered flag value explicitly, independent of the adapter's actual
+default (`True` as of the 1.12 deprecation of the legacy behaviour).
 
 Behaviour matrix:
-  flag=False (default/legacy) + no custom_schema  -> target.schema
-  flag=False (default/legacy) + "reporting"       -> "reporting"  (NO prefix)
-  flag=True  (dbt-core concat) + no custom_schema -> target.schema
-  flag=True  (dbt-core concat) + "reporting"      -> "target_schema_reporting"
+  flag=False (legacy, deprecated) + no custom_schema  -> target.schema
+  flag=False (legacy, deprecated) + "reporting"       -> "reporting"  (NO prefix)
+  flag=True  (dbt-core concat, default) + no custom_schema -> target.schema
+  flag=True  (dbt-core concat, default) + "reporting"      -> "target_schema_reporting"
 """
 
 import jinja2
@@ -93,12 +95,12 @@ def _render(
 
 
 # ---------------------------------------------------------------------------
-# Tests - flag=False  (legacy behaviour, the default)
+# Tests - flag=False  (legacy behaviour, deprecated opt-out)
 # ---------------------------------------------------------------------------
 
 
 class TestLegacyBehaviour:
-    """When flag is False (or absent), uses legacy adapter behaviour."""
+    """When flag is explicitly disabled, uses the deprecated legacy adapter behaviour."""
 
     def test_no_custom_schema_returns_target_schema(self):
         """Without a custom schema, the target schema is returned unchanged."""
@@ -136,12 +138,12 @@ class TestLegacyBehaviour:
 
 
 # ---------------------------------------------------------------------------
-# Tests - flag=True  (dbt-core default concatenation)
+# Tests - flag=True  (dbt-core default concatenation, the adapter default)
 # ---------------------------------------------------------------------------
 
 
 class TestDefaultConcatBehaviour:
-    """When flag is True, delegates to default__generate_schema_name."""
+    """When flag is True (default), delegates to default__generate_schema_name."""
 
     def test_no_custom_schema_returns_target_schema(self):
         assert _render(None, target_schema="dbt_dev", use_default_concat=True) == "dbt_dev"

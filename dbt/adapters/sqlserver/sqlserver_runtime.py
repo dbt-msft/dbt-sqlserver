@@ -45,6 +45,11 @@ class PyodbcModuleProtocol(Protocol):
     InterfaceError: type[Exception]
     DatabaseError: type[Exception]
     pooling: bool
+    # Whether pyodbc decodes a uniqueidentifier column as uuid.UUID rather
+    # than str. Read by the CTE probe, which has to report the same type
+    # executing the query would have. Module-global, so it can change under
+    # us; nothing here sets it.
+    native_uuid: bool
 
     def connect(self, *args: Any, **kwargs: Any) -> Any: ...
 

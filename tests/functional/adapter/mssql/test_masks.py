@@ -75,7 +75,7 @@ models:
 # A schema whose name needs delimiters: a dot made the bare OBJECT_ID() lookup
 # in the mask macros return NULL, so masks were silently never applied (#785).
 dotted_schema_model_sql = """
-{{ config(materialized="table", schema=target.schema ~ '.x') }}
+{{ config(materialized="table", schema='dotted.x') }}
 select cast('Smith' as varchar(50)) as surname
 """
 
@@ -119,7 +119,7 @@ class TestColumnPropertyMasks:
     @pytest.fixture(scope="class", autouse=True)
     def drop_dotted_schema(self, project):
         yield
-        schema = f"{project.test_schema}.x"
+        schema = f"{project.test_schema}_dotted.x"
         with get_connection(project.adapter):
             project.adapter.execute(f'DROP TABLE IF EXISTS "{schema}".dotted_schema_model')
             project.adapter.execute(f'DROP SCHEMA IF EXISTS "{schema}"')
@@ -142,7 +142,9 @@ class TestColumnPropertyMasks:
         """A dot in the schema made OBJECT_ID() return NULL, so the mask
         introspection found nothing and masks were silently skipped (#785)."""
         run_dbt(["run"])
-        masks = masked_columns(project, "dotted_schema_model", schema=f"{project.test_schema}.x")
+        masks = masked_columns(
+            project, "dotted_schema_model", schema=f"{project.test_schema}_dotted.x"
+        )
         assert masks.get("surname") == "default()"
 
     def test_unprivileged_user_sees_masked_values(self, project):
