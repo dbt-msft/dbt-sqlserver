@@ -447,13 +447,28 @@ class TestQueryOptionsCore:
     def test_options_render_on_both_dml_statements(self, project):
         """A table_refresh_method='dml' model takes the DML-refresh path on the
         second (steady-state) run, not the create_table_as path. That path has two
-        grant-taking statements — the 'main' SELECT INTO scratch build and the
+        grant-taking statements — the 'main' scratch load and the
         'dml_refresh_swap' INSERT — and BOTH must carry the query_options hint.
+
+        Since #819 the scratch build is two statements rather than one fused
+        `SELECT * INTO`: an empty `SELECT TOP 0 * INTO`, which moves no rows and
+        so deliberately carries no hint, then the 'main'
+        `INSERT ... WITH (TABLOCK)` that loads it. The hint rides the statement
+        that moves the rows and takes the memory grant, which is 'main'.
 
         Only the 'main' statement lands in target/run; the swap runs via its own
         statement() call. So this asserts against the executed SQL captured from the
         debug log, matching each statement bounded by its terminating ';' so a hint
         on one statement can't be mistaken for a hint on the other.
+
+        That last property needs care now that BOTH statements are
+        `INSERT ... SELECT ... FROM <a __dbt_refresh relation>` — a bare
+        `INSERT INTO ... __dbt_refresh ... OPTION` pattern matches either one, so
+        the swap assertion would pass on the scratch load even if the swap had
+        lost its hint entirely. They are told apart by what each selects FROM:
+        the scratch load reads the tmp view (`...__dbt_refresh__dbt_tmp_vw`) and
+        is the only one with `WITH (TABLOCK)`; the swap reads the scratch table
+        (`...__dbt_refresh`, with no `__dbt_tmp_vw` suffix).
         """
         # First run creates the table via the standard create path.
         run_dbt(["run", "--select", "dml_refresh_model"])
@@ -464,23 +479,30 @@ class TestQueryOptionsCore:
 
         _, logs = run_dbt_and_capture(["--debug", "run", "--select", "dml_refresh_model"])
 
-        # 'main' — SELECT * INTO <scratch> FROM <tmp view>, must carry the hint.
+        # 'main' — INSERT INTO <scratch> WITH (TABLOCK) SELECT * FROM <tmp view>.
         # [^;]* keeps the match inside the single statement (its only ';' is the
-        # terminator that follows the OPTION clause).
+        # terminator that follows the OPTION clause). WITH (TABLOCK) and the
+        # tmp view both mark this as the scratch load, not the swap.
         main_match = re.search(
-            r"SELECT \* INTO[^;]*__dbt_refresh__dbt_tmp_vw[^;]*OPTION \([^;]*MAXDOP 1",
+            r"INSERT INTO[^;]*WITH \(TABLOCK\)[^;]*"
+            r"FROM[^;]*__dbt_refresh__dbt_tmp_vw[^;]*OPTION \([^;]*MAXDOP 1",
             logs,
             re.IGNORECASE,
         )
         assert main_match is not None, (
-            "query_options missing from the 'main' SELECT INTO statement of the DML refresh"
+            "query_options missing from the 'main' scratch-load INSERT of the DML refresh"
         )
 
-        # 'dml_refresh_swap' — INSERT ... SELECT ... FROM <scratch>, must carry
-        # the hint too. The INSERT...SELECT spans newlines but has no interior
-        # ';', so [^;]* stays within it and won't reach the main statement above.
+        # 'dml_refresh_swap' — INSERT INTO <target> (cols) SELECT cols FROM
+        # <scratch>, must carry the hint too. The INSERT...SELECT spans newlines
+        # but has no interior ';', so [^;]* stays within it and won't reach the
+        # scratch load above. The negative lookahead is what excludes that load:
+        # it selects FROM the tmp view, whose name continues past __dbt_refresh
+        # with __dbt_tmp_vw, while the swap selects FROM the scratch table, where
+        # __dbt_refresh ends the name.
         swap_match = re.search(
-            r"INSERT INTO[^;]*SELECT[^;]*__dbt_refresh[^;]*OPTION \([^;]*MAXDOP 1",
+            r"INSERT INTO[^;]*FROM[^;]*__dbt_refresh(?!__dbt_tmp_vw)"
+            r"[^;]*OPTION \([^;]*MAXDOP 1",
             logs,
             re.IGNORECASE,
         )

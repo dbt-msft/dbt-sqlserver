@@ -1,3 +1,84 @@
+{% macro sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, contract_enforced) -%}
+    {#-
+      SQL that creates `relation` empty, with no rows loaded. Pair it with
+      sqlserver__get_tablock_insert_sql to build a table in two statements
+      instead of one fused `SELECT * INTO`.
+
+      Why the split matters: a fused `SELECT ... INTO` both creates the object
+      and loads it, so SQL Server holds the object's Sch-M lock from the moment
+      the statement starts until it finishes. Sch-M is the one mode
+      incompatible with the Sch-S lock every metadata reader takes, so a slow
+      load blocks metadata readers in *other* sessions for its whole duration
+      (dbt-msft/dbt-sqlserver#819). Creating the object empty takes Sch-M for
+      an instant; the load that follows takes no Sch-M at all.
+
+      Splitting only pays off when the two statements do not share an open
+      transaction - locks are held to commit, not to end-of-statement - so
+      callers must either run the pair in autocommit or commit between them.
+      See each call site for how it does that.
+
+      Returns SQL; it executes nothing, wraps nothing in EXEC() and manages no
+      transaction, so callers keep control of batching and lock boundaries.
+
+      `contract_enforced` is a parameter rather than a config lookup on
+      purpose: sqlserver__create_table_as suppresses contracts for temporary
+      relations, so the call sites do not agree on how to derive it. Deriving
+      it here would silently change behaviour for temp builds.
+
+      Only valid inside a model materialization: the contract branch reads the
+      ambient `model` context var via get_assert_columns_equivalent, which also
+      raises on a column mismatch. Keep that assertion in this macro only, so
+      it fires exactly once per build.
+    -#}
+    {%- if contract_enforced -%}
+        CREATE TABLE {{ relation }}
+        {{ get_assert_columns_equivalent(sql) }}
+        {{ build_columns_constraints(relation) }}
+    {%- else -%}
+        SELECT TOP 0 * INTO {{ relation }} FROM {{ tmp_relation }}
+    {%- endif -%}
+{%- endmacro %}
+
+
+{% macro sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, contract_enforced) -%}
+    {#-
+      SQL that bulk-loads `relation` from `tmp_relation`. The companion to
+      sqlserver__get_create_table_empty_sql above; see it for why the create
+      and the load are separate statements.
+
+      WITH (TABLOCK) is what keeps this minimally logged under the simple and
+      bulk-logged recovery models, matching the `SELECT * INTO` it replaces:
+      minimal logging needs a table lock on a heap with no nonclustered
+      indexes. Do not drop the hint to "reduce blocking" - it costs log volume,
+      and an X table lock is compatible with Sch-S anyway, so it never blocks
+      the metadata readers this split exists to protect.
+
+      `query_label` is the OPTION (...) clause from
+      get_query_options(parse_options=True). It rides the data-movement
+      statement, not the empty create, because that is the statement whose plan
+      takes a memory grant and whose label people search for.
+
+      Returns SQL; executes nothing. `contract_enforced` is a parameter for the
+      reason given on the create macro.
+
+      Only valid inside a model materialization: the contract branch reads the
+      ambient `model` context var for its column list.
+    -#}
+    {%- if contract_enforced -%}
+        {%- set list_columns -%}
+            {%- for column in model['columns'] -%}
+                {{ adapter.quote(column) }}{{ ", " if not loop.last }}
+            {%- endfor -%}
+        {%- endset -%}
+        INSERT INTO {{ relation }} WITH (TABLOCK) ({{ list_columns }})
+        SELECT {{ list_columns }} FROM {{ tmp_relation }} {{ query_label }}
+    {%- else -%}
+        INSERT INTO {{ relation }} WITH (TABLOCK)
+        SELECT * FROM {{ tmp_relation }} {{ query_label }}
+    {%- endif -%}
+{%- endmacro %}
+
+
 {% macro sqlserver__create_table_as(temporary, relation, sql) -%}
     {%- set query_label = get_query_options(parse_options=True) -%}
     {%- set full_refresh_build = config.get('full_refresh_build', 'heap_then_index') -%}
@@ -26,31 +107,29 @@
     {{ get_use_database_sql(relation.database) }}
     {{ get_create_view_as_sql(tmp_relation, sql) }}
 
-    {%- set table_name -%}
-        {{ relation }}
-    {%- endset -%}
-
-
     {%- set contract_config = config.get('contract') -%}
+    {#- not plain `contract_config.enforced`: contracts are suppressed for temp
+        builds, and the shared macros take the resolved flag as a parameter -#}
+    {%- set contract_enforced = contract_config.enforced and (not temporary) -%}
     {%- set query -%}
-        {% if contract_config.enforced and (not temporary) %}
-            CREATE TABLE {{table_name}}
-            {{ get_assert_columns_equivalent(sql)  }}
-            {{ build_columns_constraints(relation) }}
-            {% set listColumns %}
-                {% for column in model['columns'] %}
-                    {{ adapter.quote(column) }}{{ ", " if not loop.last }}
-                {% endfor %}
-            {%endset%}
-            INSERT INTO {{relation}} WITH (TABLOCK) ({{listColumns}})
-            SELECT {{listColumns}} FROM {{tmp_relation}} {{ query_label }}
-
+        {% if contract_enforced %}
+            {{ sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, contract_enforced) }}
+            {{ sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, contract_enforced) }}
         {% else %}
             {%- if build_into_temp -%}
             IF OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}', 'U') IS NOT NULL
                 EXEC('DROP TABLE {{ relation }}');
             {%- endif -%}
-            SELECT * INTO {{ table_name }} FROM {{ tmp_relation }} {{ query_label }}
+            {#- Create then load, rather than one fused `SELECT * INTO`: see
+                sqlserver__get_create_table_empty_sql for why (#819). Both
+                statements land in this one batch, so the create's Sch-M is
+                released when the create finishes only if the batch is not
+                inside a transaction - which is why every caller of this macro
+                declines the ambient transaction (table.sql, incremental.sql).
+                Contracts are never enforced on this branch by definition; the
+                gate above owns that case. -#}
+            {{ sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, false) }};
+            {{ sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, false) }}
         {% endif %}
     {%- endset -%}
 
@@ -131,16 +210,11 @@
         IF OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}', 'U') IS NOT NULL
             EXEC('DROP TABLE {{ relation }}');
 
-        {% if contract_enforced %}
-            {%- set ddl_query -%}
-                CREATE TABLE {{ relation }}
-                {{ get_assert_columns_equivalent(sql)  }}
-                {{ build_columns_constraints(relation) }}
-            {%- endset -%}
-            EXEC('{{- escape_single_quotes(ddl_query) -}}')
-        {% else %}
-            EXEC('SELECT TOP 0 * INTO {{ relation }} FROM {{ tmp_relation }}')
-        {% endif %}
+        {#- escape_single_quotes now covers both branches: the empty create is
+            built from rendered relation names, and an identifier carrying a
+            single quote would otherwise break out of the EXEC literal -#}
+        {%- set ddl_query = sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, contract_enforced) -%}
+        EXEC('{{- escape_single_quotes(ddl_query) -}}')
 
         {# mark the rebuild in progress; removed atomically with the load below #}
         EXEC sp_addextendedproperty @name = N'dbt_full_refresh_incomplete', @value = '1',
@@ -166,22 +240,7 @@
         {{ sqlserver__get_create_index_sql(relation, prebuilt_ns.clustered_dict) }}
     {% endif %}
 
-    {%- if contract_enforced -%}
-        {%- set listColumns -%}
-            {%- for column in model['columns'] -%}
-                {{ adapter.quote(column) }}{{ ", " if not loop.last }}
-            {%- endfor -%}
-        {%- endset -%}
-        {%- set insert_statement -%}
-            INSERT INTO {{ relation }} WITH (TABLOCK) ({{ listColumns }})
-            SELECT {{ listColumns }} FROM {{ tmp_relation }} {{ query_label }}
-        {%- endset -%}
-    {%- else -%}
-        {%- set insert_statement -%}
-            INSERT INTO {{ relation }} WITH (TABLOCK)
-            SELECT * FROM {{ tmp_relation }} {{ query_label }}
-        {%- endset -%}
-    {%- endif %}
+    {%- set insert_statement = sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, contract_enforced) %}
     {#- load and unmark atomically: any failure rolls back and keeps the marker.
         Relies on the session-level SET XACT_ABORT ON applied at connection
         open (see #718) so a run-time error here rolls back instead of
