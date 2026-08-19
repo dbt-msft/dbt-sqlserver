@@ -593,13 +593,19 @@ def index_config_changes(
             SQLServerIndexConfig.parse_relation_results(rows_by_name[name])
         )
         changes.append(
-            SQLServerIndexConfigChange(action=RelationConfigChangeAction.drop, context=context)
+            SQLServerIndexConfigChange(
+                # `action` is inherited from RelationConfigChange, a dataclass a
+                # type checker cannot see; see [tool.ty.rules] in pyproject.toml.
+                action=RelationConfigChangeAction.drop,  # ty: ignore[unknown-argument]
+                context=context,
+            )
         )
     for name, config in expected_by_name.items():
         if name not in existing_names:
             changes.append(
                 SQLServerIndexConfigChange(
-                    action=RelationConfigChangeAction.create, context=config
+                    action=RelationConfigChangeAction.create,  # ty: ignore[unknown-argument]
+                    context=config,
                 )
             )
     return changes, warnings

@@ -166,3 +166,45 @@ class TestExpandColumnTypes:
         adapter.expand_column_types(goal, current, max_rows=-1)
 
         adapter.alter_column_type.assert_not_called()
+
+
+class TestGetRowCount:
+    """expand_column_types' row-count probe owns the cursor it is handed by
+    add_select_query, and has to release it."""
+
+    @pytest.fixture
+    def raw_adapter(self):
+        config = MagicMock()
+        config.flags = {}
+        config.project_name = "test"
+        config.credentials.type = "sqlserver"
+        return SQLServerAdapter(config, MagicMock())
+
+    @staticmethod
+    def _cursor(count=42):
+        """A single-row COUNT_BIG result. Explicit about being exhausted --
+        a MagicMock's fetchmany/nextset are truthy forever, which would hang
+        any caller that drains before closing."""
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (count,)
+        cursor.fetchmany.return_value = []
+        cursor.nextset.return_value = False
+        return cursor
+
+    @staticmethod
+    def _attach(adapter, cursor):
+        adapter.connections.add_select_query = MagicMock(return_value=(MagicMock(), cursor))
+        return cursor
+
+    def test_returns_the_count(self, raw_adapter):
+        self._attach(raw_adapter, self._cursor())
+
+        assert raw_adapter._get_row_count(make_rel()) == 42
+
+    def test_closes_the_cursor(self, raw_adapter):
+        cursor = self._cursor()
+        self._attach(raw_adapter, cursor)
+
+        raw_adapter._get_row_count(make_rel())
+
+        cursor.close.assert_called_once()

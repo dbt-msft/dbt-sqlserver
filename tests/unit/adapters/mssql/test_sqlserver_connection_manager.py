@@ -30,6 +30,7 @@ from dbt.adapters.sqlserver.sqlserver_backend import (
 )
 from dbt.adapters.sqlserver.sqlserver_backend import is_pyodbc_handle as _is_pyodbc_handle
 from dbt.adapters.sqlserver.sqlserver_connections import (
+    ARROW_TYPE_CODE_TO_NAME,
     SQLServerConnectionManager,
 )
 from dbt.adapters.sqlserver.sqlserver_credentials import (
@@ -690,14 +691,15 @@ def test_data_type_code_to_name_handles_repr_and_arrow_codes() -> None:
     assert SQLServerConnectionManager.data_type_code_to_name("<class 'str'>") == "varchar"
     assert SQLServerConnectionManager.data_type_code_to_name("int") == "int"
 
-    # Arrow integer type codes (ADBC path).
+    # Arrow integer type codes (ADBC path). The keys are Arrow type ids, so
+    # these are ``pa.<type>().id`` -- see the pyarrow cross-check below.
     assert SQLServerConnectionManager.data_type_code_to_name(1) == "bit"  # bool_
-    assert SQLServerConnectionManager.data_type_code_to_name(3) == "varchar"  # string / utf8
-    assert SQLServerConnectionManager.data_type_code_to_name(8) == "int"  # int32
-    assert SQLServerConnectionManager.data_type_code_to_name(7) == "float"  # float64
-    assert SQLServerConnectionManager.data_type_code_to_name(17) == "datetime2(6)"  # timestamp
-    assert SQLServerConnectionManager.data_type_code_to_name(10) == "smallint"  # int8
-    assert SQLServerConnectionManager.data_type_code_to_name(5) == "varchar(max)"  # large_string
+    assert SQLServerConnectionManager.data_type_code_to_name(13) == "varchar"  # string / utf8
+    assert SQLServerConnectionManager.data_type_code_to_name(7) == "int"  # int32
+    assert SQLServerConnectionManager.data_type_code_to_name(12) == "float"  # float64
+    assert SQLServerConnectionManager.data_type_code_to_name(18) == "datetime2(6)"  # timestamp
+    assert SQLServerConnectionManager.data_type_code_to_name(3) == "smallint"  # int8
+    assert SQLServerConnectionManager.data_type_code_to_name(34) == "varchar(max)"  # large_string
 
     # Unrecognised Arrow integer code raises rather than silently
     # mis-reporting the column type.
@@ -712,6 +714,76 @@ def test_data_type_code_to_name_handles_repr_and_arrow_codes() -> None:
     # Unknown string codes still raise on the non-ADBC path.
     with pytest.raises(DbtRuntimeError, match="no matching entry found"):
         SQLServerConnectionManager.data_type_code_to_name("nonexistent_type")
+
+
+def test_data_type_code_to_name_covers_every_arrow_type_sql_server_emits() -> None:
+    """The ADBC mssql driver reports column types as pyarrow ``DataType``
+    objects, not codes or names. A type missing from the map is not a wrong
+    name, it is a hard failure the moment a model selects that column, so
+    every Arrow type a SQL Server result set can produce is pinned here."""
+    pa = pytest.importorskip("pyarrow")
+
+    # source SQL Server type -> Arrow type the driver reports -> mapped name
+    expected = [
+        ("bigint", pa.int64(), "bigint"),
+        ("int", pa.int32(), "int"),
+        ("smallint", pa.int16(), "smallint"),
+        ("tinyint", pa.uint8(), "tinyint"),  # the only unsigned type in T-SQL
+        ("bit", pa.bool_(), "bit"),
+        ("decimal(10,2)", pa.decimal128(10, 2), "decimal"),
+        ("float", pa.float64(), "float"),  # T-SQL float is 8-byte ...
+        ("real", pa.float32(), "real"),  # ... and real is 4-byte
+        ("date", pa.date32(), "date"),
+        ("time", pa.time64("ns"), "time"),
+        ("datetime2", pa.timestamp("us", tz="UTC"), "datetime2(6)"),
+        ("varchar", pa.string(), "varchar"),
+        ("varbinary", pa.binary(), "varbinary"),
+        ("uniqueidentifier", pa.uuid(), "uniqueidentifier"),
+    ]
+
+    for sql_type, arrow_type, name in expected:
+        assert SQLServerConnectionManager.data_type_code_to_name(arrow_type) == name, sql_type
+
+
+def test_arrow_type_code_map_keys_are_real_arrow_type_ids() -> None:
+    """``ARROW_TYPE_CODE_TO_NAME`` is keyed on ``pa.<type>().id``, and the two
+    Arrow maps have to answer alike -- a cursor reporting ids and one
+    reporting names must not disagree about the same column. Both are easy to
+    hand-write wrong, so pyarrow is asked rather than trusted from memory."""
+    pa = pytest.importorskip("pyarrow")
+
+    by_id = {
+        pa.bool_(): "bit",
+        pa.uint8(): "tinyint",
+        pa.int8(): "smallint",
+        pa.uint16(): "int",
+        pa.int16(): "smallint",
+        pa.uint32(): "bigint",
+        pa.int32(): "int",
+        pa.int64(): "bigint",
+        pa.float32(): "real",
+        pa.float64(): "float",
+        pa.string(): "varchar",
+        pa.binary(): "varbinary",
+        pa.date32(): "date",
+        pa.date64(): "date",
+        pa.timestamp("us"): "datetime2(6)",
+        pa.time32("s"): "time",
+        pa.time64("us"): "time",
+        pa.decimal128(5, 2): "decimal",
+        pa.decimal256(40, 2): "decimal",
+        pa.large_string(): "varchar(max)",
+        pa.large_binary(): "varbinary",
+    }
+
+    for arrow_type, name in by_id.items():
+        assert ARROW_TYPE_CODE_TO_NAME.get(arrow_type.id) == name, str(arrow_type)
+        # ... and the name-keyed map agrees with the id-keyed one.
+        assert SQLServerConnectionManager.data_type_code_to_name(arrow_type) == name
+
+    # Every id in the map is accounted for above: no leftover entry keyed on
+    # an id no pyarrow type actually has.
+    assert set(ARROW_TYPE_CODE_TO_NAME) == {t.id for t in by_id}
 
 
 def test_mssql_python_active_directory_default_passes() -> None:

@@ -2,6 +2,7 @@ import re
 
 import pytest
 
+from dbt.adapters.sqlserver.sqlserver_auth import is_adbc_backend
 from dbt.tests.adapter.constraints.fixtures import (
     model_data_type_schema_yml,
     my_incremental_model_sql,
@@ -750,3 +751,169 @@ class TestIncrementalConstraintsRollback(BaseIncrementalConstraintsRollback):
 
         # Its result includes the expected error messages
         self.assert_expected_error_messages(failing_results[0].message, expected_error_messages)
+
+
+# ---------------------------------------------------------------------------
+# Contract enforcement on a model whose SQL opens with a CTE
+# ---------------------------------------------------------------------------
+#
+# Every fixture above renders to a plain `select`, so
+# sqlserver__get_empty_subquery_sql wraps it as `select * from (...) where 1 = 0`
+# and the contract probe in columns_spec_ddl.sql costs nothing. That wrapper
+# cannot wrap a query that already starts with a CTE, and passes it through
+# untouched instead (dbt/include/sqlserver/macros/adapters/columns.sql), so a
+# CTE-headed model runs in full just to have its column shape read -- and the
+# cursor holding the result is abandoned.
+#
+# Abandoning it while the server is still working on the request makes the
+# driver cancel it, and the attention that sends rolls back the open
+# transaction under `SET XACT_ABORT ON` without raising anything. The model's
+# in-transaction pre-hook is what that rollback destroys here. Sized megabytes
+# past the point where the server has finished streaming; see the note in
+# tests/functional/adapter/dbt/test_transactions.py for why there is no
+# threshold constant to use instead.
+_CTE_CONTRACT_ROWS = 5000
+
+cte_contract_model_sql = (
+    """
+{{ config(
+    materialized='table',
+    contract={'enforced': true},
+    pre_hook="INSERT INTO {{ this.schema }}.contract_audit_log (msg) VALUES ('before_main')"
+) }}
+with source_data as (
+    select top (%d)
+        row_number() over (order by (select null)) as id,
+        cast(replicate('x', 500) as varchar(8000)) as payload
+    from sys.all_objects a cross join sys.all_objects b
+)
+select id, payload from source_data
+"""
+    % _CTE_CONTRACT_ROWS
+)
+
+cte_contract_schema_yml = """
+version: 2
+models:
+  - name: cte_contract_model
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: bigint
+      - name: payload
+        data_type: varchar(8000)
+"""
+
+
+class TestCteModelConstraintsColumnsEqual:
+    """The contract probe must not disturb the transaction it runs inside."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "cte_contract_model.sql": cte_contract_model_sql,
+            "constraints_schema.yml": cte_contract_schema_yml,
+        }
+
+    def test_contract_probe_leaves_the_transaction_intact(self, project):
+        project.run_sql(
+            "CREATE TABLE {schema}.contract_audit_log (msg varchar(100))",
+        )
+
+        results = run_dbt(["run", "-s", "cte_contract_model"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        rows = project.run_sql("select count(*) from {schema}.contract_audit_log", fetch="one")
+        assert rows[0] == 1, (
+            "the pre-hook ran inside the model's transaction and its row is gone: "
+            "the contract probe abandoned its cursor, the driver cancelled the "
+            "request, and XACT_ABORT rolled the transaction back"
+        )
+
+        relation = relation_from_name(project.adapter, "cte_contract_model")
+        built = project.run_sql(f"select count(*) from {relation}", fetch="one")
+        assert built[0] == _CTE_CONTRACT_ROWS
+
+
+# The type set the probe has to report consistently. Contract comparison reads
+# these, so whichever way the probe learns a query's shape must agree with the
+# other -- see TestCteProbeAvoidsExecution.
+_PROBE_TYPE_MATRIX = [
+    "bigint",
+    "int",
+    "smallint",
+    "tinyint",
+    "bit",
+    "decimal(10,2)",
+    "numeric(5,1)",
+    "money",
+    "float",
+    "real",
+    "date",
+    "time",
+    "datetime",
+    "datetime2(3)",
+    "char(5)",
+    "nchar(5)",
+    "varchar(10)",
+    "nvarchar(20)",
+    "varchar(max)",
+    "nvarchar(max)",
+    "uniqueidentifier",
+    "varbinary(10)",
+]
+
+# The ADBC mssql driver cannot represent these at all ("Unknown type
+# DATETIMEOFFSET", and sql_variant arrives as an Arrow struct), so selecting
+# one fails before the probe is reached. The ODBC-based backends read both,
+# and disagree with each other on what Python type they are -- exactly what
+# the describe branch has to follow -- so they are still worth pinning there.
+_PROBE_TYPE_MATRIX_NON_ADBC = [
+    "datetimeoffset",
+    "sql_variant",
+]
+
+
+class TestCteProbeAvoidsExecution:
+    """A CTE-headed query reaches get_column_schema_from_query unwrapped,
+    because sqlserver__get_empty_subquery_sql cannot neuter it with
+    `where 1 = 0`. Reading its shape should not mean running it."""
+
+    def test_cte_probe_does_not_execute_the_query(self, project):
+        # 1/0 compiles cleanly and only fails when the query actually runs, so
+        # getting columns back is proof the probe did not execute it.
+        sql = "with q as (select 1/0 as boom, cast('x' as varchar(10)) as t) select * from q"
+
+        with project.adapter.connection_named("_probe"):
+            columns = project.adapter.get_column_schema_from_query(sql)
+
+        assert [c.column for c in columns] == ["boom", "t"]
+
+    def test_cte_probe_reports_the_same_types_as_the_wrapped_probe(self, project):
+        """Guard, not a symptom: this has to hold before and after any change
+        to how the CTE branch reads metadata, or contract comparisons shift
+        under models that merely happen to open with a CTE."""
+        mismatches = []
+        matrix = list(_PROBE_TYPE_MATRIX)
+        if not is_adbc_backend(project.adapter.config.credentials.backend):
+            matrix += _PROBE_TYPE_MATRIX_NON_ADBC
+
+        with project.adapter.connection_named("_probe"):
+            for type_sql in matrix:
+                plain = f"select cast(null as {type_sql}) as c"
+                wrapped = project.adapter.get_column_schema_from_query(
+                    f"select * from ({plain}) dbt_sbq_tmp where 1 = 0"
+                )
+                cte = project.adapter.get_column_schema_from_query(
+                    f"with q as ({plain}) select * from q"
+                )
+                if [(c.column, c.dtype) for c in cte] != [(c.column, c.dtype) for c in wrapped]:
+                    mismatches.append(
+                        f"{type_sql}: cte={[(c.column, c.dtype) for c in cte]} "
+                        f"wrapped={[(c.column, c.dtype) for c in wrapped]}"
+                    )
+
+        assert not mismatches, "probe branches disagree on:\n" + "\n".join(mismatches)
