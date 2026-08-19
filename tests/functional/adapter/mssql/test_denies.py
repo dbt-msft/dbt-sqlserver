@@ -10,12 +10,35 @@ and skips without failing; and that the DENY is actually enforced against a
 principal that holds a schema-level GRANT.
 """
 
+import os
+
 import pytest
 
 from dbt.tests.util import get_connection, run_dbt, run_dbt_and_capture
 
 # A login-less database user used as the deny target across the suite.
-DENY_PRINCIPAL = "dbt_deny_reader"
+#
+# The name is per-xdist-worker, and that is load-bearing rather than cosmetic. A
+# database principal is database-scoped: unlike `project.test_schema`, it is NOT
+# isolated per test. The suite runs under `pytest -n auto` (see the Makefile),
+# which spreads these classes across worker processes sharing one TestDB, so a
+# single shared name lets the first class to finish drop the user out from under
+# every class still running — taking its sys.database_permissions rows with it.
+# apply_denies is deliberately warn-and-skip on a missing principal, so the
+# rebuild does not fail; the DENY just silently never lands and the assertions
+# see an empty set. Classes on the same worker run sequentially, so a per-worker
+# name is enough to make setup and teardown non-overlapping.
+DENY_PRINCIPAL = "dbt_deny_reader_{}".format(os.environ.get("PYTEST_XDIST_WORKER", "main"))
+
+# Placeholder the model templates below carry in their `denies` config, swapped
+# for DENY_PRINCIPAL at import. str.format/f-strings are unusable on these: they
+# are Jinja, and `{{ config(...) }}` would be eaten as an escaped brace.
+PRINCIPAL_PLACEHOLDER = "__DENY_PRINCIPAL__"
+
+
+def with_principal(sql):
+    """Substitute the per-worker principal name into a model template."""
+    return sql.replace(PRINCIPAL_PLACEHOLDER, DENY_PRINCIPAL)
 
 
 # ---------------------------------------------------------------------------
@@ -65,10 +88,12 @@ def deny_principal(project):
 # table materialization
 # ---------------------------------------------------------------------------
 
-table_deny_sql = """
-{{ config(materialized="table", denies={"select": ["dbt_deny_reader"]}) }}
+table_deny_sql = with_principal(
+    """
+{{ config(materialized="table", denies={"select": ["__DENY_PRINCIPAL__"]}) }}
 select 1 as id, cast('secret' as varchar(50)) as ssn
 """
+)
 
 
 class TestTableDenies:
@@ -115,10 +140,12 @@ class TestTableDenies:
 # every run, so an object-level DENY is lost most often here.
 # ---------------------------------------------------------------------------
 
-view_deny_sql = """
-{{ config(materialized="view", denies={"select": ["dbt_deny_reader"]}) }}
+view_deny_sql = with_principal(
+    """
+{{ config(materialized="view", denies={"select": ["__DENY_PRINCIPAL__"]}) }}
 select 1 as id, cast('secret' as varchar(50)) as ssn
 """
+)
 
 
 class TestViewDenies:
@@ -140,11 +167,13 @@ class TestViewDenies:
 # incremental materialization — append and full-refresh paths
 # ---------------------------------------------------------------------------
 
-incremental_deny_sql = """
-{{ config(materialized="incremental", denies={"select": ["dbt_deny_reader"]}) }}
+incremental_deny_sql = with_principal(
+    """
+{{ config(materialized="incremental", denies={"select": ["__DENY_PRINCIPAL__"]}) }}
 select 1 as id
 {% if is_incremental() %}where 1 = 0{% endif %}
 """
+)
 
 
 class TestIncrementalDenies:
@@ -178,17 +207,19 @@ snapshot_source_sql = """
 select 1 as id, cast('Smith' as varchar(50)) as surname
 """
 
-denied_snapshot_sql = """
+denied_snapshot_sql = with_principal(
+    """
 {% snapshot denied_snapshot %}
 {{ config(
     unique_key='id',
     strategy='check',
     check_cols=['surname'],
-    denies={'select': ['dbt_deny_reader']}
+    denies={'select': ['__DENY_PRINCIPAL__']}
 ) }}
 select * from {{ ref('snap_source') }}
 {% endsnapshot %}
 """
+)
 
 
 class TestSnapshotDenies:
@@ -264,13 +295,15 @@ class TestAbsentPrincipal:
 # unsupported privilege: warn and skip rather than taking down the run
 # ---------------------------------------------------------------------------
 
-unsupported_privilege_sql = """
+unsupported_privilege_sql = with_principal(
+    """
 {{ config(
     materialized="table",
-    denies={"execute": ["dbt_deny_reader"], "select": ["dbt_deny_reader"]}
+    denies={"execute": ["__DENY_PRINCIPAL__"], "select": ["__DENY_PRINCIPAL__"]}
 ) }}
 select 1 as id
 """
+)
 
 
 class TestUnsupportedPrivilege:
