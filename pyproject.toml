@@ -78,7 +78,7 @@ dev = [
     "twine",
     # Pinned exactly: this is the single source of the ty version, read by the
     # pre-commit hook, `make ty` and the Type check workflow alike.
-    "ty==0.0.64",
+    "ty==0.0.72",
 ]
 
 [project.urls]
