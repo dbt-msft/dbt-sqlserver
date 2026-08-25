@@ -32,6 +32,19 @@ The functional tests require a running SQL Server instance. You can easily spin 
 make server
 ```
 
+If you would rather not run Docker, there is a rootless [podman](https://podman.io/)
+equivalent that builds the same image and passes the same environment, so
+`test.env` works unchanged:
+
+```shell
+make server-podman        # build and start
+make server-podman-logs   # follow init; ready at "user creation completed"
+make server-podman-stop   # remove the container
+```
+
+Override `MSSQL_VERSION` to test against another release, e.g.
+`make server-podman MSSQL_VERSION=2019`.
+
 ### Backend requirements at a glance
 
 | Backend | Python package | Debian/Ubuntu system packages |
