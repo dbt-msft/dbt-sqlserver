@@ -21,7 +21,27 @@ import pytest
 
 from dbt.tests.util import run_dbt
 
-_LINKED_SERVER_NAME = "LOCALLOOP"
+# A linked server is instance-wide, so a fixed name collides when pytest-xdist
+# runs this class on more than one worker against the same SQL Server: the
+# setup below drops-and-recreates, and the teardown drops outright, so one
+# worker pulls the server out from under another mid-run. The victim's models
+# then fail with Msg 7202 ("Could not find server ... in sys.servers") even
+# though its own fixture verified the server existed moments earlier - the
+# creator sees its own row, the other worker's connection does not.
+#
+# One name per worker process keeps them apart. It is stable across reruns
+# (unlike a uuid), so the IF EXISTS guard below still cleans up a server left
+# behind by a crashed run rather than leaking a new one each time.
+_PLACEHOLDER_SERVER_NAME = "LOCALLOOP"
+_LINKED_SERVER_NAME = "{}_{}".format(
+    _PLACEHOLDER_SERVER_NAME,
+    os.environ.get("PYTEST_XDIST_WORKER", "main").upper(),
+)
+
+
+def _for_this_worker(sql: str) -> str:
+    """Point SQL written against the placeholder name at this worker's server."""
+    return sql.replace(_PLACEHOLDER_SERVER_NAME, _LINKED_SERVER_NAME)
 
 
 def _create_linked_server_sql(major_version: int) -> str:
@@ -161,14 +181,17 @@ class TestOpenquery:
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "basic_model.sql": basic_sql,
-            "quotes_model.sql": quotes_sql,
-            "cr_model.sql": cr_sql,
-            "max_length_model.sql": max_length_sql,
-            "empty_server_model.sql": empty_server_sql,
-            "none_server_model.sql": none_server_sql,
-            "empty_remote_model.sql": empty_remote_sql,
-            "too_long_model.sql": too_long_sql,
+            name: _for_this_worker(body)
+            for name, body in {
+                "basic_model.sql": basic_sql,
+                "quotes_model.sql": quotes_sql,
+                "cr_model.sql": cr_sql,
+                "max_length_model.sql": max_length_sql,
+                "empty_server_model.sql": empty_server_sql,
+                "none_server_model.sql": none_server_sql,
+                "empty_remote_model.sql": empty_remote_sql,
+                "too_long_model.sql": too_long_sql,
+            }.items()
         }
 
     @pytest.fixture(scope="class")
@@ -205,7 +228,7 @@ class TestOpenquery:
     def test_emits_openquery_and_returns_rows(self, project, _run_all):
         """Happy path: quoted server name, literal remote SQL, real rows."""
         sql = _find_compiled_sql(project, "basic_model.sql")
-        assert 'OPENQUERY("LOCALLOOP", \'SELECT 1 AS id' in sql
+        assert _for_this_worker('OPENQUERY("LOCALLOOP", \'SELECT 1 AS id') in sql
         rows = project.run_sql(
             f"SELECT id, name FROM {project.test_schema}.basic_model ORDER BY id",
             fetch="all",
@@ -216,21 +239,21 @@ class TestOpenquery:
         """Quotes are doubled in the emitted SQL, and the remote literal
         round-trips to the value it's."""
         sql = _find_compiled_sql(project, "quotes_model.sql")
-        assert "OPENQUERY(\"LOCALLOOP\", 'SELECT ''it''''s'' AS msg')" in sql
+        assert _for_this_worker("OPENQUERY(\"LOCALLOOP\", 'SELECT ''it''''s'' AS msg')") in sql
         rows = project.run_sql(f"SELECT msg FROM {project.test_schema}.quotes_model", fetch="all")
         assert [row[0] for row in rows] == ["it's"]
 
     def test_carriage_returns_are_stripped_and_query_runs(self, project, _run_all):
         sql = _find_compiled_sql(project, "cr_model.sql")
         assert "\r" not in sql
-        assert 'OPENQUERY("LOCALLOOP", \'SELECT 1' in sql
+        assert _for_this_worker('OPENQUERY("LOCALLOOP", \'SELECT 1') in sql
         rows = project.run_sql(f"SELECT id FROM {project.test_schema}.cr_model", fetch="all")
         assert [row[0] for row in rows] == [1]
 
     def test_max_length_boundary_compiles(self, project, _run_all):
         """Exactly 8000 escaped characters is allowed."""
         sql = _find_compiled_sql(project, "max_length_model.sql")
-        assert 'OPENQUERY("LOCALLOOP", \'SELECT ' in sql
+        assert _for_this_worker('OPENQUERY("LOCALLOOP", \'SELECT ') in sql
 
     @pytest.mark.parametrize(
         "model_name,expected",
