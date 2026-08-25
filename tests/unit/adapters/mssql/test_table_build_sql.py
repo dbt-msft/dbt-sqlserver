@@ -213,25 +213,35 @@ def _render_batch(temporary, relation, config):
     )
 
 
-def test_create_table_as_batch_terminates_the_empty_create(target):
-    """The create and the load share one EXEC batch, so the create needs its
-    own terminator or the batch is a parse error."""
-    batch = _render_batch(False, target, _Config())
-    normalized = " ".join(batch.split())
-    assert "SELECT TOP 0 * INTO" in normalized
-    assert "INSERT INTO" in normalized
-    create_end = normalized.index("INSERT INTO")
-    assert normalized[:create_end].rstrip().endswith(";"), normalized[:create_end]
+def test_create_table_as_batch_terminates_the_drop_guard(target):
+    """A statement sharing an EXEC literal with the create needs a terminator.
+
+    The create and the load no longer share one (see the stage/load split), so
+    the create is now last in its literal and needs nothing after it. The drop
+    guard still precedes it there on throwaway builds, though, and an
+    unterminated guard makes the literal a parse error.
+    """
+    throwaway = SQLServerRelation.create(
+        database="db", schema="sch", identifier="rel__dbt_tmp", type="table"
+    )
+    normalized = " ".join(_render_batch(False, throwaway, _Config()).split())
+    assert "IF OBJECT_ID(" in normalized
+    create_start = normalized.index("SELECT TOP 0 * INTO")
+    assert normalized[:create_start].rstrip().endswith(";"), normalized[:create_start]
 
 
-def test_create_table_as_wraps_the_pair_in_one_escaped_exec(target):
-    """Both statements go through the single EXEC that escape_single_quotes
-    covers, so the load's OPTION clause cannot break out of the literal."""
+def test_create_table_as_escapes_every_exec_literal(target):
+    """The load's OPTION clause must not break out of its EXEC literal.
+
+    The create and the load used to share one EXEC; since the stage/load split
+    they have one each, so the escaping that protects the load now has to come
+    from the load half rather than from a shared wrapper. That is the invariant
+    worth pinning - the count below only documents which three there are.
+    """
     batch = _render_batch(False, target, _Config())
-    # The query batch, plus the trailing DROP VIEW - no EXEC of its own for the
-    # load, which would sit outside the escaping.
-    assert batch.count("EXEC('") == 2
-    # The label's quotes are doubled, proving the load text was escaped too.
+    # stage: the empty create. load: the insert, then the tmp view drop.
+    assert batch.count("EXEC('") == 3
+    # The label's quotes are doubled, proving the load text was escaped.
     assert "''dbt-sqlserver''" in batch
     assert "'dbt-sqlserver'" not in batch.replace("''dbt-sqlserver''", "")
 
@@ -347,3 +357,163 @@ def test_dml_refresh_commits_the_swap_before_the_tail():
     assert commit < reconcile, "commit the swap before reconciling indexes"
     # And the tail needs a transaction again, or adapter.commit() raises.
     assert "adapter.begin_if_closed()" in after_swap
+
+
+# -- the stage / load split (#819) --
+#
+# sqlserver__create_table_as is split at the seam between creating the object
+# and loading it, so a caller can put a transaction boundary between the two.
+# The halves are the source of truth and create_table_as is their
+# concatenation, so the callers that still want one batch (snapshots, the
+# incremental temp build) keep getting exactly that.
+
+_SPLIT_STUBS = (
+    """
+{% macro get_use_database_sql(database) %}USE [{{ database }}];{% endmacro %}
+{% macro get_create_view_as_sql(relation, sql) %}
+EXEC('CREATE OR ALTER VIEW {{ relation }} AS {{ sql }}')
+{%- endmacro %}
+{% macro escape_single_quotes(value) %}{{ value | replace("'", "''") }}{% endmacro %}
+{% macro get_query_options(parse_options=False) %}"""
+    + QUERY_LABEL
+    + """{% endmacro %}
+{% macro sqlserver__create_clustered_columnstore_index(relation) %}
+/* CCI on {{ relation }} */
+{%- endmacro %}
+"""
+)
+
+
+class _SplitContract:
+    def __init__(self, enforced):
+        self.enforced = enforced
+
+
+class _SplitConfig:
+    """Minimal stand-in for dbt's `config` context var."""
+
+    def __init__(self, contract_enforced=False, as_columnstore=True):
+        self._values = {
+            "contract": _SplitContract(contract_enforced),
+            "as_columnstore": as_columnstore,
+            "full_refresh_build": "heap_then_index",
+        }
+
+    def get(self, key, default=None):
+        return self._values.get(key, default)
+
+
+class _SplitAdapter(_Adapter):
+    """Adds the render-time side effect the stage half performs."""
+
+    def __init__(self):
+        self.dropped = []
+
+    def drop_relation(self, relation):
+        self.dropped.append(str(relation))
+
+
+def _render_split(call, adapter=None, config=None, **context):
+    source = _SPLIT_STUBS + _STUBS + CREATE_SQL.read_text() + "\n" + call
+    env = jinja2.Environment(
+        undefined=jinja2.StrictUndefined,
+        extensions=["jinja2.ext.do"],
+    )
+    return " ".join(
+        env.from_string(source)
+        .render(
+            adapter=adapter or _SplitAdapter(),
+            config=config or _SplitConfig(),
+            model={"columns": {"id": {}, "my col": {}}},
+            **context,
+        )
+        .split()
+    )
+
+
+def _stage(temporary=False):
+    return (
+        "{{ sqlserver__get_create_table_stage_sql("
+        f"{str(temporary).lower()}, target, 'select 1 as id') }}}}"
+    ).replace("}}}}", "}}")
+
+
+def _load(temporary=False):
+    return (
+        "{{ sqlserver__get_create_table_load_sql("
+        f"{str(temporary).lower()}, target, 'select 1 as id') }}}}"
+    ).replace("}}}}", "}}")
+
+
+def _whole(temporary=False):
+    return (
+        f"{{{{ sqlserver__create_table_as({str(temporary).lower()}, target, 'select 1 as id') }}}}"
+    )
+
+
+@pytest.mark.parametrize("contract_enforced", [True, False])
+def test_create_table_as_is_exactly_stage_then_load(target, contract_enforced):
+    """The invariant that keeps every existing caller safe.
+
+    Snapshots and the incremental temp build call create_table_as and run the
+    result as one batch. Whatever the split does, their SQL must stay the
+    concatenation of the two halves - no statement added, dropped or reordered.
+    """
+    config = _SplitConfig(contract_enforced=contract_enforced)
+    stage = _render_split(_stage(), config=config, target=target)
+    load = _render_split(_load(), config=config, target=target)
+    whole = _render_split(_whole(), config=config, target=target)
+    assert whole == " ".join(f"{stage} {load}".split())
+
+
+def test_stage_creates_the_view_and_the_empty_table_only(target):
+    sql = _render_split(_stage(), target=target)
+    assert "CREATE OR ALTER VIEW" in sql
+    assert "SELECT TOP 0 * INTO" in sql
+    # The load's work belongs to the other half.
+    assert "INSERT INTO" not in sql
+    assert "CCI" not in sql
+
+
+def test_load_inserts_drops_the_view_and_builds_the_cci(target):
+    sql = _render_split(_load(), target=target)
+    assert "INSERT INTO" in sql
+    assert "WITH (TABLOCK)" in sql
+    assert "DROP VIEW IF EXISTS" in sql
+    assert "CCI" in sql
+    # Creating the object is the other half's job.
+    assert "SELECT TOP 0 * INTO" not in sql
+    assert "CREATE OR ALTER VIEW" not in sql
+
+
+def test_view_drop_follows_the_insert_not_the_create(target):
+    """The load reads the view, so the drop cannot stay with the create."""
+    sql = _render_split(_load(), target=target)
+    assert sql.index("INSERT INTO") < sql.index("DROP VIEW IF EXISTS")
+
+
+def test_tmp_view_is_dropped_once_by_the_stage_half(target):
+    """adapter.drop_relation is a render-time side effect, not emitted SQL.
+
+    It must fire exactly once per build - in the stage half - so rendering the
+    halves separately does not drop the view twice, and rendering the whole
+    macro does not skip it.
+    """
+    stage_adapter = _SplitAdapter()
+    _render_split(_stage(), adapter=stage_adapter, target=target)
+    assert len(stage_adapter.dropped) == 1
+
+    load_adapter = _SplitAdapter()
+    _render_split(_load(), adapter=load_adapter, target=target)
+    assert load_adapter.dropped == []
+
+    whole_adapter = _SplitAdapter()
+    _render_split(_whole(), adapter=whole_adapter, target=target)
+    assert len(whole_adapter.dropped) == 1
+
+
+def test_temporary_build_skips_the_cci(target):
+    """as_columnstore never applied to temp builds; that must survive the split."""
+    sql = _render_split(_load(temporary=True), target=target)
+    assert "CCI" not in sql
+    assert "INSERT INTO" in sql

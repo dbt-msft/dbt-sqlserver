@@ -79,8 +79,27 @@
 {%- endmacro %}
 
 
-{% macro sqlserver__create_table_as(temporary, relation, sql) -%}
-    {%- set query_label = get_query_options(parse_options=True) -%}
+{% macro sqlserver__get_create_table_stage_sql(temporary, relation, sql) -%}
+    {#-
+      First half of a table build: everything up to and including creating the
+      object, loading no rows. Pair with sqlserver__get_create_table_load_sql.
+
+      The split exists so a caller can put a transaction boundary between
+      creating the object and loading it. Locks are held to commit, not to
+      end-of-statement, so an empty CREATE that shares a transaction with the
+      load holds the new object's Sch-M for the whole load - blocking every
+      metadata reader in every other session (#819). Committing after this half
+      releases it in an instant, since SELECT TOP 0 moves no rows.
+
+      Callers that want one batch call sqlserver__create_table_as, which is
+      exactly this half followed by the load half; it emits the same statements
+      in the same order, so snapshots and the incremental temp build are
+      unaffected by the split.
+
+      Note the render-time `adapter.drop_relation` below: it is a side effect,
+      not emitted SQL, and lives here so it fires exactly once per build
+      whether the halves are rendered separately or through create_table_as.
+    -#}
     {%- set full_refresh_build = config.get('full_refresh_build', 'heap_then_index') -%}
     {%- if full_refresh_build not in ['heap_then_index', 'prebuilt'] -%}
       {{ exceptions.raise_compiler_error(
@@ -111,34 +130,54 @@
     {#- not plain `contract_config.enforced`: contracts are suppressed for temp
         builds, and the shared macros take the resolved flag as a parameter -#}
     {%- set contract_enforced = contract_config.enforced and (not temporary) -%}
+
+    {#- EXEC(), not a bare statement: CREATE VIEW above must be the first
+        statement in its batch, and a bare create referencing that just-made
+        view would fail compilation in the same batch. Deferring through EXEC
+        is what lets both live in one batch when the halves are concatenated. -#}
     {%- set query -%}
-        {% if contract_enforced %}
-            {{ sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, contract_enforced) }}
-            {{ sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, contract_enforced) }}
-        {% else %}
-            {%- if build_into_temp -%}
-            IF OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}', 'U') IS NOT NULL
-                EXEC('DROP TABLE {{ relation }}');
-            {%- endif -%}
-            {#- Create then load, rather than one fused `SELECT * INTO`: see
-                sqlserver__get_create_table_empty_sql for why (#819). Both
-                statements land in this one batch, so the create's Sch-M is
-                released when the create finishes only if the batch is not
-                inside a transaction - which is why every caller of this macro
-                declines the ambient transaction (table.sql, incremental.sql).
-                Contracts are never enforced on this branch by definition; the
-                gate above owns that case. -#}
-            {{ sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, false) }};
-            {{ sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, false) }}
-        {% endif %}
+        {#- the drop guard is deliberately not applied on the contract branch,
+            which has never had one -#}
+        {%- if build_into_temp and not contract_enforced -%}
+        IF OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}', 'U') IS NOT NULL
+            EXEC('DROP TABLE {{ relation }}');
+        {%- endif -%}
+        {{ sqlserver__get_create_table_empty_sql(relation, tmp_relation, sql, contract_enforced) }}
+    {%- endset -%}
+
+    EXEC('{{- escape_single_quotes(query) -}}')
+{%- endmacro %}
+
+
+{% macro sqlserver__get_create_table_load_sql(temporary, relation, sql) -%}
+    {#-
+      Second half of a table build: load the object the stage half created,
+      then clean up and add the clustered columnstore index.
+
+      The INSERT takes an X table lock, never Sch-M, so it cannot block the
+      metadata readers #819 is about - which is why it is safe for this half to
+      run long, inside a transaction or not.
+
+      The tmp view drop lives here, not with the create: the INSERT reads that
+      view, so dropping it in the stage half would break a split build. It
+      trails the INSERT in the same batch either way.
+    -#}
+    {%- set query_label = get_query_options(parse_options=True) -%}
+    {%- set tmp_relation = relation.incorporate(path={"identifier": relation.identifier ~ '__dbt_tmp_vw'}, type='view') -%}
+
+    {%- set contract_config = config.get('contract') -%}
+    {%- set contract_enforced = contract_config.enforced and (not temporary) -%}
+
+    {#- EXEC() for the same batching reason as the stage half: concatenated,
+        this statement still follows CREATE VIEW inside one batch. -#}
+    {%- set query -%}
+        {{ sqlserver__get_tablock_insert_sql(relation, tmp_relation, query_label, contract_enforced) }}
     {%- endset -%}
 
     EXEC('{{- escape_single_quotes(query) -}}')
 
     {# For some reason drop_relation is not firing. This solves the issue for now. #}
     EXEC('DROP VIEW IF EXISTS {{ tmp_relation.include(database=False) }}')
-
-
 
     {% set as_columnstore = config.get('as_columnstore', default=true) %}
     {% if not temporary and as_columnstore -%}
@@ -149,7 +188,22 @@
         -#}
         {{ sqlserver__create_clustered_columnstore_index(relation) }}
    {% endif %}
+{%- endmacro %}
 
+
+{% macro sqlserver__create_table_as(temporary, relation, sql) -%}
+    {#-
+      One-batch table build: the stage and load halves back to back.
+
+      The halves are the source of truth; this is their concatenation, so
+      callers that run the whole thing as a single statement (snapshots,
+      the incremental temp build) get the same statements in the same order
+      as before the split. Callers that need a transaction boundary between
+      creating the object and loading it call the halves directly - see
+      sqlserver__get_create_table_stage_sql for why that matters (#819).
+    -#}
+    {{ sqlserver__get_create_table_stage_sql(temporary, relation, sql) }}
+    {{ sqlserver__get_create_table_load_sql(temporary, relation, sql) }}
 {% endmacro %}
 
 
