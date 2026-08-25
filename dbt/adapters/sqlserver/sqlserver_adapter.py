@@ -594,54 +594,67 @@ class SQLServerAdapter(SQLAdapter):
             _discard_pending_results(cursor)
         return int(row[0]) if row else 0
 
+    def _safe_expansion_allowed(self, current, max_rows: int) -> bool:
+        """Whether cross-family promotions may run against ``current``.
+
+        Requires the ``dbt_sqlserver_enable_safe_type_expansion`` behaviour
+        flag, then consults ``column_type_expansion_max_rows``, which carries
+        three kinds of value: ``-1`` disables the row-count check, ``0``
+        blocks safe expansion outright, and a positive N blocks it once
+        ``current`` holds more than N rows. Counting rows costs a query, so it
+        runs only when the flag is on and a positive limit is set.
+        """
+        if not self.behavior.dbt_sqlserver_enable_safe_type_expansion:
+            return False
+
+        if max_rows == -1:
+            return True
+
+        if max_rows == 0:
+            logger.info(
+                "Safe type expansion skipped for %s: column_type_expansion_max_rows is 0.",
+                current,
+            )
+            return False
+
+        row_count = self._get_row_count(current)
+        if row_count > max_rows:
+            logger.warning(
+                "Safe type expansion skipped for %s: "
+                "%s rows exceeds column_type_expansion_max_rows (%s). "
+                "Set column_type_expansion_max_rows=-1 to disable "
+                "this check, or increase the limit.",
+                current,
+                row_count,
+                max_rows,
+            )
+            return False
+
+        return True
+
     def expand_column_types(self, goal, current, max_rows: int = 1000000):
-        """Override to ensure we preserve nvarchar/nchar type family during
-        column expansion. Necessary same-family resizes (e.g. varchar size)
-        always proceed. Safe type expansions (cross-family promotions like
-        varchar -> nvarchar) are guarded by column_type_expansion_max_rows.
-        enable_safe_type_expansion is the future approach for widening."""
+        """Widen ``current``'s columns to match ``goal``, preserving the
+        nvarchar / nchar family.
+
+        Same-family resizes (a longer varchar) always proceed. Cross-family
+        promotions (varchar -> nvarchar) are opt-in and gated; see
+        ``_safe_expansion_allowed``.
+        """
 
         reference_columns = {c.name: c for c in self.get_columns_in_relation(goal)}
         target_columns = {c.name: c for c in self.get_columns_in_relation(current)}
 
-        enable_safe = self.behavior.dbt_sqlserver_enable_safe_type_expansion
-
-        row_count_exceeds = False
-        if enable_safe and max_rows != -1:
-            if max_rows == 0:
-                row_count_exceeds = True
-                logger.info(
-                    "Safe type expansion skipped for %s: column_type_expansion_max_rows is 0.",
-                    current,
-                )
-            else:
-                row_count = self._get_row_count(current)
-                if row_count > max_rows:
-                    row_count_exceeds = True
-                    logger.warning(
-                        "Safe type expansion skipped for %s: "
-                        "%s rows exceeds column_type_expansion_max_rows (%s). "
-                        "Set column_type_expansion_max_rows=-1 to disable "
-                        "this check, or increase the limit.",
-                        current,
-                        row_count,
-                        max_rows,
-                    )
+        safe_expansion_allowed = self._safe_expansion_allowed(current, max_rows)
 
         for column_name, reference_column in reference_columns.items():
             target_column = target_columns.get(column_name)
             if target_column is None:
                 continue
 
-            if target_column.can_expand_to(reference_column):
-                pass
-            elif (
-                enable_safe
-                and not row_count_exceeds
-                and target_column.can_expand_safe(reference_column)
+            if not (
+                target_column.can_expand_to(reference_column)
+                or (safe_expansion_allowed and target_column.can_expand_safe(reference_column))
             ):
-                pass
-            else:
                 continue
 
             if reference_column.is_string():
