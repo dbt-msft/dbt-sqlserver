@@ -738,6 +738,34 @@ class SQLServerAdapter(SQLAdapter):
             self.connections.begin()
 
     @available
+    def transaction_is_open(self) -> bool:
+        """True when a dbt-managed transaction is currently open.
+
+        This is the same predicate ``SQLConnectionManager.add_query`` tests
+        before honouring ``auto_begin``, so it answers the only question that
+        actually matters to a materialization deciding how to scope a build:
+        will the next statement join an existing transaction, or start on its
+        own?
+
+        Inferring that from config does not work. The obvious proxy - "does
+        this model have an in-transaction pre-hook?" - is wrong in both
+        directions. ``run_hooks`` skips a hook whose rendered SQL is empty
+        (the common ``{% if target.name == 'prod' %}...{% endif %}`` idiom),
+        so a model can declare one and open nothing; and macros that pair
+        commit_if_open with begin_if_closed - sqlserver__mark_full_refresh_
+        incomplete, sqlserver__create_indexes_no_txn - leave a transaction
+        open with no hook involved at all. Ask the connection instead.
+
+        Reads bookkeeping, not the server: when
+        dbt_sqlserver_use_dbt_transactions is off, begin/commit flip this flag
+        without emitting T-SQL, so this reports what dbt believes rather than
+        @@TRANCOUNT. That is the right answer for deciding whether a statement
+        would join something, since auto_begin keys off the same flag.
+        """
+        connection = self.connections.get_thread_connection()
+        return connection is not None and bool(connection.transaction_open)
+
+    @available
     def validate_indexes(
         self, raw_indexes: Any, as_columnstore: Any = False, drop_unmanaged: Any = False
     ) -> None:
