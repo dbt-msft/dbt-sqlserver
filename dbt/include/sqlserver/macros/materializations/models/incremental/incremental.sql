@@ -187,6 +187,15 @@
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}
 
+  {#- adapter.commit() raises if it finds nothing open, and every branch above
+      only happens to leave a transaction open: the swap's renames, prebuilt's
+      trailing load statement, or the append path's statement('main'). That is
+      balance by coincidence - a branch that ends on a statement declining the
+      ambient transaction (as the create_table_as batches now do) would break
+      it. Make the precondition explicit instead of relying on the coincidence;
+      no-op when one is already open, which is the normal case. -#}
+  {% do adapter.begin_if_closed() %}
+
   -- `COMMIT` happens here
   {% do adapter.commit() %}
 

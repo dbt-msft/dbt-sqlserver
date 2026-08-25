@@ -200,7 +200,9 @@
 
 
 {% macro drop_fk_indexes_on_table(relation) -%}
-  {% call statement('find_references', fetch_result=true) %}
+  {#- Read-only probe: auto_begin=False so it cannot open the ambient
+      transaction - see sqlserver__get_columns_in_relation (#819). -#}
+  {% call statement('find_references', fetch_result=true, auto_begin=false) %}
       {{ get_use_database_sql(relation.database) }}
       SELECT  obj.name AS FK_NAME,
       sch.name AS [schema_name],
@@ -232,7 +234,9 @@
 {% endmacro %}
 
 {% macro sqlserver__list_nonclustered_rowstore_indexes(relation) -%}
-  {% call statement('list_nonclustered_rowstore_indexes', fetch_result=True) -%}
+  {#- Read-only probe: auto_begin=False so it cannot open the ambient
+      transaction - see sqlserver__get_columns_in_relation (#819). -#}
+  {% call statement('list_nonclustered_rowstore_indexes', fetch_result=True, auto_begin=False) -%}
 
     SELECT i.name AS index_name
     , i.name + '__dbt_backup' as index_new_name
@@ -381,7 +385,13 @@
 
 
 {% macro sqlserver__describe_indexes(relation) %}
-  {% call statement('describe_indexes', fetch_result=True) -%}
+  {#- Read-only probe: auto_begin=False so it cannot OPEN the ambient
+      transaction. It still joins one that is already open, so callers
+      that legitimately run inside a transaction are unaffected; what it
+      stops is a probe in the post-cutover tail reopening a transaction
+      that the following mask/index DDL then joins and holds to commit
+      (dbt-msft/dbt-sqlserver#819). -#}
+  {% call statement('describe_indexes', fetch_result=True, auto_begin=False) -%}
     select
         i.[name] as [name],
         case when i.[type] = 1 then 'clustered'

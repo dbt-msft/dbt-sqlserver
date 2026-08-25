@@ -118,10 +118,11 @@
     {# Atomic DML swap — RCSI protects concurrent readers #}
     {# When dbt_sqlserver_use_dbt_transactions is off, autocommit means we #}
     {# need the explicit BEGIN/COMMIT. When the flag is on (the default), this #}
-    {# statement's auto_begin supplies the transaction — the scratch build #}
-    {# above deliberately declines to, so the only thing that can already have #}
-    {# opened one is the metadata reads just above (schema compare, column #}
-    {# list), which are short. The commit_if_open below closes it either way. #}
+    {# statement's auto_begin supplies the transaction, and it is now the only #}
+    {# thing that can: the scratch build above declines to open one, and the #}
+    {# metadata reads just above (schema compare, column list) no longer do #}
+    {# either - they are read-only probes and pass auto_begin=False (#819). #}
+    {# The commit_if_open below closes it either way. #}
     {% call statement('dml_refresh_swap') -%}
       {% if not adapter.behavior.dbt_sqlserver_use_dbt_transactions %}
       BEGIN TRANSACTION;
