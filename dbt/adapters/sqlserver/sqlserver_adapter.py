@@ -544,16 +544,13 @@ class SQLServerAdapter(SQLAdapter):
     @available
     @classmethod
     def render_column_constraint(cls, constraint: ColumnLevelConstraint) -> Optional[str]:
-        rendered_column_constraint = None
-        if constraint.type == ConstraintType.not_null:
-            rendered_column_constraint = "not null "
-        else:
-            rendered_column_constraint = ""
+        """Render NOT NULL inline; every other constraint type renders empty.
 
-        if rendered_column_constraint:
-            rendered_column_constraint = rendered_column_constraint.strip()
-
-        return rendered_column_constraint
+        CHECK, UNIQUE, PRIMARY KEY and FOREIGN KEY are emitted separately as
+        ALTER TABLE ADD CONSTRAINT (sqlserver__build_model_constraints), so
+        they contribute nothing to the column DDL.
+        """
+        return "not null" if constraint.type == ConstraintType.not_null else ""
 
     @classmethod
     def render_model_constraint(cls, constraint: ModelLevelConstraint) -> Optional[str]:
