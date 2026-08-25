@@ -46,8 +46,21 @@
       {% set prebuilt_cache_add = true %}
       {% set prebuilt_handled = true %}
     {% else %}
-      {% set build_sql = get_create_table_as_sql(False, target_relation, sql) %}
+      {#- Build into the intermediate and swap, rather than straight into the
+          target. Since the build was split into an empty CREATE plus a
+          separate INSERT (#819) and declines the ambient transaction, the two
+          statements autocommit independently - so building into the target
+          means a failed load commits an EMPTY table under the model's real
+          name. dbt's next run then sees a relation that exists and is not a
+          view, takes the append/merge branch, and merges that run's window
+          into an empty table: no error, and every row the first build should
+          have loaded is gone. Staging into __dbt_tmp leaves the target absent
+          on failure, which is what dbt should see, and restores the OBJECT_ID
+          drop guard for the throwaway (build_into_temp keys off the suffix).
+          Matches the full-refresh branch below, which already swaps. -#}
+      {% set build_sql = get_create_table_as_sql(False, intermediate_relation, sql) %}
       {% set build_sql_is_create_table_as = true %}
+      {% set need_swap = true %}
     {% endif %}
   {% elif full_refresh_mode %}
     {#- the target is marked as having a full refresh in flight (blocking
@@ -148,9 +161,16 @@
   {% endif %}
 
   {% if need_swap %}
-      {% do adapter.rename_relation(target_relation, backup_relation) %}
+      {#- The fresh-create branch swaps too, and there is nothing to back up
+          there: an unconditional rename would be sp_rename against a name
+          that does not exist (Msg 15225) on the first build of every
+          incremental model. Guard it as table.sql does, and only queue a
+          backup for dropping when one was actually made. -#}
+      {% if existing_relation is not none %}
+        {% do adapter.rename_relation(target_relation, backup_relation) %}
+        {% do to_drop.append(backup_relation) %}
+      {% endif %}
       {% do adapter.rename_relation(intermediate_relation, target_relation) %}
-      {% do to_drop.append(backup_relation) %}
   {% endif %}
 
   {% if prebuilt_cache_add %}
