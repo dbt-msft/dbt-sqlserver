@@ -29,6 +29,29 @@
   -- `BEGIN` happens here:
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
+  {#- Sample the build's transaction scope HERE, before any branch code. Two
+      macros below open a transaction of their own -
+      sqlserver__mark_full_refresh_incomplete ends with begin_if_closed and
+      always leaves one open - so a later sample would answer yes for reasons
+      unrelated to any pre-hook, and every full refresh would silently take the
+      transaction-spanning path with #819 unfixed. See table.sql for why this
+      asks the connection rather than the pre_hooks config. -#}
+  {%- set pre_hook_transaction_scope = config.get('pre_hook_transaction_scope') -%}
+  {%- if pre_hook_transaction_scope is none -%}
+    {%- set pre_hook_transaction_scope = (
+      'schema' if adapter.behavior.dbt_sqlserver_pre_hook_schema_scope else 'build'
+    ) -%}
+  {%- endif -%}
+  {%- if pre_hook_transaction_scope not in ['schema', 'build'] -%}
+    {{ exceptions.raise_compiler_error(
+      "Invalid pre_hook_transaction_scope '" ~ pre_hook_transaction_scope ~ "'. "
+      "Valid values are: 'schema', 'build'."
+    ) }}
+  {%- endif -%}
+  {%- set keep_pre_hook_txn = (
+    adapter.transaction_is_open() and pre_hook_transaction_scope == 'build'
+  ) -%}
+
   {% set to_drop = [] %}
   {% set prebuilt_handled = false %}
   {#- true only where the statement('main') batch below carries create_table_as
@@ -58,7 +81,9 @@
           on failure, which is what dbt should see, and restores the OBJECT_ID
           drop guard for the throwaway (build_into_temp keys off the suffix).
           Matches the full-refresh branch below, which already swaps. -#}
-      {% set build_sql = get_create_table_as_sql(False, intermediate_relation, sql) %}
+      {#- no build_sql here: the halves are rendered at the build site below,
+          and get_create_table_as_sql drops the tmp view as a render-time side
+          effect, so rendering both would do that twice -#}
       {% set build_sql_is_create_table_as = true %}
       {% set need_swap = true %}
     {% endif %}
@@ -86,7 +111,9 @@
       {% set prebuilt_cache_add = true %}
       {% set prebuilt_handled = true %}
     {% else %}
-      {% set build_sql = get_create_table_as_sql(False, intermediate_relation, sql) %}
+      {#- no build_sql here: the halves are rendered at the build site below,
+          and get_create_table_as_sql drops the tmp view as a render-time side
+          effect, so rendering both would do that twice -#}
       {% set build_sql_is_create_table_as = true %}
       {% if existing_relation.type == 'table' %}
         {% do sqlserver__mark_full_refresh_incomplete(existing_relation) %}
@@ -137,26 +164,40 @@
 
   {% if not prebuilt_handled %}
     {% if build_sql_is_create_table_as %}
-      {#- Same reason as the temp build above: this batch is create_table_as
-          catalog DDL, so letting statement() open the ambient transaction
-          would hold its sysschobjs X keylocks until adapter.commit() and
-          deadlock a second worker. -#}
-      {% call statement("main", auto_begin=False) %}
-          {{ build_sql }}
-      {% endcall %}
+      {%- set stage_sql = sqlserver__get_create_table_stage_sql(False, intermediate_relation, sql) -%}
+      {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql) -%}
+      {% if keep_pre_hook_txn %}
+        {#- pre_hook_transaction_scope='build': the pre-hook's transaction
+            spans the build, so its writes roll back with a failed load - at
+            the cost of holding the new table's Sch-M for that load (#819). -#}
+        {% call statement("main") %}
+            {{ stage_sql }}
+            {{ load_sql }}
+        {% endcall %}
+      {% else %}
+        {#- Create, commit, load. auto_begin=False declines to open a
+            transaction but still joins one a pre-hook left open, so the create
+            sees those writes; the commit then releases its Sch-M before the
+            load starts. The load takes an X table lock, never Sch-M. -#}
+        {% call statement('create_table_stage', auto_begin=False) %}
+            {{ stage_sql }}
+        {% endcall %}
+        {% do adapter.commit_if_open() %}
+        {% call statement("main", auto_begin=False) %}
+            {{ load_sql }}
+        {% endcall %}
+        {#- statement() writes the compiled artifact for 'main' only, so write
+            the whole build back over it rather than leaving target/run/ with
+            the load and no CREATE. -#}
+        {% do write(stage_sql ~ '\n' ~ load_sql) %}
+        {#- the swap and the tail need a transaction; nothing above leaves one
+            open on this path -#}
+        {% do adapter.begin_if_closed() %}
+      {% endif %}
     {% else %}
       {% call statement("main") %}
           {{ build_sql }}
       {% endcall %}
-    {% endif %}
-    {% if build_sql_is_create_table_as %}
-      {#- Reopen the ambient transaction the batch above declined to start,
-          so the swap and the tail (grants/persist_docs/masks/indexes/
-          post-hooks) keep their semantics and adapter.commit() below has a
-          matching BEGIN rather than raising Msg 3902. No-op when the flag is
-          off. -#}
-      {% do adapter.commit_if_open() %}
-      {% do adapter.begin_if_closed() %}
     {% endif %}
   {% endif %}
 

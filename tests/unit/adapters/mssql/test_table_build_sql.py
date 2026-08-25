@@ -331,32 +331,115 @@ def test_no_macro_fuses_a_create_with_its_load(macro_file):
     )
 
 
-def test_table_materialization_builds_outside_the_ambient_transaction():
-    """The rename path's build is catalog DDL plus a load; inside the ambient
-    transaction it holds the new table's Sch-M through to adapter.commit()."""
+def test_table_materialization_commits_between_the_create_and_the_load():
+    """The create's Sch-M must be released before the load starts.
+
+    Both statements decline to OPEN a transaction, which is not enough on its
+    own - auto_begin=False still joins one a pre-hook left open, and then the
+    create's Sch-M would be held to commit for the length of the load. The
+    commit between them is what actually releases it.
+    """
     source = TABLE_SQL.read_text()
-    assert "call statement('main', auto_begin=False)" in source
-    after_build = source.split("call statement('main', auto_begin=False)", 1)[1]
-    commit = after_build.find("adapter.commit_if_open()")
-    begin = after_build.find("adapter.begin_if_closed()")
-    rename = after_build.find("adapter.rename_relation")
-    assert -1 < commit < begin < rename, (
-        "reopen the transaction after the build and before the renames, so "
-        "they keep their semantics and adapter.commit() has a matching BEGIN"
+    stage = source.find("call statement('create_table_stage', auto_begin=False)")
+    assert stage != -1, "the stage half must be its own statement"
+    after_stage = source[stage:]
+    commit = after_stage.find("adapter.commit_if_open()")
+    load = after_stage.find("call statement('main', auto_begin=False)")
+    begin = after_stage.find("adapter.begin_if_closed()")
+    rename = after_stage.find("adapter.rename_relation")
+    assert -1 < commit < load < begin < rename, (
+        "commit after the create and before the load, then reopen before the "
+        "renames so the cutover is transactional and adapter.commit() has a "
+        "matching BEGIN"
     )
 
 
-def test_dml_refresh_commits_the_swap_before_the_tail():
-    """The DELETE holds X locks on the target until commit; index and mask
-    reconciliation must not sit inside that window."""
+def test_table_materialization_writes_the_whole_build_to_the_artifact():
+    """statement() writes compiled SQL for 'main' only.
+
+    On the split path 'main' is the load, so target/run/ would hold the INSERT
+    without the CREATE that precedes it - and the constraint tests read exactly
+    that file. Write both halves back over it.
+    """
+    source = TABLE_SQL.read_text()
+    assert "write(stage_sql ~" in source
+
+
+def test_scope_gate_is_sampled_before_any_branch_code():
+    """transaction_is_open must be read before macros that open one of their own.
+
+    sqlserver__mark_full_refresh_incomplete ends with begin_if_closed and so
+    always leaves a transaction open. Sampled after that, the gate answers yes
+    for reasons unrelated to any pre-hook, and every full refresh would
+    silently take the transaction-spanning path (#819 unfixed, default config).
+    """
+    source = TABLE_SQL.read_text()
+    gate = source.find("adapter.transaction_is_open()")
+    pre_hooks = source.find("run_hooks(pre_hooks, inside_transaction=True)")
+    first_branch = source.find("{% if use_dml_refresh %}")
+    assert -1 < pre_hooks < gate < first_branch, (
+        "sample the gate after the in-transaction pre-hooks and before the build branches"
+    )
+
+
+def test_masks_stay_inside_the_cutover_transaction_on_fresh_builds():
+    """A brand-new table carries no masks until apply_masks runs.
+
+    If that ran after the cutover committed, a mask failure would leave the
+    newly loaded table live with the columns exposed. Index builds move out of
+    the transaction; masks on fresh tables must not.
+    """
+    source = TABLE_SQL.read_text()
+    # Anchor past the build's own stage/load commit, which is not the cutover.
+    after_swap = source.split(
+        "adapter.rename_relation(intermediate_relation, target_relation)", 1
+    )[1]
+    masks = after_swap.find("apply_masks(target_relation, mask_config)")
+    post_hooks = after_swap.find("run_hooks(post_hooks, inside_transaction=True)")
+    cutover_commit = after_swap.find("adapter.commit_if_open()")
+    assert -1 < masks < post_hooks < cutover_commit, (
+        "masks belong inside the cutover transaction, before the in-transaction "
+        "post-hooks and the commit that closes the atomic unit"
+    )
+
+
+def test_dml_refresh_leaves_the_swap_transaction_for_the_tail():
+    """The macro must not close the swap's transaction itself.
+
+    It used to, which meant an in-transaction post-hook - running back in
+    table.sql, after the macro returned - was NOT atomic with the swap it was
+    written to accompany. The tail now owns that boundary.
+    """
     _source, _before, after_swap = _dml_refresh_source()
+    assert "adapter.commit_if_open()" not in after_swap, (
+        "the swap's transaction is closed by table.sql after the post-hooks, not inside this macro"
+    )
+    assert "sqlserver__reconcile_indexes" not in after_swap, (
+        "index reconciliation moved to the common tail, outside the transaction"
+    )
+
+
+def test_dml_refresh_swap_locks_do_not_span_reconciliation():
+    """The DELETE holds X locks on the target until commit.
+
+    Index and mask reconciliation must sit outside that window, which now means
+    after the tail's commit rather than after one inside the macro.
+    """
+    source = TABLE_SQL.read_text()
+    after_swap = source.split("run_hooks(post_hooks, inside_transaction=True)", 1)[1]
     commit = after_swap.find("adapter.commit_if_open()")
     reconcile = after_swap.find("sqlserver__reconcile_indexes")
-    assert commit != -1, "the swap must be committed rather than run to the trailing commit"
-    assert reconcile != -1
-    assert commit < reconcile, "commit the swap before reconciling indexes"
-    # And the tail needs a transaction again, or adapter.commit() raises.
-    assert "adapter.begin_if_closed()" in after_swap
+    assert -1 < commit < reconcile, "commit the cutover before reconciling indexes"
+
+
+def test_dml_scratch_table_is_dropped_after_the_cutover_commits():
+    """Dropping it inside the transaction would put its catalog locks back in
+    the window the tail exists to clear."""
+    source = TABLE_SQL.read_text()
+    after_swap = source.split("run_hooks(post_hooks, inside_transaction=True)", 1)[1]
+    commit = after_swap.find("adapter.commit_if_open()")
+    drop = after_swap.find("dml_refresh_cleanup_post")
+    assert -1 < commit < drop
 
 
 # -- the stage / load split (#819) --

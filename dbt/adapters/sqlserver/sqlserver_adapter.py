@@ -271,6 +271,23 @@ class SQLServerAdapter(SQLAdapter):
                 ),
             },
             {  # ty: ignore[missing-typed-dict-key]
+                "name": "dbt_sqlserver_pre_hook_schema_scope",
+                "default": False,
+                "description": (
+                    "Sets the default for the pre_hook_transaction_scope model config. "
+                    "When True, a model's in-transaction pre-hooks share a transaction with "
+                    "schema resolution only (the temp view and the empty CREATE); the load "
+                    "then runs autocommitted and holds no Sch-M lock, so it cannot block "
+                    "metadata readers in other sessions. When False (current default), the "
+                    "pre-hook transaction extends across the load, which blocks those readers "
+                    "for as long as the model takes to build. Models without an open "
+                    "transaction at build time are unaffected either way. Set "
+                    "pre_hook_transaction_scope on a model to override this per model; "
+                    "'build' is the escape hatch for a pre-hook that must roll back with a "
+                    "failed load, such as a destructive dequeue or a partition SWITCH."
+                ),
+            },
+            {  # ty: ignore[missing-typed-dict-key]
                 "name": "dbt_sqlserver_use_dbt_transactions",
                 "default": True,
                 "description": (
@@ -756,6 +773,10 @@ class SQLServerAdapter(SQLAdapter):
         incomplete, sqlserver__create_indexes_no_txn - leave a transaction
         open with no hook involved at all. Ask the connection instead.
 
+        Raises InvalidConnectionError if called with no thread connection, as
+        get_thread_connection does everywhere else; inside a materialization
+        one is always acquired before rendering, so that cannot happen here.
+
         Reads bookkeeping, not the server: when
         dbt_sqlserver_use_dbt_transactions is off, begin/commit flip this flag
         without emitting T-SQL, so this reports what dbt believes rather than
@@ -763,7 +784,7 @@ class SQLServerAdapter(SQLAdapter):
         would join something, since auto_begin keys off the same flag.
         """
         connection = self.connections.get_thread_connection()
-        return connection is not None and bool(connection.transaction_open)
+        return bool(connection.transaction_open)
 
     @available
     def validate_indexes(

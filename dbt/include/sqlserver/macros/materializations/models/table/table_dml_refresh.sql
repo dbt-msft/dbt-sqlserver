@@ -135,42 +135,20 @@
       {% endif %}
     {%- endcall %}
 
-    {#- End the swap's transaction here rather than letting it run to the
-        materialization's trailing adapter.commit(). The DELETE holds X locks
-        on the target until commit, and everything after this point - dropping
-        the scratch table, index reconciliation, masks, grants, persist_docs -
-        would otherwise sit inside that window, with the index DDL adding Sch-M
-        on the *target* on top (#819).
+    {#- The swap's transaction is deliberately left OPEN here. table.sql closes
+        it after the in-transaction post-hooks, so a post-hook declaring
+        transaction: true is atomic with the swap - which it was not when this
+        macro committed on its own.
 
-        The atomicity boundary this macro cares about is the swap itself: the
-        target is never seen half-swapped. Index and mask reconciliation land
-        outside it, so a failure there leaves the new data committed with
-        indexes not yet converged - which the next run fixes, since both
-        reconcile against the config rather than applying a delta. This is
-        already how the path behaves with dbt_sqlserver_use_dbt_transactions
-        off, where the in-batch COMMIT above closes the swap the same way. -#}
-    {% do adapter.commit_if_open() %}
-
-    {# Cleanup scratch table — still outside a transaction, so its Sch-M goes
-       the moment the drop finishes. #}
-    {% call statement('dml_refresh_cleanup_post', auto_begin=False) -%}
-      DROP TABLE IF EXISTS {{ refresh_relation }};
-    {%- endcall %}
-
-    {#- Reopen the ambient transaction for the tail, so the rest of the
-        materialization keeps its semantics and table.sql's adapter.commit()
-        has a matching BEGIN rather than raising. No-op at the SQL level when
-        the flag is off. -#}
-    {% do adapter.begin_if_closed() %}
-
-    {# The target table persisted (no rebuild), so converge its indexes on
-       the config. Runs after the swap's self-contained transaction. #}
-    {% do sqlserver__reconcile_indexes(target_relation) %}
-
-    {# Persisted-table path: masks already exist from the prior build; this
-       reconciles any config change. Runs after reconcile so index drops land
-       first. #}
-    {% do apply_masks(target_relation, mask_config) %}
+        Everything that used to follow that commit inside this macro - the
+        scratch drop, index reconciliation, masks - now runs on table.sql's
+        common tail, outside the transaction, so the DELETE's X locks and the
+        index DDL's Sch-M on the target still do not span them (#819). Index
+        and mask reconciliation failing there leaves the new data committed
+        with indexes not yet converged, which the next run fixes: both
+        reconcile against the config rather than applying a delta. The table
+        keeps its previous masks throughout, so nothing is exposed by a failed
+        mask reconcile. -#}
 
   {% else %}
     {# Schema changed — fall back to rename-swap for this run #}
@@ -194,16 +172,26 @@
 
     {{ adapter.rename_relation(refresh_relation, target_relation) }}
 
-    {# Freshly built scratch table (no masks carried), so apply masks before
-       create_indexes — a mask cannot be added to a column an index depends
-       on (documented for all SQL Server versions). #}
+    {#- Freshly built scratch table (no masks carried), so apply masks before
+        create_indexes — a mask cannot be added to a column an index depends
+        on (documented for all SQL Server versions). Applied here, inside the
+        cutover transaction, rather than on table.sql's tail: this table is new
+        and unmasked, so a mask failure after the cutover committed would leave
+        it live with the columns exposed. create_indexes runs on the tail
+        instead; index_strategy='create' keeps the mask-then-index order. -#}
     {% do apply_masks(target_relation, mask_config) %}
-
-    {% do create_indexes(target_relation) %}
 
     {{ drop_relation_if_exists(backup_relation) }}
 
     {# scratch table is now the target, nothing to drop #}
   {% endif %}
 
+  {#- Hand the tail what only this macro knows. schema_match decides the tail's
+      index strategy: 'reconcile' on the swap path, where the table persisted
+      and its indexes must converge on config before masks are re-applied;
+      'create' on the fallback, whose freshly renamed table was masked above
+      and needs mask-then-index order preserved. refresh_relation is the
+      scratch table, dropped by the tail after the commit - dropping it inside
+      the cutover transaction would put its catalog locks back in that window. -#}
+  {{ return({'schema_match': schema_match, 'refresh_relation': refresh_relation}) }}
 {% endmacro %}

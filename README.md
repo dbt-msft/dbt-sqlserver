@@ -177,6 +177,13 @@ The same setting is also honoured via `vars:` for backwards compatibility; the b
 
 Safe expansions are further gated by `column_type_expansion_max_rows` (default 1,000,000 rows) to avoid long-running operations on large tables.
 
+### `pre_hook_transaction_scope` and `dbt_sqlserver_pre_hook_schema_scope`
+
+Control how far a model's transaction extends around its build, trading
+pre-hook rollback against how long a `Sch-M` lock blocks metadata readers in
+other sessions. See [docs/transaction_scope.md](docs/transaction_scope.md) for
+the full flow, the post-hook ordering change and when to use which.
+
 ### `dbt_sqlserver_use_dbt_transactions`
 
 _(default: `true`)_ Makes dbt's transaction hooks real at the SQL Server level by emitting `BEGIN TRANSACTION` / `COMMIT TRANSACTION` through the adapter's `add_begin_query` and `add_commit_query` methods.

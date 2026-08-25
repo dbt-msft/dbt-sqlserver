@@ -36,9 +36,21 @@ def test_reports_the_connection_flag(transaction_open):
     assert SQLServerAdapter.transaction_is_open(_adapter(connection)) is transaction_open
 
 
-def test_no_connection_is_not_open():
-    """No thread connection means nothing to join, so nothing is open."""
-    assert SQLServerAdapter.transaction_is_open(_adapter(None)) is False
+def test_missing_thread_connection_raises_rather_than_reporting_closed():
+    """get_thread_connection raises; it never returns None.
+
+    An earlier version guarded on `connection is not None`, which read as "no
+    connection means nothing is open" but could never deliver that answer
+    (dbt/adapters/base/connections.py raises InvalidConnectionError instead).
+    Inside a materialization a connection is always acquired before rendering,
+    so this path does not arise - but it must not be described as if it did.
+    """
+    adapter = object.__new__(SQLServerAdapter)
+    connections = MagicMock()
+    connections.get_thread_connection.side_effect = RuntimeError("no connection")
+    adapter.connections = connections
+    with pytest.raises(RuntimeError):
+        SQLServerAdapter.transaction_is_open(adapter)
 
 
 def test_returns_a_real_bool_not_a_truthy_mock():
@@ -55,3 +67,18 @@ def test_returns_a_real_bool_not_a_truthy_mock():
 def test_is_exposed_to_jinja():
     """Macros call this, so it must carry dbt's @available marker."""
     assert getattr(SQLServerAdapter.transaction_is_open, "_is_available_", False)
+
+
+def test_pre_hook_schema_scope_flag_is_declared():
+    """The flag supplies the default for pre_hook_transaction_scope.
+
+    Declared False so the current (transaction-spanning) behaviour stays the
+    default; dbt fires a one-off behaviour-change notice while it is off, which
+    is the migration signal. Flipping it to True is a later, deliberate release.
+    """
+    adapter = object.__new__(SQLServerAdapter)
+    flags = {flag["name"]: flag for flag in SQLServerAdapter._behavior_flags.fget(adapter)}
+    flag = flags["dbt_sqlserver_pre_hook_schema_scope"]
+    assert flag["default"] is False
+    # dbt requires description or docs_url, and prints the description when off.
+    assert "pre_hook_transaction_scope" in flag["description"]
