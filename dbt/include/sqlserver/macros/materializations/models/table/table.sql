@@ -49,10 +49,12 @@
 
   {#- Decide the build's transaction scope HERE, before any branch code runs.
       The question is only ever "did the pre-hooks leave a transaction open?",
-      and it has to be asked now: macros further down open one of their own
-      (sqlserver__mark_full_refresh_incomplete ends with begin_if_closed, and
-      always leaves one open), so a later sample would answer yes for reasons
-      that have nothing to do with a pre-hook - silently selecting the
+      and it has to be asked before the branches: several macros they call open
+      one of their own - sqlserver__create_table_as_prebuilt commits its marker
+      and reopens, and on the incremental path
+      sqlserver__mark_full_refresh_incomplete ends with begin_if_closed, which
+      always leaves one open. A later sample would answer yes for reasons that
+      have nothing to do with a pre-hook, silently selecting the
       transaction-spanning path for models that never asked for it.
 
       Not derived from the pre_hooks config: run_hooks skips a hook whose

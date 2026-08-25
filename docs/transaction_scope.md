@@ -81,9 +81,15 @@ promise, so they now run outside it.
 default rename swap, `full_refresh_build: prebuilt`, and the DML fallback), the
 table carries no masks until `apply_masks` runs. If that ran after the cutover
 committed, a mask failure would leave the newly loaded table live with its
-columns exposed. Masks therefore stay inside the transaction on those paths, so
-a failure rolls the swap back and the old, masked table keeps serving. The
-ALTERs are cheap next to an index build.
+columns exposed. Masks therefore stay inside the transaction on those paths.
+The ALTERs are cheap next to an index build.
+
+On the rename swap and the DML fallback a mask failure rolls the swap back, so
+the old, masked table keeps serving. `full_refresh_build: prebuilt` has no swap
+to roll back — it drops the target and rebuilds in place — so a mask failure
+there rolls back the load and leaves an empty target carrying the
+`dbt_full_refresh_incomplete` marker, which blocks normal runs until a
+`--full-refresh` succeeds. That is the trade-off `prebuilt` already makes.
 
 On the `table_refresh_method: dml` swap path the table persists and already
 carries its masks, so reconciliation runs outside — a failure there leaves the
@@ -91,9 +97,14 @@ previous masks in place, exposing nothing.
 
 ## Post-hook ordering changed
 
-In-transaction post-hooks now run **before** masks and indexes, where they
-previously ran after. They already ran before grants, denies and
-`persist_docs`; those relationships are unchanged.
+In-transaction post-hooks now run **before** index creation, where they
+previously ran after. Masks are unaffected — they still run before the
+post-hooks, for the reason in the previous section. Post-hooks already ran
+before grants, denies and `persist_docs`; those relationships are unchanged.
+
+The one mask that did move is the *reconcile* on the `table_refresh_method:
+dml` swap path, which now follows the post-hooks along with its index
+reconciliation.
 
 If a post-hook needs the indexes to exist — it queries the table at scale, or
 creates an index of its own — declare it `transaction: false`. That slot runs
@@ -125,7 +136,28 @@ duration — or the pre-hook is committed before it. There is no third option.
 | Value | Transaction covers | Pre-hook rolls back with a failed load | #819 fixed |
 |---|---|---|---|
 | `schema` | pre-hooks + `CREATE VIEW` + the empty `CREATE` | no | yes |
-| `build` | pre-hooks + the whole build | yes | no |
+| `build` | pre-hooks + the whole build | yes, except below | no |
+
+**Where `build` cannot keep its promise.** Two paths commit a pre-hook's writes
+before or during the build regardless of this setting, because something on
+them must survive a later failure:
+
+- `full_refresh_build: prebuilt` commits its in-progress marker onto its own
+  transaction after setup — the marker exists precisely to outlive a failed
+  load, so it cannot share a transaction with it.
+- An incremental `--full-refresh` of an existing table marks it in progress
+  before the build, for the same reason.
+
+On both, an in-transaction pre-hook is already durable by the time the load
+runs, so `build` costs you the #819 fix and returns nothing. Use
+`transaction: false` and handle the rollback yourself if that matters.
+
+**Where `schema` has nothing to do.** `table_refresh_method: dml` builds its
+scratch table with statements that decline to open a transaction but still join
+one a pre-hook left open, and nothing commits it in between; `prebuilt`
+likewise. A transactional pre-hook on either path holds the new object's `Sch-M`
+for the load whatever this is set to. The remedy there is the same as it was
+before this config existed: declare the pre-hook `transaction: false`.
 
 ```yaml
 models:

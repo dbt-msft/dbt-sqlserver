@@ -193,5 +193,13 @@
       and needs mask-then-index order preserved. refresh_relation is the
       scratch table, dropped by the tail after the commit - dropping it inside
       the cutover transaction would put its catalog locks back in that window. -#}
-  {{ return({'schema_match': schema_match, 'refresh_relation': refresh_relation}) }}
+  {#- refresh_relation is none on the fallback branch: the scratch table was
+      renamed into the target there, so that name no longer exists and the tail
+      has nothing to drop. Returning it would leave the tail issuing a DROP
+      against a vacated name - harmless, since DROP resolves by name and the
+      name is gone, but it reads as though it might drop the target. -#}
+  {{ return({
+    'schema_match': schema_match,
+    'refresh_relation': refresh_relation if schema_match else none
+  }) }}
 {% endmacro %}
