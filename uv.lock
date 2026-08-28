@@ -764,7 +764,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "twine" },
-    { name = "ty", specifier = "==0.0.64" },
+    { name = "ty" },
 ]
 
 [[package]]

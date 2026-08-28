@@ -51,10 +51,8 @@ repos:
         args:
           - '--check'
           - '--diff'
-  # Runs the ty pinned in pyproject.toml, the same command the Type check
-  # workflow runs, so the version is declared in exactly one place. The hook
-  # takes no file arguments: an edit in one file can move diagnostics into
-  # another, so ty rechecks its whole configured scope every run.
+  # The hook takes no file arguments: an edit in one file can move diagnostics
+  # into another, so ty rechecks its whole configured scope every run.
   - repo: local
     hooks:
       - id: ty
