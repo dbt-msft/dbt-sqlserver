@@ -269,6 +269,102 @@ You can also set it per model:
 
 With `table_refresh_method: dml`, a schema change makes the refresh fall back to a rename-swap. On that run — and only that run — the scratch table is rebuilt through `CREATE TABLE … INSERT … WITH (TABLOCK)`, so it carries the model's columnstore index, and under an enforced contract its `NOT NULL`s, into the swap. That run therefore executes the model's SQL twice — once for the `SELECT … INTO` that probes for the schema change, once for the rebuild. Steady-state refreshes are unaffected and keep the single, cheaper `SELECT … INTO`.
 
+### Constraints
+
+Constraints declared in a model's yaml are applied when — and only when — the model's [contract](https://docs.getdbt.com/reference/resource-configs/contract) is enforced, which is what every dbt adapter does and keeps their cost opt-in. (dbt-core does not raise if you declare constraints with the contract off — they are simply never emitted.) `not_null`, `check`, `unique`, `primary_key` and `foreign_key` are all supported.
+
+**Where a constraint lands depends on whether you name it.**
+
+An unnamed constraint is rendered inline in the `CREATE TABLE` column list and SQL Server names it (`PK__my_model__3213E83F…`). It is validated as the table is built, so a violation fails before the new table is swapped in and the previous one is left untouched.
+
+A *model-level* constraint carrying `name:` is applied by `ALTER TABLE … ADD CONSTRAINT` after the build swaps the new table into place and drops the old one. SQL Server scopes constraint names per schema, and a table is built alongside the one it replaces, so that is the first moment the name is free to reuse — naming a constraint inline would collide with the outgoing table (`Msg 2714`) on every rebuild after the first. The trade-off is that this runs after the model has committed: if the data violates the constraint, the model fails with the table already in place but unconstrained, and — as with any failure this late in a build — `post_hook`s declared with `transaction: false` do not run.
+
+Name a constraint when you want it stable across environments (schema-comparison tools report the generated names as differences) or need to reference it later. A `name:` on a *column-level* constraint is ignored with a warning — declare it under the model's `constraints:` key instead.
+
+```yaml
+models:
+  - name: fact_sales
+    config:
+      contract:
+        enforced: true
+    constraints:
+      # named: applied by ALTER TABLE after the swap
+      - type: primary_key
+        name: PK_fact_sales
+        columns: [sale_id]
+      - type: foreign_key
+        name: FK_fact_sales_customer
+        columns: [customer_id]
+        to: ref('dim_customer')
+        to_columns: [customer_id]
+      # unnamed: rendered into the CREATE TABLE
+      - type: check
+        expression: amount >= 0
+    columns:
+      - name: sale_id
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: customer_id
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: amount
+        data_type: decimal(18,2)
+```
+
+#### Clustering
+
+`primary_key` and `unique` are emitted as `NONCLUSTERED` by default so they can coexist with the clustered columnstore index built for [`as_columnstore`](#as_columnstore). Use dbt's own `expression` field to ask for something else:
+
+```yaml
+    constraints:
+      - type: primary_key
+        name: PK_fact_sales
+        columns: [sale_id]
+        expression: clustered   # requires as_columnstore: false
+```
+
+`clustered` and `nonclustered` are the only values understood here. `expression` is free text that dbt splices between the keyword and the column list, which is the one place T-SQL accepts nothing else — index options such as `with (fillfactor = 90)` belong on a separate index, not on the constraint.
+
+#### Foreign keys
+
+Two things are worth knowing before adding them:
+
+- **They are not free at build time.** Every load is validated against them; add them where you want the guarantee, not everywhere the relationship exists.
+- **A foreign key pointing at a model blocks that model's rebuild.** The build renames the outgoing table to a backup and drops it, but the child's foreign key follows the renamed object, so the drop fails with `Msg 3726`. SQL Server has no `DROP TABLE … CASCADE`.
+
+  The adapter ships a macro for exactly this, meant as a `pre_hook` on the **referenced** (parent) model:
+
+  ```sql
+  {{ config(pre_hook="{{ drop_fk_constraints() }}") }}
+  ```
+
+  It drops the foreign keys in both directions — the inbound ones other tables hold against this model, and this model's own outbound ones — so the rebuild's backup drop succeeds. The trade-off is explicit and worth stating: **the child's foreign key does not exist between the parent's rebuild and the child's next build.** (dbt-postgres makes the same trade silently, by issuing every `drop table` with `cascade`.)
+
+  `table_refresh_method: dml` is *not* a workaround. Its steady-state refresh issues `DELETE FROM <parent>`, which fails with `Msg 547` as soon as the child holds referencing rows, and its schema-change path falls back to the same rename-swap, hitting `Msg 3726` anyway.
+
+- **SQL Server has no cross-database foreign keys.** `to: ref(...)` resolves to a fully qualified relation, database included, which SQL Server accepts as long as it names the current database. A target in another database fails with `references invalid table`.
+
+A foreign key also does not order the build on its own: add an explicit `-- depends_on: {{ ref('dim_customer') }}` to the child model so the parent is built first.
+
+#### Changing a constraint after the first build
+
+Named constraints are applied by an `ALTER TABLE` whose `ADD` is guarded on the name already being present on the table, so:
+
+- **Adding** a constraint to a model that already exists lands on its next run — no `--full-refresh` needed, on `table` and `incremental` alike.
+- **Changing** an existing constraint's definition while keeping its name is *not* detected: a constraint name, unlike a `dbt_idx_` index name, says nothing about what the constraint does. Run `--full-refresh` to apply the new definition; that rebuilds the table, so the constraint is created fresh. (A `table` model rebuilds on every run and needs nothing special.)
+- **Renaming** a constraint on a table that persists across runs adds the new name beside the old one. For a `check`, `unique` or `foreign_key` that means a duplicate; for a `primary_key` the run fails with `Msg 1779` (*table already has a primary key defined on it*) until the old one is dropped. Rename with `--full-refresh`.
+- **Removing** a constraint from the yaml does not drop it from the database. Drop it yourself, or `--full-refresh`.
+
+Every bullet above is about *named* constraints. Unnamed ones ride the `CREATE TABLE`, so they follow the table and change only when the table is rebuilt — on a materialization whose table persists across runs (`incremental` in its steady state, `table_refresh_method: dml`), adding an unnamed constraint to an existing model does nothing until a `--full-refresh`, and the run still reports success. Name it, or full-refresh.
+
+#### Build-shape notes
+
+An *unnamed* `primary_key` or `unique` constraint on a column that also carries a [data mask](#dynamic-data-masking-masked_with--masks) is rejected by the build. The constraint rides the `CREATE TABLE`, so its index already exists by the time `apply_masks` runs, and the adapter refuses to mask any column that an index has as a key: *is configured for masking but is also an index key column*. Declare that constraint at the model level **with a `name:`** instead — named constraints are applied by `ALTER TABLE` after the masks are in place, which the adapter allows.
+
+With `full_refresh_build: prebuilt`, a `primary_key` or `unique` constraint creates a nonclustered index on the table *before* the bulk load. That secondary index has to be maintained row by row during `INSERT … WITH (TABLOCK)`, which is fully logged and adds to a load that `prebuilt` exists to make cheap. If a model is on `prebuilt` because its load time matters, weigh the key constraints against that; `check`, `not_null` and `foreign_key` do not create indexes and do not carry this cost.
+
 ### Dynamic Data Masking (`masked_with` / `masks`)
 
 The adapter can apply SQL Server [Dynamic Data Masking](https://learn.microsoft.com/en-us/sql/relational-databases/security/dynamic-data-masking) (DDM) to columns as part of the materialization, so masks are re-applied on every build and survive dbt's drop-and-recreate on a full refresh. A principal granted `SELECT` but not `UNMASK` then sees masked values instead of real data (dbt's own build principal, being `db_owner`, keeps `UNMASK` and reads real data). Requires **SQL Server 2016+**.

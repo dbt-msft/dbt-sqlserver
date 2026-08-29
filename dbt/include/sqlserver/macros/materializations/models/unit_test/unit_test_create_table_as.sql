@@ -32,7 +32,11 @@
     {%- elif not is_nested_cte and contract_config.enforced %}
 
         CREATE TABLE {{relation}}
-        {{ build_columns_constraints(relation) }}
+        {#- only_not_null: the fixture rows are hand-written stand-ins for the
+            model's real data, so a UNIQUE / PRIMARY KEY / FOREIGN KEY copied
+            off the contract would fail the unit test on data that was never
+            meant to satisfy it. -#}
+        {{ build_columns_constraints(relation, only_not_null=True) }}
         {{ get_assert_columns_equivalent(sql)  }}
 
         {% set listColumns %}
