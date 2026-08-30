@@ -110,6 +110,35 @@
     {%- set backup_relation = make_backup_relation(target_relation, backup_relation_type) -%}
     {{ drop_relation_if_exists(backup_relation) }}
 
+    {#- The scratch table above came from SELECT * INTO, which is the right
+        shape for the schema probe and the wrong one for the object that is
+        about to be renamed into position: it copies no constraint and no
+        index, and takes nullability from the query rather than from a
+        contract. Left as-is it silently strips the model of its clustered
+        columnstore index - create_indexes only builds what the `indexes`
+        config names, never the as_columnstore CCI - and, under a contract, of
+        its NOT NULLs and inline constraints too. None of it came back on a
+        later run, because every later run matched the new schema and took the
+        DELETE+INSERT path above.
+
+        So rebuild it the way this adapter builds every other table. The
+        rebuild belongs on this branch alone: doing it up front would build,
+        and then throw away, a full columnstore index on every steady-state
+        refresh, which on a large table dominates the run. A schema change is
+        rare, so one extra build here is much the cheaper trade.
+
+        It is not free, though: the model's SQL runs a second time here, the
+        SELECT * INTO above having already run it once as the schema probe.
+        Probing the tmp view instead of the materialized scratch would avoid
+        that, at the cost of changing how the probe behaves - a separate
+        change, not this one.
+
+        create_table_as builds and drops its own __dbt_tmp_vw. -#}
+    {{ drop_relation_if_exists(refresh_relation) }}
+    {% call statement('dml_refresh_rebuild') -%}
+      {{ get_create_table_as_sql(False, refresh_relation, sql) }}
+    {%- endcall %}
+
     {# Rename scratch table into position #}
     {% set existing_relation = load_cached_relation(target_relation) %}
     {% if existing_relation is not none %}
@@ -118,7 +147,7 @@
 
     {{ adapter.rename_relation(refresh_relation, target_relation) }}
 
-    {# Rebuilt via SELECT INTO (no masks carried), so apply masks before
+    {# Freshly rebuilt (no masks carried), so apply masks before
        create_indexes — a mask cannot be added to a column an index depends
        on (documented for all SQL Server versions). #}
     {% do apply_masks(target_relation, mask_config) %}

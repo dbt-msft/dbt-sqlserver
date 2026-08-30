@@ -605,3 +605,49 @@ class TestDmlRefreshColumnOrderMismatch:
 
         # Scratch cleaned up
         assert not table_exists(project, "dml_reorder_model__dbt_refresh")
+
+
+# -- Test: the columnstore survives the schema-change rename-swap fallback --
+
+dml_cci_schema_change_sql = """
+{{
+  config({
+    "materialized": "table",
+    "table_refresh_method": "dml"
+  })
+}}
+select 1 as id, 'hello' as val, 42 as new_col
+"""
+
+
+class TestDmlRefreshColumnstoreSurvivesSchemaChange:
+    """A schema change pushes the DML refresh onto its rename-swap fallback,
+    which renames the scratch table into position. The scratch came from
+    SELECT * INTO, which copies no index, and create_indexes only builds what
+    the `indexes` config names - never the as_columnstore CCI. So the model
+    came back a heap and stayed one, since every later run matched the new
+    schema and took the DELETE+INSERT path. Rebuilding the scratch through
+    create_table_as is what carries the columnstore across the swap.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"dml_cci_swap_model.sql": dml_with_columnstore_sql}
+
+    def test_columnstore_survives_schema_change(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+        assert has_columnstore_index(project, "dml_cci_swap_model")
+
+        # Add a column: the refresh cannot swap by DELETE+INSERT any more and
+        # falls back to rename-swap.
+        write_model(project, "dml_cci_swap_model.sql", dml_cci_schema_change_sql)
+
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        assert "new_col" in get_column_names(project, "dml_cci_swap_model")
+        assert has_columnstore_index(project, "dml_cci_swap_model")
+        assert not table_exists(project, "dml_cci_swap_model__dbt_refresh")

@@ -1,5 +1,11 @@
 # Changelog
 
+### v1.11.2
+
+#### Bugfixes
+
+- Fix a model with `table_refresh_method: dml` losing its clustered columnstore index - and, under an enforced contract, its `NOT NULL`s as well - the first time its schema changed. That path builds a scratch table and, when the columns no longer match, renames it into position; the scratch was built with `SELECT * INTO`, which copies no index and no constraint and infers nullability from the query rather than from the contract, and `create_indexes` only builds what the `indexes` config names, never the `as_columnstore` CCI. So the model came back stripped and stayed that way, since every later run matched the new schema and took the DELETE+INSERT path. That branch now rebuilds the scratch table through `create_table_as` - the way every other build path in the adapter creates a table - which carries the full column DDL and the columnstore index across the swap. On a schema-change run - and only there - that costs a second execution of the model's SQL (once for the `SELECT ... INTO` schema probe, once for the rebuild) and one extra columnstore build. It gives up the minimally-logged `SELECT ... INTO` for that run, though `INSERT ... WITH (TABLOCK)` is itself minimally logged under the simple and bulk-logged recovery models, so the extra log volume lands on full-recovery databases only. Steady-state refreshes are unchanged.
+
 ### v1.11.1
 
 #### Bugfixes
