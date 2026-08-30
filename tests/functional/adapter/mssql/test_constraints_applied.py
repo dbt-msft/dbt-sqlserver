@@ -152,6 +152,42 @@ models:
 """
 
 
+dml_model_sql = model_sql(table_refresh_method="dml")
+
+# Adds a column, which is what pushes the DML refresh onto its rename-swap
+# fallback.
+dml_model_wider_sql = dml_model_sql + ", 'x' as extra"
+
+dml_schema_yml = """
+version: 2
+models:
+  - name: dml_model
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        name: PK_dml_model
+        columns: [id]
+      - type: check
+        expression: id > 0
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: color
+        data_type: varchar(100)
+"""
+
+dml_schema_wider_yml = (
+    dml_schema_yml
+    + """      - name: extra
+        data_type: varchar(100)
+"""
+)
+
+
 fk_parent_sql = """
 {{ config(materialized='table', as_columnstore=False) }}
 select 1 as id
@@ -234,6 +270,23 @@ def _indexes(project, table):
 
 def _index_type(project, table, index_name):
     return _indexes(project, table).get(index_name)
+
+
+def _not_null_columns(project, table):
+    rows = project.run_sql(
+        f"""
+        select c.name
+        from sys.columns c
+        where c.object_id = OBJECT_ID('{project.test_schema}.{table}')
+          and c.is_nullable = 0
+        """,
+        fetch="all",
+    )
+    return sorted(row[0] for row in rows)
+
+
+def _has_columnstore(project, table):
+    return "CLUSTERED COLUMNSTORE" in _indexes(project, table).values()
 
 
 class TestNamedModelConstraints:
@@ -393,6 +446,47 @@ class TestConstraintAddedToAnExistingModel:
         assert _constraints(project, "incremental_model").get("PRIMARY_KEY_CONSTRAINT") == [
             "PK_incremental_model"
         ]
+
+
+class TestDmlRefreshKeepsConstraints:
+    """table_refresh_method='dml' rebuilds through a rename-swap whenever the
+    schema changes. That rebuild used to land a table built by SELECT * INTO,
+    which carries no constraints, no NOT NULL and no columnstore index.
+
+    One test per class - see TestConstraintAddedToAnExistingModel.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "dml_model.sql": dml_model_sql,
+            "schema.yml": dml_schema_yml,
+        }
+
+    def test_constraints_survive_the_schema_change_fallback(self, project):
+        run_dbt(["run"])
+        before = _constraints(project, "dml_model")
+        assert before.get("PRIMARY_KEY_CONSTRAINT") == ["PK_dml_model"]
+        assert len(before.get("CHECK_CONSTRAINT", [])) == 1
+        assert _not_null_columns(project, "dml_model") == ["id"]
+        # Default as_columnstore, so the table is built on a CCI.
+        assert _has_columnstore(project, "dml_model")
+
+        # A steady-state refresh keeps the table object and everything on it.
+        run_dbt(["run"])
+        assert _constraints(project, "dml_model").get("PRIMARY_KEY_CONSTRAINT") == ["PK_dml_model"]
+
+        # Add a column: the DML refresh cannot swap by DELETE+INSERT any more
+        # and falls back to rename-swap.
+        write_file(dml_model_wider_sql, "models", "dml_model.sql")
+        write_file(dml_schema_wider_yml, "models", "schema.yml")
+        run_dbt(["run"])
+
+        after = _constraints(project, "dml_model")
+        assert after.get("PRIMARY_KEY_CONSTRAINT") == ["PK_dml_model"]
+        assert len(after.get("CHECK_CONSTRAINT", [])) == 1
+        assert _not_null_columns(project, "dml_model") == ["id"]
+        assert _has_columnstore(project, "dml_model")
 
 
 class TestForeignKeyToRef:
