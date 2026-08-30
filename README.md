@@ -267,6 +267,8 @@ You can also set it per model:
 {{ config(materialized="table", as_columnstore=false) }}
 ```
 
+With `table_refresh_method: dml`, a schema change makes the refresh fall back to a rename-swap. On that run — and only that run — the scratch table is rebuilt through `CREATE TABLE … INSERT … WITH (TABLOCK)`, so it carries the model's columnstore index, and under an enforced contract its `NOT NULL`s, into the swap. That run therefore executes the model's SQL twice — once for the `SELECT … INTO` that probes for the schema change, once for the rebuild. Steady-state refreshes are unaffected and keep the single, cheaper `SELECT … INTO`.
+
 ### Dynamic Data Masking (`masked_with` / `masks`)
 
 The adapter can apply SQL Server [Dynamic Data Masking](https://learn.microsoft.com/en-us/sql/relational-databases/security/dynamic-data-masking) (DDM) to columns as part of the materialization, so masks are re-applied on every build and survive dbt's drop-and-recreate on a full refresh. A principal granted `SELECT` but not `UNMASK` then sees masked values instead of real data (dbt's own build principal, being `db_owner`, keeps `UNMASK` and reads real data). Requires **SQL Server 2016+**.
