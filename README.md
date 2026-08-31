@@ -267,7 +267,7 @@ You can also set it per model:
 {{ config(materialized="table", as_columnstore=false) }}
 ```
 
-With `table_refresh_method: dml`, a schema change makes the refresh fall back to a rename-swap. On that run — and only that run — the scratch table is rebuilt through `CREATE TABLE … INSERT … WITH (TABLOCK)`, so it carries the model's columnstore index, and under an enforced contract its `NOT NULL`s, into the swap. That run therefore executes the model's SQL twice — once for the `SELECT … INTO` that probes for the schema change, once for the rebuild. Steady-state refreshes are unaffected and keep the single, cheaper `SELECT … INTO`.
+With `table_refresh_method: dml`, a schema change makes the refresh fall back to a rename-swap. On that run — and only that run — the scratch table is rebuilt the way this adapter builds every other table, so it carries the model's columnstore index, and under an enforced contract its `NOT NULL`s, into the swap. That run therefore executes the model's SQL twice — once for the `SELECT … INTO` that probes for the schema change, once for the rebuild — and builds the columnstore index once. Steady-state refreshes are unaffected and keep the single `SELECT … INTO`. A table that lost its columnstore index to this bug before you upgraded is not repaired automatically: its schema still matches, so it stays on the cheap path. Rebuild it with `--full-refresh`.
 
 ### Dynamic Data Masking (`masked_with` / `masks`)
 
