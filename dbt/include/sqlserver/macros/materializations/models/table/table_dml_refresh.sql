@@ -129,9 +129,14 @@
 
         It is not free, though: the model's SQL runs a second time here, the
         SELECT * INTO above having already run it once as the schema probe.
-        Probing the tmp view instead of the materialized scratch would avoid
-        that, at the cost of changing how the probe behaves - a separate
-        change, not this one.
+        Any side effect in that SQL therefore happens twice, and the two runs
+        are not interchangeable - the schema decision came from the first, the
+        table renamed into position comes from the second. A model whose column
+        shape can differ between them lands the second shape unchecked, unless
+        a contract is enforced and create_table_as re-asserts it. Probing the
+        tmp view instead of the materialized scratch would collapse the two
+        back into one, at the cost of changing how the probe behaves - a
+        separate change, not this one.
 
         create_table_as builds and drops its own __dbt_tmp_vw. -#}
     {{ drop_relation_if_exists(refresh_relation) }}
