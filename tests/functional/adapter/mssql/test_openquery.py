@@ -11,8 +11,9 @@ ONE dbt invocation covers every case. Eight models live in a single project:
    (see openquery.sql), so they surface as per-node errors while every other
    model in the same run still succeeds.
 
-The linked server is created before the run and dropped afterwards, leaving no
-residue. Requires a live SQL Server and permission to run sp_addlinkedserver.
+The loopback linked server these run against is instance-wide state, created
+once by devops/scripts/linked_server.sql when the instance is set up. Nothing
+here provisions it; where it is absent these tests skip.
 """
 
 import os
@@ -20,70 +21,6 @@ import os
 import pytest
 
 from dbt.tests.util import run_dbt
-
-# A linked server is instance-wide, so a fixed name collides when pytest-xdist
-# runs this class on more than one worker against the same SQL Server: the
-# setup below drops-and-recreates, and the teardown drops outright, so one
-# worker pulls the server out from under another mid-run. The victim's models
-# then fail with Msg 7202 ("Could not find server ... in sys.servers") even
-# though its own fixture verified the server existed moments earlier - the
-# creator sees its own row, the other worker's connection does not.
-#
-# One name per worker process keeps them apart. It is stable across reruns
-# (unlike a uuid), so the IF EXISTS guard below still cleans up a server left
-# behind by a crashed run rather than leaking a new one each time.
-_PLACEHOLDER_SERVER_NAME = "LOCALLOOP"
-_LINKED_SERVER_NAME = "{}_{}".format(
-    _PLACEHOLDER_SERVER_NAME,
-    os.environ.get("PYTEST_XDIST_WORKER", "main").upper(),
-)
-
-
-def _for_this_worker(sql: str) -> str:
-    """Point SQL written against the placeholder name at this worker's server."""
-    return sql.replace(_PLACEHOLDER_SERVER_NAME, _LINKED_SERVER_NAME)
-
-
-def _create_linked_server_sql(major_version: int) -> str:
-    """Loopback linked server. Two settings vary by engine version.
-
-    Provider: MSOLEDBSQL only became a valid linked-server provider on Linux in
-    2019; 2017 rejects it with Msg 7222 and needs SQLNCLI.
-
-    Cert trust: from 2025 the provider negotiates encryption by default and the
-    loopback presents the instance's self-signed certificate, so the engine's
-    outbound handshake fails ("SSL Provider: The handle specified is invalid")
-    without it. Sent only where needed, so 2019/2022 generate identical SQL.
-
-    useself=true maps the local login to the same-named remote login, so no
-    password is embedded here.
-    """
-    # SQL Server 2017 leaves extended support on 2027-10-12; drop this branch
-    # and the 2017 CI leg after that date.
-    provider = "SQLNCLI" if major_version <= 14 else "MSOLEDBSQL"
-    provstr = "\n    @provstr = 'TrustServerCertificate=Yes'," if major_version >= 17 else ""
-    return f"""
-IF EXISTS (SELECT 1 FROM sys.servers WHERE name = '{_LINKED_SERVER_NAME}')
-    EXEC sp_dropserver '{_LINKED_SERVER_NAME}', 'droplogins';
-EXEC sp_addlinkedserver
-    @server = '{_LINKED_SERVER_NAME}',
-    @srvproduct = '',
-    @provider = '{provider}',{provstr}
-    @datasrc = '127.0.0.1,1433';
-EXEC sp_addlinkedsrvlogin
-    @rmtsrvname = '{_LINKED_SERVER_NAME}',
-    @useself = 'true',
-    @locallogin = NULL,
-    @rmtuser = NULL,
-    @rmtpassword = NULL;
-EXEC sp_serveroption '{_LINKED_SERVER_NAME}', 'rpc out', true;
-"""
-
-
-_DROP_LINKED_SERVER_SQL = f"""
-IF EXISTS (SELECT 1 FROM sys.servers WHERE name = '{_LINKED_SERVER_NAME}')
-    EXEC sp_dropserver '{_LINKED_SERVER_NAME}', 'droplogins';
-"""
 
 
 def _find_compiled_sql(project, filename: str) -> str:
@@ -181,39 +118,41 @@ class TestOpenquery:
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            name: _for_this_worker(body)
-            for name, body in {
-                "basic_model.sql": basic_sql,
-                "quotes_model.sql": quotes_sql,
-                "cr_model.sql": cr_sql,
-                "max_length_model.sql": max_length_sql,
-                "empty_server_model.sql": empty_server_sql,
-                "none_server_model.sql": none_server_sql,
-                "empty_remote_model.sql": empty_remote_sql,
-                "too_long_model.sql": too_long_sql,
-            }.items()
+            "basic_model.sql": basic_sql,
+            "quotes_model.sql": quotes_sql,
+            "cr_model.sql": cr_sql,
+            "max_length_model.sql": max_length_sql,
+            "empty_server_model.sql": empty_server_sql,
+            "none_server_model.sql": none_server_sql,
+            "empty_remote_model.sql": empty_remote_sql,
+            "too_long_model.sql": too_long_sql,
         }
 
     @pytest.fixture(scope="class")
     def _linked_server(self, project):
-        major_version = int(
-            project.run_sql(
-                "SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int)", fetch="one"
-            )[0]
-        )
-        project.run_sql(_create_linked_server_sql(major_version))
+        """Require LOCALLOOP; never create it.
+
+        Creating one from here is what this class stopped doing: a linked
+        server is instance-wide, so a fixture that provisioned its own raced
+        every other caller on the instance, and dropping it pulled the server
+        out from under runs still using it (Msg 7202). Reading is the whole
+        contract.
+
+        Absent, these skip rather than fail. An instance may predate
+        devops/scripts/linked_server.sql - a CI image published before it -
+        or be one the adapter is merely pointed at, and Azure SQL Database
+        cannot have a linked server at all.
+        """
         rows = project.run_sql(
-            f"SELECT name FROM sys.servers WHERE name = '{_LINKED_SERVER_NAME}'",
-            fetch="all",
+            "SELECT name FROM sys.servers WHERE name = 'LOCALLOOP'", fetch="all"
         )
-        assert len(rows) == 1 and rows[0][0] == _LINKED_SERVER_NAME
-        yield
-        project.run_sql(_DROP_LINKED_SERVER_SQL)
-        left = project.run_sql(
-            f"SELECT COUNT(*) FROM sys.servers WHERE name = '{_LINKED_SERVER_NAME}'",
-            fetch="one",
-        )
-        assert left[0] == 0
+        if not rows:
+            pytest.skip(
+                "No LOCALLOOP linked server on this instance. It is created at "
+                "bootstrap by devops/scripts/linked_server.sql; an instance not "
+                "built from devops/server.Dockerfile needs it added by hand."
+            )
+        assert rows[0][0] == "LOCALLOOP"
 
     @pytest.fixture(scope="class")
     def _run_all(self, project, _linked_server):
@@ -228,7 +167,7 @@ class TestOpenquery:
     def test_emits_openquery_and_returns_rows(self, project, _run_all):
         """Happy path: quoted server name, literal remote SQL, real rows."""
         sql = _find_compiled_sql(project, "basic_model.sql")
-        assert _for_this_worker('OPENQUERY("LOCALLOOP", \'SELECT 1 AS id') in sql
+        assert 'OPENQUERY("LOCALLOOP", \'SELECT 1 AS id' in sql
         rows = project.run_sql(
             f"SELECT id, name FROM {project.test_schema}.basic_model ORDER BY id",
             fetch="all",
@@ -239,21 +178,21 @@ class TestOpenquery:
         """Quotes are doubled in the emitted SQL, and the remote literal
         round-trips to the value it's."""
         sql = _find_compiled_sql(project, "quotes_model.sql")
-        assert _for_this_worker("OPENQUERY(\"LOCALLOOP\", 'SELECT ''it''''s'' AS msg')") in sql
+        assert "OPENQUERY(\"LOCALLOOP\", 'SELECT ''it''''s'' AS msg')" in sql
         rows = project.run_sql(f"SELECT msg FROM {project.test_schema}.quotes_model", fetch="all")
         assert [row[0] for row in rows] == ["it's"]
 
     def test_carriage_returns_are_stripped_and_query_runs(self, project, _run_all):
         sql = _find_compiled_sql(project, "cr_model.sql")
         assert "\r" not in sql
-        assert _for_this_worker('OPENQUERY("LOCALLOOP", \'SELECT 1') in sql
+        assert 'OPENQUERY("LOCALLOOP", \'SELECT 1' in sql
         rows = project.run_sql(f"SELECT id FROM {project.test_schema}.cr_model", fetch="all")
         assert [row[0] for row in rows] == [1]
 
     def test_max_length_boundary_compiles(self, project, _run_all):
         """Exactly 8000 escaped characters is allowed."""
         sql = _find_compiled_sql(project, "max_length_model.sql")
-        assert _for_this_worker('OPENQUERY("LOCALLOOP", \'SELECT ') in sql
+        assert 'OPENQUERY("LOCALLOOP", \'SELECT ' in sql
 
     @pytest.mark.parametrize(
         "model_name,expected",
