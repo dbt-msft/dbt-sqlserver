@@ -57,7 +57,12 @@ class TestRelationTypes(CatalogRelationTypes):
 
 
 class TestCatalogAcrossDatabases:
-    SECONDARY_DATABASE = "secondary_db"
+    # Distinct from the database test_cross_db.py creates. A database is
+    # instance-wide, and both classes drop theirs when done - with
+    # `ROLLBACK IMMEDIATE`, which boots whatever sessions are still on it. They
+    # live in different modules, so no --dist mode keeps them off separate
+    # workers running at once; only the name being different does.
+    SECONDARY_DATABASE = "catalog_secondary_db"
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
