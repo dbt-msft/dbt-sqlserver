@@ -107,8 +107,14 @@ select {{ sqlserver__openquery('LOCALLOOP', 'SELECT ' ~ 'x' * 8001) }} as result
 """
 
 
+@pytest.mark.xdist_group("openquery")
 class TestOpenquery:
     """One project, ONE `dbt run`, every case.
+
+    The xdist_group mark is what makes that true under `-n auto`: it keeps all
+    of these on one worker, so the class-scoped fixtures below - the project,
+    the linked server, and the dbt invocation itself - are set up once rather
+    than once per worker that happens to receive a test.
 
     `dbt run` (unlike `dbt compile`) records per-node errors instead of
     re-raising, so the four invalid models come back as status="error" results
