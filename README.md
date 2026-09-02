@@ -177,12 +177,17 @@ The same setting is also honoured via `vars:` for backwards compatibility; the b
 
 Safe expansions are further gated by `column_type_expansion_max_rows` (default 1,000,000 rows) to avoid long-running operations on large tables.
 
-### `pre_hook_transaction_scope` and `dbt_sqlserver_pre_hook_schema_scope`
+### `pre_hook_transaction_scope`
 
-Control how far a model's transaction extends around its build, trading
-pre-hook rollback against how long a `Sch-M` lock blocks metadata readers in
-other sessions. See [docs/transaction_scope.md](docs/transaction_scope.md) for
-the full flow, the post-hook ordering change and when to use which.
+_(default: `load`)_ Where a `table`, `incremental` or `snapshot` build resolves its schema
+(the tmp view and the empty `CREATE`) relative to its in-transaction pre-hooks.
+`load` stages it before them, so the new table's `Sch-M` lock is released in an
+instant and the load blocks no metadata reader in other sessions; a
+`transaction: true` pre-hook still rolls back with a failed load. `build` stages
+it inside the hook's transaction, for the one case `load` cannot serve: a
+`transaction: true` pre-hook that creates an object the model reads. See
+[docs/transaction_scope.md](docs/transaction_scope.md) for the full flow and
+the post-hook ordering change.
 
 ### `dbt_sqlserver_use_dbt_transactions`
 

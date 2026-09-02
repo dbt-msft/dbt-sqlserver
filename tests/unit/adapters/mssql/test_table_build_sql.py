@@ -331,26 +331,36 @@ def test_no_macro_fuses_a_create_with_its_load(macro_file):
     )
 
 
-def test_table_materialization_commits_between_the_create_and_the_load():
-    """The create's Sch-M must be released before the load starts.
+def test_table_materialization_stages_before_the_in_transaction_pre_hooks():
+    """The create's Sch-M must be released before any pre-hook opens the transaction.
 
-    Both statements decline to OPEN a transaction, which is not enough on its
-    own - auto_begin=False still joins one a pre-hook left open, and then the
-    create's Sch-M would be held to commit for the length of the load. The
-    commit between them is what actually releases it.
+    auto_begin=False only declines to OPEN a transaction; it still joins one a
+    pre-hook left open, and then the create's Sch-M would be held to commit for
+    the length of the load. So the stage runs BEFORE run_hooks(inside_transaction=True),
+    where nothing is open and it autocommits, and the load joins the hook's
+    transaction afterwards (X table lock only). Committing the pre-hook early
+    instead would cost every transaction: true pre-hook its rollback.
     """
     source = TABLE_SQL.read_text()
+    outside_hooks = source.find("run_hooks(pre_hooks, inside_transaction=False)")
     stage = source.find("call statement('create_table_stage', auto_begin=False)")
-    assert stage != -1, "the stage half must be its own statement"
-    after_stage = source[stage:]
-    commit = after_stage.find("adapter.commit_if_open()")
-    load = after_stage.find("call statement('main', auto_begin=False)")
-    begin = after_stage.find("adapter.begin_if_closed()")
-    rename = after_stage.find("adapter.rename_relation")
-    assert -1 < commit < load < begin < rename, (
-        "commit after the create and before the load, then reopen before the "
-        "renames so the cutover is transactional and adapter.commit() has a "
-        "matching BEGIN"
+    dml_stage = source.find("sqlserver__table_dml_refresh_stage(target_relation, sql)")
+    in_tx_hooks = source.find("run_hooks(pre_hooks, inside_transaction=True)")
+    load = source.find("call statement('main', auto_begin=False)")
+    begin = source.find("adapter.begin_if_closed()")
+    rename = source.find("adapter.rename_relation")
+    assert -1 < outside_hooks < stage < in_tx_hooks < load < begin < rename, (
+        "stage after the outside-transaction hooks and before the in-transaction "
+        "ones; load after them; reopen before the renames so the cutover is "
+        "transactional and adapter.commit() has a matching BEGIN"
+    )
+    assert -1 < outside_hooks < dml_stage < in_tx_hooks, (
+        "the dml scratch build is staged ahead of the in-transaction hooks too"
+    )
+    between = source[stage:in_tx_hooks]
+    assert "commit_if_open" not in between, (
+        "no commit between the stage and the hooks: the stage autocommits on its "
+        "own, and a commit here would be a no-op that reads as if it were needed"
     )
 
 
@@ -365,21 +375,17 @@ def test_table_materialization_writes_the_whole_build_to_the_artifact():
     assert "write(stage_sql ~" in source
 
 
-def test_scope_gate_is_sampled_before_any_branch_code():
-    """transaction_is_open must be read before macros that open one of their own.
-
-    sqlserver__mark_full_refresh_incomplete ends with begin_if_closed and so
-    always leaves a transaction open. Sampled after that, the gate answers yes
-    for reasons unrelated to any pre-hook, and every full refresh would
-    silently take the transaction-spanning path (#819 unfixed, default config).
-    """
+def test_tmp_view_is_dropped_after_the_cutover_commits():
+    """An uncommitted DROP VIEW holds Sch-M on the view, and a database-wide
+    catalog scan blocks on that just as on a table. With the load inside a
+    pre-hook's transaction, the view drop has to wait for the commit."""
     source = TABLE_SQL.read_text()
-    gate = source.find("adapter.transaction_is_open()")
-    pre_hooks = source.find("run_hooks(pre_hooks, inside_transaction=True)")
-    first_branch = source.find("{% if use_dml_refresh %}")
-    assert -1 < pre_hooks < gate < first_branch, (
-        "sample the gate after the in-transaction pre-hooks and before the build branches"
-    )
+    assert "drop_tmp_view=False" in source, "the split load must not drop the view in-batch"
+    after_post_hooks = source.split("run_hooks(post_hooks, inside_transaction=True)", 1)[1]
+    commit = after_post_hooks.find("adapter.commit_if_open()")
+    view_drop = after_post_hooks.find("DROP VIEW IF EXISTS")
+    indexes = after_post_hooks.find("create_indexes(target_relation)")
+    assert -1 < commit < view_drop < indexes
 
 
 def test_masks_stay_inside_the_cutover_transaction_on_fresh_builds():

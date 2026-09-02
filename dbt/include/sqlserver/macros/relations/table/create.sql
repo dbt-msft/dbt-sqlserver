@@ -149,7 +149,7 @@
 {%- endmacro %}
 
 
-{% macro sqlserver__get_create_table_load_sql(temporary, relation, sql) -%}
+{% macro sqlserver__get_create_table_load_sql(temporary, relation, sql, drop_tmp_view=True) -%}
     {#-
       Second half of a table build: load the object the stage half created,
       then clean up and add the clustered columnstore index.
@@ -160,7 +160,13 @@
 
       The tmp view drop lives here, not with the create: the INSERT reads that
       view, so dropping it in the stage half would break a split build. It
-      trails the INSERT in the same batch either way.
+      trails the INSERT in the same batch by default. A caller whose load runs
+      inside a pre-hook's transaction passes drop_tmp_view=False and drops the
+      view after that transaction commits: an uncommitted DROP VIEW holds Sch-M
+      on the view, and a database-wide catalog scan blocks on that just as it
+      does on a table (#819). The stage half re-creates the view with
+      CREATE OR ALTER after a render-time drop, so a view left behind by a
+      failed run is harmless.
     -#}
     {%- set query_label = get_query_options(parse_options=True) -%}
     {%- set tmp_relation = relation.incorporate(path={"identifier": relation.identifier ~ '__dbt_tmp_vw'}, type='view') -%}
@@ -176,8 +182,10 @@
 
     EXEC('{{- escape_single_quotes(query) -}}')
 
+    {% if drop_tmp_view %}
     {# For some reason drop_relation is not firing. This solves the issue for now. #}
     EXEC('DROP VIEW IF EXISTS {{ tmp_relation.include(database=False) }}')
+    {% endif %}
 
     {% set as_columnstore = config.get('as_columnstore', default=true) %}
     {% if not temporary and as_columnstore -%}
@@ -279,13 +287,21 @@
         {{ setup_sql }}
     {%- endcall %}
 
-    {#- Commit the marker onto its own, then reopen so the load below (and
-        the rest of the materialization: grants, persist_docs, its own
-        trailing adapter.commit()) is unaffected. See adapter.commit_if_open /
-        begin_if_closed; 'main' above always opens a transaction (default
-        auto_begin), so this always actually commits here. -#}
+    {#- Commit the marker onto its own. 'main' above always opens a
+        transaction (default auto_begin), so this always actually commits
+        here - and with it any transaction: true pre-hook, which is why 'build'
+        scope cannot deliver rollback on this path (docs/transaction_scope.md).
+        The load below then runs AUTOCOMMITTED (auto_begin=False, nothing
+        open): the clustered design is created on the empty table and its
+        Sch-M released as that statement ends, and the INSERT holds only an X
+        table lock. Reopened inside the ambient transaction instead, that
+        Sch-M sits on the LIVE name until the materialization's trailing
+        commit - the whole load, plus masks and post-hooks (#819). The in-batch
+        BEGIN/COMMIT around the INSERT and the marker drop is a real
+        transaction under autocommit, which is exactly what their atomicity
+        needs. begin_if_closed afterwards leaves later code (masks,
+        post-hooks, the trailing adapter.commit()) a transaction to run in. -#}
     {{ adapter.commit_if_open() }}
-    {{ adapter.begin_if_closed() }}
 
     {%- set load_sql -%}
     {% if as_columnstore %}
@@ -312,9 +328,10 @@
 
     EXEC('DROP VIEW IF EXISTS {{ tmp_relation.include(database=False) }}')
     {%- endset %}
-    {% call statement('create_table_as_prebuilt_load') -%}
+    {% call statement('create_table_as_prebuilt_load', auto_begin=False) -%}
         {{ load_sql }}
     {%- endcall %}
+    {{ adapter.begin_if_closed() }}
 {% endmacro %}
 
 
@@ -334,15 +351,15 @@
         the same transaction as the rebuild it's guarding: if a prior
         statement this run (e.g. a pre-hook) already opened the ambient
         dbt-managed transaction, a later failure would roll the marker back
-        right along with it, defeating the point. Commit it, then reopen so
-        later code sees a transaction open exactly as it would without this
-        pair (begin_if_closed always leaves one open, whether or not
-        commit_if_open just found one to close) - commit_if_open alone is a
-        no-op when run_query above ran standalone, i.e. the common case of
-        this being the first statement of the run. See adapter.commit_if_open
-        / begin_if_closed. -#}
+        right along with it, defeating the point. Commit it - a no-op when
+        run_query above ran standalone, i.e. the common case of this being the
+        first statement of the run. Deliberately NOT reopened: the load that
+        follows must autocommit so the new table's Sch-M is not held to the
+        materialization's trailing commit (#819); every statement after it
+        that needs a transaction opens its own (default auto_begin), and the
+        materialization's tail states its precondition with begin_if_closed
+        before adapter.commit(). -#}
     {{ adapter.commit_if_open() }}
-    {{ adapter.begin_if_closed() }}
 {%- endmacro %}
 
 

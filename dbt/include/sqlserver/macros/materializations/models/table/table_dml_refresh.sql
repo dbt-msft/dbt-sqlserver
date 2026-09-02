@@ -1,4 +1,46 @@
-{% macro sqlserver__table_dml_refresh(target_relation, sql) %}
+{% macro sqlserver__table_dml_refresh_stage(target_relation, sql) %}
+  {#
+    Schema resolution for the DML refresh: clear leftovers from a prior failed
+    run, create the tmp view over the model SQL, and create the scratch table
+    EMPTY. Every statement passes auto_begin=False; table.sql calls this
+    before the in-transaction pre-hooks (pre_hook_transaction_scope='load',
+    the default), so nothing is open and each statement autocommits - the
+    scratch table's Sch-M is held for the instant of its create, not the
+    length of the load that follows (dbt-msft/dbt-sqlserver#819). Under
+    'build' it is called after the hooks instead and joins their transaction.
+
+    Returns the two relations the load half and the tail need.
+  #}
+  {%- set refresh_relation = target_relation.incorporate(
+      path={"identifier": target_relation.identifier ~ '__dbt_refresh'}
+  ) -%}
+  {%- set tmp_vw_relation = refresh_relation.incorporate(
+      path={"identifier": refresh_relation.identifier ~ '__dbt_tmp_vw'}, type='view'
+  ) -%}
+
+  {% call statement('dml_refresh_cleanup_pre', auto_begin=False) -%}
+    DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
+    DROP TABLE IF EXISTS {{ refresh_relation }};
+  {%- endcall %}
+
+  {# Build new data into scratch table via temp view (handles CTEs in model SQL) #}
+  {% call statement('dml_refresh_create_view', auto_begin=False) -%}
+    {{ get_create_view_as_sql(tmp_vw_relation, sql) }}
+  {%- endcall %}
+
+  {#- Create the scratch table empty. It is never contract-enforced: contracts
+      describe the model's target, and this table exists only to stage rows
+      for the swap, which then inserts into the real (already contracted)
+      target. -#}
+  {% call statement('dml_refresh_create_scratch', auto_begin=False) -%}
+    {{ sqlserver__get_create_table_empty_sql(refresh_relation, tmp_vw_relation, sql, false) }}
+  {%- endcall %}
+
+  {{ return({'refresh_relation': refresh_relation, 'tmp_vw_relation': tmp_vw_relation}) }}
+{% endmacro %}
+
+
+{% macro sqlserver__table_dml_refresh(target_relation, sql, stage) %}
   {#
     The DELETE + INSERT swap below (dml_refresh_swap) is only safe because
     every connection sets SET XACT_ABORT ON at session level (see
@@ -13,54 +55,36 @@
     DML-only table refresh for use under RCSI.
 
     Instead of rename-swap (which uses DDL and creates a window where the
-    table name doesnt resolve), this macro:
-    1. Creates a scratch table empty, then bulk-loads it with
-       INSERT ... WITH (TABLOCK) (minimally logged, same as the SELECT INTO
-       this replaces)
+    table name doesnt resolve), this path:
+    1. Creates a scratch table empty (sqlserver__table_dml_refresh_stage,
+       above), then bulk-loads it here with INSERT ... WITH (TABLOCK)
+       (minimally logged, same as the SELECT INTO this replaces)
     2. Compares schemas — if columns changed, falls back to rename-swap
     3. Swaps data via DELETE + INSERT inside an explicit transaction
        (RCSI ensures concurrent readers see old data until COMMIT)
-    4. Cleans up the scratch table
+    4. table.sql drops the tmp view and the scratch table on its tail, after
+       the cutover has committed
 
     The scratch table is a regular table with a __dbt_refresh suffix,
     not a global temp table. This avoids cross-session visibility issues
     and ensures cleanup on failure (DROP IF EXISTS at the start of each run).
 
     Lock discipline (dbt-msft/dbt-sqlserver#819). The scratch build used to be
-    one fused `SELECT * INTO`, which holds Sch-M on the new object for the
-    whole load, and it ran inside the materialization's ambient transaction,
-    which held that Sch-M through to the trailing adapter.commit(). Sch-M is
-    the one mode incompatible with the Sch-S lock every metadata reader takes,
-    so a slow model blocked metadata readers in every other session for the
-    length of its load. Both halves are fixed here:
-
-      - the create and the load are separate statements (see
-        sqlserver__get_create_table_empty_sql), so Sch-M is held for the
-        instant of the create, not the length of the load; and
-      - every statement before the swap passes auto_begin=False, so each one
-        autocommits and drops its catalog locks as it finishes instead of
-        holding them to commit. This mirrors the incremental temp build, which
-        declines the ambient transaction for the same reason
-        (see incremental.sql).
-
-    Splitting alone would not have helped: locks are held to commit, not to
-    end-of-statement, so inside the ambient transaction the split create holds
-    Sch-M just as long as the fused statement did. Both changes are needed.
-
-    Caveat: a pre-hook configured with inside_transaction=true (the dbt
-    default) opens the ambient transaction before this macro runs, and
-    auto_begin=False only declines to *open* a transaction - a statement still
-    joins one that is already open. Projects that pre-hook a model on this
-    path and care about the blocking should use inside_transaction=false. This
-    is the same trade-off the incremental temp build already makes.
+    one fused `SELECT * INTO` inside the materialization's ambient
+    transaction, which held Sch-M on the scratch table from the start of the
+    load through to the trailing adapter.commit(). Sch-M is the one mode
+    incompatible with the Sch-S lock every metadata reader takes, so a slow
+    model blocked metadata readers in every other session for the length of
+    its load. Now the create is staged and committed before any pre-hook
+    opens a transaction (see the stage macro), and the load below passes
+    auto_begin=False: it joins a transaction: true pre-hook's transaction if
+    one is open - taking an X table lock, which is compatible with Sch-S -
+    and autocommits otherwise. Either way no Sch-M spans the load, and the
+    pre-hook still rolls back with a failed load.
   #}
 
-  {%- set refresh_relation = target_relation.incorporate(
-      path={"identifier": target_relation.identifier ~ '__dbt_refresh'}
-  ) -%}
-  {%- set tmp_vw_relation = refresh_relation.incorporate(
-      path={"identifier": refresh_relation.identifier ~ '__dbt_tmp_vw'}
-  ) -%}
+  {%- set refresh_relation = stage['refresh_relation'] -%}
+  {%- set tmp_vw_relation = stage['tmp_vw_relation'] -%}
 
   {#- Query hint for the grant-taking data-movement statements below (the scratch
       load and the swap INSERT; not the empty create, which moves no rows).
@@ -68,36 +92,12 @@
       ';', matching how create_table_as appends it. -#}
   {%- set query_label = get_query_options(parse_options=True) -%}
 
-  {# Clean up any leftovers from a prior failed run. auto_begin=False here and
-     on every statement up to the swap: see the lock discipline note above. #}
-  {% call statement('dml_refresh_cleanup_pre', auto_begin=False) -%}
-    DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
-    DROP TABLE IF EXISTS {{ refresh_relation }};
-  {%- endcall %}
-
-  {# Build new data into scratch table via temp view (handles CTEs in model SQL) #}
-  {% call statement('dml_refresh_create_view', auto_begin=False) -%}
-    {{ get_create_view_as_sql(tmp_vw_relation, sql) }}
-  {%- endcall %}
-
-  {#- Create the scratch table empty, then load it, as two statements. The
-      scratch table is never contract-enforced: contracts describe the model's
-      target, and this table exists only to stage rows for the swap below,
-      which then inserts into the real (already contracted) target. -#}
-  {% call statement('dml_refresh_create_scratch', auto_begin=False) -%}
-    {{ sqlserver__get_create_table_empty_sql(refresh_relation, tmp_vw_relation, sql, false) }}
-  {%- endcall %}
-
   {#- Named 'main' because dbt requires a statement('main') call in every
       materialization, and this is the statement worth having there: it is the
       one that moves the rows, so adapter_response still reports a meaningful
       row count. -#}
   {% call statement('main', auto_begin=False) -%}
     {{ sqlserver__get_tablock_insert_sql(refresh_relation, tmp_vw_relation, query_label, false) }}
-  {%- endcall %}
-
-  {% call statement('dml_refresh_drop_view', auto_begin=False) -%}
-    DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
   {%- endcall %}
 
   {# Compare schemas: if columns differ, fall back to rename-swap #}
@@ -118,11 +118,11 @@
     {# Atomic DML swap — RCSI protects concurrent readers #}
     {# When dbt_sqlserver_use_dbt_transactions is off, autocommit means we #}
     {# need the explicit BEGIN/COMMIT. When the flag is on (the default), this #}
-    {# statement's auto_begin supplies the transaction, and it is now the only #}
-    {# thing that can: the scratch build above declines to open one, and the #}
-    {# metadata reads just above (schema compare, column list) no longer do #}
-    {# either - they are read-only probes and pass auto_begin=False (#819). #}
-    {# The commit_if_open below closes it either way. #}
+    {# statement's auto_begin supplies the transaction unless a pre-hook #}
+    {# already did: the scratch build above declines to open one, and the #}
+    {# metadata reads just above (schema compare, column list) are read-only #}
+    {# probes that pass auto_begin=False (#819). table.sql closes it after #}
+    {# the in-transaction post-hooks. #}
     {% call statement('dml_refresh_swap') -%}
       {% if not adapter.behavior.dbt_sqlserver_use_dbt_transactions %}
       BEGIN TRANSACTION;
@@ -193,7 +193,8 @@
         back into one, at the cost of changing how the probe behaves - a
         separate change, not this one.
 
-        create_table_as builds and drops its own __dbt_tmp_vw. -#}
+        create_table_as builds and drops its own __dbt_tmp_vw - the same name
+        as the stage's view, which it replaces. -#}
     {{ drop_relation_if_exists(refresh_relation) }}
     {% call statement('dml_refresh_rebuild') -%}
       {{ get_create_table_as_sql(False, refresh_relation, sql) }}
@@ -227,12 +228,10 @@
       'create' on the fallback, whose freshly renamed table was masked above
       and needs mask-then-index order preserved. refresh_relation is the
       scratch table, dropped by the tail after the commit - dropping it inside
-      the cutover transaction would put its catalog locks back in that window. -#}
-  {#- refresh_relation is none on the fallback branch: the scratch table was
-      renamed into the target there, so that name no longer exists and the tail
-      has nothing to drop. Returning it would leave the tail issuing a DROP
-      against a vacated name - harmless, since DROP resolves by name and the
-      name is gone, but it reads as though it might drop the target. -#}
+      the cutover transaction would put its catalog locks back in that window.
+      It is none on the fallback branch: the scratch table was renamed into
+      the target there, so that name no longer exists and the tail has nothing
+      to drop. -#}
   {{ return({
     'schema_match': schema_match,
     'refresh_relation': refresh_relation if schema_match else none
