@@ -143,6 +143,10 @@
     {{ drop_relation_if_exists(backup_relation) }}
   {% endif %}
 
+  {#-- Named model-level constraints, on every build path; guarded, so a no-op
+       where they already exist. See sqlserver__build_model_constraints. --#}
+  {{ build_model_constraints(target_relation) }}
+
   {{ run_hooks(post_hooks, inside_transaction=False) }}
 
   {{ return({'relations': [target_relation]}) }}

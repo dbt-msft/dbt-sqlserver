@@ -45,6 +45,13 @@ from dbt.adapters.sqlserver.sqlserver_runtime import _get_pyodbc
 
 logger = AdapterLogger("SQLServer")
 
+# The constraint types this adapter renders itself rather than deferring to
+# dbt-adapters: each needs SQL Server's CLUSTERED/NONCLUSTERED choice or its
+# own column quoting.
+_KEYED_CONSTRAINTS = frozenset(
+    {ConstraintType.unique, ConstraintType.primary_key, ConstraintType.foreign_key}
+)
+
 # Mirrors sqlserver__select_starts_with_cte
 # (dbt/include/sqlserver/macros/adapters/columns.sql): a query opening with a
 # CTE cannot be neutered as ``select * from (...) where 1 = 0``, so it reaches
@@ -541,45 +548,213 @@ class SQLServerAdapter(SQLAdapter):
         finally:
             conn.transaction_open = False
 
+    @classmethod
+    def _clustering(cls, keyword: str, expression: str) -> str:
+        """Render a PRIMARY KEY / UNIQUE keyword with its index clustering.
+
+        SQL Server defaults an unqualified PRIMARY KEY to CLUSTERED, which is
+        incompatible with the clustered columnstore index the adapter builds
+        for ``as_columnstore`` (the default), so NONCLUSTERED is the safe
+        default here. dbt's own ``expression`` field is the override - a
+        constraint declaring ``expression: clustered`` keeps what it asked for
+        - so no adapter-specific yaml key is needed.
+
+        Those two keywords are the only thing T-SQL accepts in this position,
+        so anything else is rejected here rather than emitted as DDL that
+        cannot parse.
+        """
+        clustering = expression.strip()
+        if not clustering:
+            return f"{keyword} {SQLServerIndexType.default()}"
+        if clustering.lower() not in (
+            SQLServerIndexType.clustered,
+            SQLServerIndexType.nonclustered,
+        ):
+            raise dbt_common.exceptions.DbtValidationError(
+                f"Invalid expression '{expression}' on a {keyword} constraint. "
+                f"SQL Server accepts only '{SQLServerIndexType.clustered}' or "
+                f"'{SQLServerIndexType.nonclustered}' here; index options belong on a "
+                "separate index, not on the constraint."
+            )
+        return f"{keyword} {clustering}"
+
+    @classmethod
+    def _render_foreign_key_target(cls, constraint: ColumnLevelConstraint) -> Optional[str]:
+        """The ``references <table> (<columns>)`` tail of a foreign key.
+
+        Accepts both the ``to`` / ``to_columns`` form and the older free-text
+        ``expression`` form; returns None when neither is usable.
+
+        dbt-core resolves ``to: ref(...)`` to a fully rendered relation, which
+        for this adapter includes the database. That three-part name is passed
+        through as-is: SQL Server resolves it fine while it names the current
+        database, and a genuinely cross-database target - which SQL Server does
+        not support for foreign keys - then fails with its own clear "references
+        invalid table" error rather than being silently rewritten to point at a
+        same-named table in this database.
+        """
+        if constraint.to and constraint.to_columns:
+            columns = ", ".join(cls.quote(column) for column in constraint.to_columns)
+            return f"references {constraint.to} ({columns})"
+        if constraint.expression:
+            return f"references {constraint.expression}"
+        logger.warning(
+            f"Dropping the {constraint.type.value} constraint"
+            + (f" '{constraint.name}'" if constraint.name else "")
+            + ": it names no target. Declare `to:` together with `to_columns:`, "
+            "or the free-text `expression:` form (`<table> (<columns>)`)."
+        )
+        return None
+
+    @classmethod
+    def _render_keyed_constraint(
+        cls, constraint: ColumnLevelConstraint, column_list: str = ""
+    ) -> Optional[str]:
+        """The constraint types this adapter renders differently from dbt-adapters.
+
+        Shared by the column-level and model-level renderers, which differ only
+        in whether they name their columns: a column-level constraint is written
+        against the column it follows, a model-level one carries its own list.
+        """
+        expression = constraint.expression or ""
+        suffix = f" ({column_list})" if column_list else ""
+
+        if constraint.type == ConstraintType.unique:
+            return cls._clustering("unique", expression) + suffix
+        if constraint.type == ConstraintType.primary_key:
+            return cls._clustering("primary key", expression) + suffix
+        target = cls._render_foreign_key_target(constraint)
+        if target is None:
+            return None
+        return f"foreign key ({column_list}) {target}" if column_list else target
+
     @available
     @classmethod
     def render_column_constraint(cls, constraint: ColumnLevelConstraint) -> Optional[str]:
-        """Render NOT NULL inline; every other constraint type renders empty.
+        """Render a column-level constraint inline in the CREATE TABLE column list.
 
-        CHECK, UNIQUE, PRIMARY KEY and FOREIGN KEY are emitted separately as
-        ALTER TABLE ADD CONSTRAINT (sqlserver__build_model_constraints), so
-        they contribute nothing to the column DDL.
+        Column-level constraints are always anonymous: the table is built as
+        ``<model>__dbt_tmp`` while the previous one still exists, and SQL
+        Server scopes constraint names per schema, so a name reused across
+        builds collides (Msg 2714). Declare the constraint at the model level
+        to name it - those are applied by ALTER after the swap, where the old
+        name is already gone.
+
+        Only UNIQUE, PRIMARY KEY and FOREIGN KEY need SQL Server treatment; NOT
+        NULL, CHECK and CUSTOM fall through to dbt-adapters so they stay in step
+        with upstream.
         """
-        return "not null" if constraint.type == ConstraintType.not_null else ""
+        if constraint.name:
+            logger.warning(
+                f"Ignoring the name '{constraint.name}' on the column-level "
+                f"{constraint.type.value} constraint: SQL Server scopes constraint names "
+                "per schema, so naming one inline collides with the table being replaced. "
+                "Declare the constraint under the model's `constraints:` key to name it."
+            )
+
+        if constraint.type in _KEYED_CONSTRAINTS:
+            return cls._render_keyed_constraint(constraint)
+        return super().render_column_constraint(constraint)
+
+    @available
+    @classmethod
+    def render_raw_columns_constraints(
+        cls, raw_columns: Dict[str, Dict[str, Any]], only_not_null: bool = False
+    ) -> List[str]:
+        """Render the column DDL for a CREATE TABLE column list.
+
+        A fork of the dbt-adapters loop of the same name, for two reasons.
+        CHECK constraints are hoisted out of the column definition and returned
+        as standalone table-level clauses: SQL Server accepts only one
+        column-level CHECK per column ("More than one column CHECK constraint
+        specified for column ..."), while the table-level form has no such
+        limit. Both are anonymous and both live inside the same CREATE TABLE.
+
+        ``only_not_null`` drops everything but NOT NULL, for the unit-test
+        fixture tables: their rows are hand-written stand-ins for the model's
+        data, so a UNIQUE, PRIMARY KEY or FOREIGN KEY copied off the contract
+        would fail the unit test on data that was never meant to satisfy it.
+        """
+        rendered_columns = []
+        table_level_clauses = []
+
+        for column in raw_columns.values():
+            name = cls.quote(column["name"]) if column.get("quote") else column["name"]
+            parts = [f"{name} {column['data_type']}"]
+            for raw_constraint in column.get("constraints") or []:
+                constraint = cls._parse_column_constraint(raw_constraint)
+                if only_not_null and constraint.type != ConstraintType.not_null:
+                    continue
+                clause = cls.process_parsed_constraint(constraint, cls.render_column_constraint)
+                if not clause:
+                    continue
+                if constraint.type == ConstraintType.check:
+                    table_level_clauses.append(clause)
+                else:
+                    parts.append(clause)
+            rendered_columns.append(" ".join(parts))
+
+        return rendered_columns + table_level_clauses
 
     @classmethod
     def render_model_constraint(cls, constraint: ModelLevelConstraint) -> Optional[str]:
-        constraint_prefix = "add constraint "
-        column_list = ", ".join(constraint.columns)
+        """Render an unnamed model-level constraint inline in the column list.
 
-        if constraint.name is None:
-            raise dbt_common.exceptions.DbtDatabaseError(
-                "Constraint name cannot be empty. Provide constraint name  - column "
-                + column_list
-                + " and run the project again."
-            )
-
-        if constraint.type == ConstraintType.unique:
-            return constraint_prefix + f"{constraint.name} unique nonclustered({column_list})"
-        elif constraint.type == ConstraintType.primary_key:
-            return constraint_prefix + f"{constraint.name} primary key nonclustered({column_list})"
-        elif constraint.type == ConstraintType.foreign_key and constraint.expression:
-            return (
-                constraint_prefix
-                + f"{constraint.name} foreign key({column_list}) references "
-                + constraint.expression
-            )
-        elif constraint.type == ConstraintType.check and constraint.expression:
-            return f"{constraint_prefix} {constraint.name} check ({constraint.expression})"
-        elif constraint.type == ConstraintType.custom and constraint.expression:
-            return f"{constraint_prefix} {constraint.name} {constraint.expression}"
-        else:
+        A named one renders nothing here and is applied afterwards by
+        ``render_raw_model_alter_constraints`` instead - see
+        ``sqlserver__build_model_constraints``.
+        """
+        if constraint.name:
             return None
+        return cls._render_model_constraint_body(constraint)
+
+    @available
+    @classmethod
+    def render_raw_model_alter_constraints(
+        cls, raw_constraints: List[Dict[str, Any]]
+    ) -> List[Dict[str, str]]:
+        """The *named* model constraints, as ``{name, clause}`` pairs.
+
+        ``clause`` is an ``add constraint <name> ...`` tail for ALTER TABLE;
+        ``name`` is the bare name, which the macro needs as a string literal to
+        test ``sys.objects`` before adding it. These are applied once the build
+        has swapped the new table into place and dropped the old one, which is
+        the only point at which the name is free to reuse.
+        """
+        clauses = []
+        for raw_constraint in raw_constraints:
+            constraint = cls._parse_model_constraint(raw_constraint)
+            if not constraint.name:
+                continue
+            body = cls.process_parsed_constraint(constraint, cls._render_model_constraint_body)
+            if body:
+                clauses.append(
+                    {
+                        "name": constraint.name,
+                        "clause": f"add constraint {cls.quote(constraint.name)} {body}",
+                    }
+                )
+        return clauses
+
+    @classmethod
+    def _render_model_constraint_body(cls, constraint: ModelLevelConstraint) -> Optional[str]:
+        """The constraint itself, without any name - valid both in a CREATE
+        TABLE column list and after ``ALTER TABLE ... ADD CONSTRAINT <name>``.
+
+        The base renderer cannot stand in here: it prefixes ``constraint
+        <name>`` whenever the constraint is named, which the ALTER form already
+        carries.
+        """
+        expression = constraint.expression or ""
+
+        if constraint.type in _KEYED_CONSTRAINTS:
+            column_list = ", ".join(cls.quote(column) for column in constraint.columns)
+            return cls._render_keyed_constraint(constraint, column_list)
+        if constraint.type == ConstraintType.check and expression:
+            return f"check ({expression})"
+        if constraint.type == ConstraintType.custom and expression:
+            return expression
+        return None
 
     def _get_row_count(self, relation) -> int:
         """Return the number of rows in the given relation."""

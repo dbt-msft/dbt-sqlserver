@@ -194,6 +194,10 @@
       {% do adapter.drop_relation(rel) %}
   {% endfor %}
 
+  {#-- Named model-level constraints. After the to_drop loop, so the backup no
+       longer holds the old names. See sqlserver__build_model_constraints. --#}
+  {{ build_model_constraints(target_relation) }}
+
   {{ run_hooks(post_hooks, inside_transaction=False) }}
 
   {{ return({'relations': [target_relation]}) }}
