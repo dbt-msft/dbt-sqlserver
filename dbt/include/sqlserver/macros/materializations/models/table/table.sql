@@ -38,17 +38,10 @@
     and existing_relation.type == 'table'
   ) -%}
 
-  {#- Where schema resolution (the tmp view and the empty CREATE) runs
-      relative to the in-transaction pre-hooks - see the macro and
-      docs/transaction_scope.md. 'load', the default, stages it BEFORE them so
-      it autocommits and its Sch-M is gone before any hook opens the
-      transaction; the load then joins that transaction (X table lock only,
-      never Sch-M) and a transaction: true pre-hook keeps rolling back with a
-      failed load. 'build' stages inside the transaction, after the hooks:
-      today's behaviour, for a pre-hook that creates what the model reads.
-      Inert on prebuilt, whose setup must follow the hooks (a hook may read
-      {{ this }} before the rebuild drops it) and which commits them with its
-      in-progress marker regardless. -#}
+  {#- load: stage before the in-tx pre-hooks; build: stage after them. See
+      sqlserver__pre_hook_transaction_scope for the two flows. Inert on
+      prebuilt, whose setup must follow the hooks (a hook may read {{ this }}
+      before the rebuild drops it). -#}
   {%- set pre_hook_transaction_scope = sqlserver__pre_hook_transaction_scope() -%}
   {%- set stage_before_hooks = pre_hook_transaction_scope == 'load' and not use_prebuilt -%}
   {%- set tmp_vw_relation = intermediate_relation.incorporate(
@@ -61,13 +54,9 @@
 
   {{ run_hooks(pre_hooks, inside_transaction=False) }}
 
-  {#- Schema resolution, ahead of the transaction. Every statement here passes
-      auto_begin=False and nothing is open yet (the outside-transaction hooks
-      above autocommit, and the contract describe probe never begins one), so
-      each autocommits on its own: the new object's Sch-M is held for the
-      instant of the create, not the length of the load (#819). This is also
-      why a transaction: true pre-hook that creates an object the model reads
-      fails here rather than later - the view must bind now. -#}
+  {#- Stage now: nothing is open (outside-tx hooks autocommit, the contract
+      probe never begins), so with auto_begin=False each statement autocommits
+      and the new object's Sch-M ends with its statement (#819). -#}
   {% if stage_before_hooks %}
     {% if use_dml_refresh %}
       {% set dml_stage = sqlserver__table_dml_refresh_stage(target_relation, sql) %}
@@ -94,10 +83,9 @@
     {% if not stage_before_hooks %}
       {% set dml_stage = sqlserver__table_dml_refresh_stage(target_relation, sql) %}
     {% endif %}
-    {#- The macro leaves the swap's transaction open for the tail to close
-        after the post-hooks, and reports back what only it can know: whether
-        the schemas matched (which decides the tail's index strategy) and the
-        scratch table to drop once the cutover has committed. -#}
+    {#- Leaves the swap's transaction open for the tail to close after the
+        post-hooks; returns schema_match (picks the tail's index strategy) and
+        the scratch table for the tail to drop after the commit. -#}
     {% set dml_result = sqlserver__table_dml_refresh(target_relation, sql, dml_stage) %}
     {% set index_strategy = 'reconcile' if dml_result['schema_match'] else 'create' %}
   {% elif use_prebuilt %}
@@ -131,35 +119,26 @@
         relation cache stays in sync with the database -#}
     {% do adapter.cache_added(target_relation) %}
 
-    {#-- Apply masks after the load but before create_indexes, mirroring the
-         standard build path so masks on nonclustered-index key columns land
-         before those indexes exist (mask-then-index). prebuilt builds the
-         clustered design inside create_table_as_prebuilt before we get here:
-         a CCI exposes no key columns so masks apply freely, but a mask on a
-         clustered *rowstore* key column cannot be added after the fact and
-         apply_masks raises a descriptive index-key error (recovery: switch
-         that model to the default heap_then_index). --#}
+    {#- Masks before create_indexes (a mask cannot be added to an index key
+         column). prebuilt already built its clustered design: a CCI exposes
+         no key columns, but a mask on a clustered rowstore key column fails
+         here with a descriptive error (recovery: heap_then_index). -#}
     {% do apply_masks(target_relation, mask_config) %}
   {% else %}
     -- build model
     {% if stage_before_hooks %}
-      {#- The stage ran and committed before the hooks. The load joins the
-          pre-hook's transaction if one is open and autocommits otherwise;
-          either way it holds an X table lock, never Sch-M. The tmp view is
-          dropped on the tail, after the cutover commits: an uncommitted DROP
-          VIEW blocks catalog scans just as an uncommitted CREATE does. -#}
+      {#- The stage committed before the hooks. The load joins a pre-hook's
+          transaction if one is open, else autocommits; X table lock either
+          way. The tmp view is dropped on the tail, after the commit. -#}
       {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql, drop_tmp_view=False) -%}
       {% call statement('main', auto_begin=False) -%}
         {{ load_sql }}
       {%- endcall %}
-      {#- statement() writes the compiled artifact for 'main' only, so on this
-          path target/run/ would hold the load without the CREATE that precedes
-          it. Write the whole build back over it. -#}
+      {#- statement() writes target/run/ for 'main' only; put the CREATE back. -#}
       {% do write(stage_sql ~ '\n' ~ load_sql) %}
     {% else %}
-      {#- pre_hook_transaction_scope='build': create and load in the
-          pre-hook's transaction. Holds the new table's Sch-M for the length
-          of the load (#819); chosen explicitly. -#}
+      {#- build: create and load inside the pre-hook's transaction, Sch-M held
+          for the whole load (#819). Chosen explicitly. -#}
       {%- set stage_sql = sqlserver__get_create_table_stage_sql(False, intermediate_relation, sql) -%}
       {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql) -%}
       {% call statement('main') -%}
@@ -167,8 +146,8 @@
         {{ load_sql }}
       {%- endcall %}
     {% endif %}
-    {#- The renames below and the tail need a transaction; with no pre-hook
-        one, nothing above leaves one open. -#}
+    {#- the renames and the tail need a transaction; with no pre-hook one,
+        nothing above left one open -#}
     {% do adapter.begin_if_closed() %}
 
     -- cleanup
@@ -183,39 +162,26 @@
 
     {{ adapter.rename_relation(intermediate_relation, target_relation) }}
 
-    {#-- Apply data masks before create_indexes: a mask cannot be added to a
-         column an index depends on (documented for all SQL Server versions;
-         the fix is to mask first, then create the index — exactly this order),
-         so masking must happen while the (rowstore) indexes do not yet exist.
-         The clustered columnstore index built during CTAS is fine — columnstore
-         columns are reported as included, not index keys, and can be masked.
-
-         Masks stay INSIDE the cutover transaction, unlike the index builds
-         that follow it. This table is brand new and carries no masks yet, so a
-         mask failure after the swap committed would leave it live with the
-         columns exposed. Rolling the swap back instead keeps the old, masked
-         table serving. The ALTERs are cheap, so holding the transaction across
-         them costs almost nothing next to the index builds. --#}
+    {#- Masks before create_indexes (a mask cannot be added to an index key
+         column; a CCI exposes none), and INSIDE the cutover transaction: this
+         table carries no masks yet, so a failure after the commit would leave
+         it live and exposed. Rolling the swap back keeps the old, masked table
+         serving. -#}
     {% do apply_masks(target_relation, mask_config) %}
   {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}
 
-  {#- The atomic unit ends here: in-transaction pre-hooks, the load, the
-      cutover, the masks that must not fail open, and in-transaction
-      post-hooks. That is what a hook declaring transaction: true is asking to
-      be atomic with - the model. What follows is the adapter's own
-      reconciliation, which was never part of that promise, and holding
-      sp_rename's Sch-M on the LIVE target across the index builds below is
-      the larger half of #819.
-
-      A post-hook that needs the indexes present should declare
-      transaction: false; that slot runs after this whole tail. -#}
+  {#- Atomic unit ends here: in-tx pre-hooks, load, cutover, fresh-table
+      masks, in-tx post-hooks - what a transaction: true hook asks to be
+      atomic with. The rest is adapter housekeeping and runs outside, so
+      sp_rename's Sch-M on the live target does not span the index builds
+      (#819). A post-hook that needs the indexes: transaction: false. -#}
   {% do adapter.commit_if_open() %}
 
-  {#- The tmp views, dropped now that no transaction is open. The rename path
-      in 'build' scope dropped its own inside the fused batch; the dml
-      fallback rebuild dropped its own too, so IF EXISTS covers that. -#}
+  {#- Tmp views, dropped by name now that nothing is open. build scope
+      dropped its own in the fused batch; the dml fallback rebuild dropped
+      its own too; IF EXISTS covers both. -#}
   {% if use_dml_refresh %}
     {% call statement('dml_refresh_drop_view', auto_begin=False) -%}
       DROP VIEW IF EXISTS {{ dml_stage['tmp_vw_relation'].include(database=False) }};
@@ -226,13 +192,11 @@
     {%- endcall %}
   {% endif %}
 
-  {#-- Index reconciliation, outside the cutover transaction. 'reconcile' is
-       the persisted-table path (dml swap), where indexes converge on config
-       first so an index drop lands before apply_masks re-masks a column it
-       covered; the table already carries its previous masks, so a failure
-       leaves those in place rather than exposing anything. 'create' is the
-       fresh-table path, whose masks were applied inside the transaction
-       above. --#}
+  {#- Index work outside the cutover transaction. reconcile (dml swap: the
+       table persisted): indexes converge on config first so a drop lands
+       before apply_masks re-masks a column it covered; previous masks stay in
+       place on failure. create (fresh table): masks were applied inside the
+       transaction above. -#}
   {% if index_strategy == 'reconcile' %}
     {% do sqlserver__reconcile_indexes(target_relation) %}
     {% do apply_masks(target_relation, mask_config) %}
@@ -246,8 +210,8 @@
       putting back part of the window this tail exists to remove. -#}
   {% do adapter.commit_if_open() %}
 
-  {#- Drop the dml path's scratch table now the cutover has committed. Outside
-      a transaction, so its catalog locks go the moment the drop finishes. -#}
+  {#- dml scratch table, dropped after the commit so its catalog locks end
+      with the statement. -#}
   {% if use_dml_refresh and dml_result['refresh_relation'] is not none %}
     {% call statement('dml_refresh_cleanup_post', auto_begin=False) -%}
       DROP TABLE IF EXISTS {{ dml_result['refresh_relation'] }};

@@ -18,18 +18,12 @@
                                   target_relation, target_relation_exists,
                                   build_relation, build_is_temporary, auto_begin) %}
     {#-
-      Schema resolution for a snapshot run, in the order the pieces depend on
-      each other: the view over the user SQL first (rendering the staging
-      select below probes it for its columns), then the build select, then
-      the tmp view and the empty CREATE of what this run builds.
-
-      auto_begin=False when called ahead of the in-transaction pre-hooks
-      (pre_hook_transaction_scope='load'): nothing is open, so each statement
-      autocommits and the new object's Sch-M is released as its statement ends
-      (#819). Default auto_begin under 'build', where this runs after the hooks
-      and joins their transaction.
-
-      Returns the build select and the rendered stage SQL, the latter so the
+      Schema resolution for a snapshot run, in dependency order: the view
+      over the user SQL (rendering the staging select probes it), the build
+      select, then the tmp view and the empty CREATE of what this run builds.
+      auto_begin=False ahead of the in-tx pre-hooks (load scope: each
+      statement autocommits, #819); default auto_begin after them (build).
+      Returns the build select and the rendered stage SQL, so the
       materialization can write the whole build to the compiled artifact.
     -#}
     {{ adapter.drop_relation(temp_snapshot_relation) }}

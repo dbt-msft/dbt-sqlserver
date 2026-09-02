@@ -25,24 +25,27 @@
 
 {% macro sqlserver__pre_hook_transaction_scope() -%}
   {#-
-    Resolve the pre_hook_transaction_scope model config: 'load' (default) or
-    'build'. See docs/transaction_scope.md.
+    Resolve pre_hook_transaction_scope: where schema resolution (the tmp view
+    and the empty CREATE) sits relative to the in-transaction pre-hooks.
+    Shared by table, incremental and snapshot. Full detail in
+    docs/transaction_scope.md.
 
-    'load'  - schema resolution (the tmp view and the empty CREATE) runs before
-              the in-transaction pre-hooks and autocommits, so its Sch-M lock
-              is released in an instant. The transaction then covers the
-              pre-hooks, the load, the cutover and the in-transaction
-              post-hooks, so a transaction: true pre-hook still rolls back
-              with a failed load. The load takes an X table lock, never Sch-M,
-              so it blocks no metadata reader in any other session (#819).
-              Requires the model SQL to bind before the pre-hooks run: a
-              transaction: true pre-hook that creates an object the model
-              reads fails at the stage with Msg 208; declare that hook
-              transaction: false (those run before the stage) or set 'build'.
+      load (default)                         build
+      ------------------------------------   ------------------------------------
+      stage            autocommit            BEGIN
+      BEGIN                                  |- in-tx pre-hooks
+      |- in-tx pre-hooks                     |- stage         Sch-M on new object
+      |- load          X table lock only     |- load          ... held to COMMIT
+      |- cutover, masks, in-tx post-hooks    |- cutover, masks, in-tx post-hooks
+      COMMIT                                 COMMIT
+      |- view drops, indexes, grants, docs   |- view drops, indexes, grants, docs
 
-    'build' - the pre-hooks, the create and the load share one transaction, so
-              the new object's Sch-M is held for the whole load. Today's
-              behaviour, kept as the opt-out for the case above.
+    Both keep a transaction: true pre-hook atomic with the load. load fixes
+    #819 (Sch-M conflicts with the Sch-S every metadata reader takes; an X
+    table lock does not) but needs the model SQL to bind before the hooks run: a
+    transaction: true pre-hook that creates an object the model reads fails
+    at the stage with Msg 208. Remedies: transaction: false on that hook
+    (outside-tx hooks run before the stage), or build for that model.
   -#}
   {%- set scope = config.get('pre_hook_transaction_scope', 'load') -%}
   {%- if scope not in ['load', 'build'] -%}

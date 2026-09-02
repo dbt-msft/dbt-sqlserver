@@ -32,18 +32,11 @@
   {#- a table built fresh this run carries no masks or indexes yet -#}
   {%- set fresh_build = branch != 'append' -%}
 
-  {#- Where schema resolution (the tmp view and the empty CREATE) runs relative
-      to the in-transaction pre-hooks - see sqlserver__pre_hook_transaction_scope
-      and docs/transaction_scope.md. 'load', the default, stages it BEFORE them
-      so it autocommits and the new object's Sch-M is released in an instant;
-      the load then joins the pre-hook's transaction (X table lock only) and a
-      transaction: true pre-hook keeps rolling back with a failed load. This
-      covers the __dbt_temp build of the append branch too: under a
-      transactional pre-hook its fused create used to hold Sch-M on the temp
-      table for the whole temp load. 'build' stages after the hooks, inside
-      their transaction. Inert on prebuilt, whose setup has to follow the
-      hooks (a hook may read {{ this }} before the rebuild drops it) and which
-      commits them with its in-progress marker regardless. -#}
+  {#- load: stage before the in-tx pre-hooks; build: stage after them. See
+      sqlserver__pre_hook_transaction_scope for the two flows. Covers the
+      append branch's __dbt_temp build too. Inert on prebuilt, whose setup
+      must follow the hooks (a hook may read {{ this }} before the rebuild
+      drops it). -#}
   {%- set pre_hook_transaction_scope = sqlserver__pre_hook_transaction_scope() -%}
   {%- set stage_before_hooks = pre_hook_transaction_scope == 'load' and branch != 'prebuilt' -%}
   {%- set build_relation = temp_relation if branch == 'append' else intermediate_relation -%}
@@ -65,12 +58,9 @@
 
   {{ run_hooks(pre_hooks, inside_transaction=False) }}
 
-  {#- Schema resolution, ahead of the transaction: auto_begin=False with
-      nothing open (the outside-transaction hooks autocommit and the contract
-      describe probe never begins one), so it autocommits. A transaction: true
-      pre-hook that creates an object the model reads fails here, since the
-      view must bind now - declare that hook transaction: false or set
-      pre_hook_transaction_scope: build. -#}
+  {#- Stage now: nothing is open (outside-tx hooks autocommit, the contract
+      probe never begins), so with auto_begin=False each statement autocommits
+      and the new object's Sch-M ends with its statement (#819). -#}
   {% if stage_before_hooks %}
     {%- set stage_sql = sqlserver__get_create_table_stage_sql(build_is_temporary, build_relation, sql) -%}
     {% call statement('create_table_stage', auto_begin=False) %}
@@ -114,39 +104,31 @@
     {% do adapter.cache_added(target_relation) %}
 
   {% elif branch == 'create' %}
-    {#- Build into the intermediate and swap, rather than straight into the
-        target. The build's create and load commit independently, so building
-        into the target would mean a failed load commits an EMPTY table under
-        the model's real name: dbt's next run then sees a relation that exists
-        and is not a view, takes the append/merge branch, and merges that
-        run's window into an empty table - no error, and every row the first
-        build should have loaded is gone. Staging into __dbt_tmp leaves the
-        target absent on failure, which is what dbt should see, and restores
-        the OBJECT_ID drop guard for the throwaway (build_into_temp keys off
-        the suffix). -#}
+    {#- Build into the intermediate and swap, never straight into the target:
+        the create and the load commit independently, so a failed load would
+        leave an EMPTY table under the real name, and the next run would take
+        the append branch and merge into it - silent data loss. Staging into
+        __dbt_tmp leaves no target on failure and gets the OBJECT_ID drop
+        guard for free. -#}
     {% if existing_relation is not none and existing_relation.type == 'table' %}
-      {#- marks the full refresh in flight and commits that on its own - which
-          also commits any transaction: true pre-hook, so 'build' scope cannot
-          deliver rollback here (docs/transaction_scope.md) -#}
+      {#- marks the refresh in flight and commits that on its own - taking any
+          transaction: true pre-hook with it, so build cannot deliver rollback
+          here (docs/transaction_scope.md) -#}
       {% do sqlserver__mark_full_refresh_incomplete(existing_relation) %}
     {% endif %}
     {% if stage_before_hooks %}
-      {#- The stage ran and committed before the hooks. The load joins the
-          pre-hook's transaction if one is open and autocommits otherwise;
-          either way it takes an X table lock, never Sch-M. The tmp view is
-          dropped on the tail, after the cutover commits. -#}
+      {#- The stage committed before the hooks. The load joins a pre-hook's
+          transaction if one is open, else autocommits; X table lock either
+          way. The tmp view is dropped on the tail, after the commit. -#}
       {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql, drop_tmp_view=False) -%}
       {% call statement("main", auto_begin=False) %}
           {{ load_sql }}
       {% endcall %}
-      {#- statement() writes the compiled artifact for 'main' only, so write
-          the whole build back over it rather than leaving target/run/ with
-          the load and no CREATE. -#}
+      {#- statement() writes target/run/ for 'main' only; put the CREATE back. -#}
       {% do write(stage_sql ~ '\n' ~ load_sql) %}
     {% else %}
-      {#- pre_hook_transaction_scope='build': create and load in one
-          transaction, holding the new table's Sch-M for the load (#819).
-          Chosen explicitly. -#}
+      {#- build: create and load inside the pre-hook's transaction, Sch-M held
+          for the whole load (#819). Chosen explicitly. -#}
       {%- set stage_sql = sqlserver__get_create_table_stage_sql(False, intermediate_relation, sql) -%}
       {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql) -%}
       {% call statement("main") %}
@@ -155,13 +137,11 @@
       {% endcall %}
     {% endif %}
     {#- the swap and the tail need a transaction; with no pre-hook one,
-        nothing above leaves one open -#}
+        nothing above left one open -#}
     {% do adapter.begin_if_closed() %}
 
-    {#- There is nothing to back up on a first build: an unconditional rename
-        would be sp_rename against a name that does not exist (Msg 15225).
-        Guard it as table.sql does, and only queue a backup for dropping when
-        one was actually made. -#}
+    {#- nothing to back up on a first build (sp_rename on a missing name is
+        Msg 15225); only queue a backup for dropping when one was made -#}
     {% if existing_relation is not none %}
       {% do adapter.rename_relation(target_relation, backup_relation) %}
       {% do to_drop.append(backup_relation) %}
@@ -175,13 +155,11 @@
       {% do sqlserver__assert_no_incomplete_full_refresh(existing_relation) %}
     {% endif %}
 
-    {#- The temp build is catalog DDL plus a load and must not hold catalog
-        locks to the strategy DML's commit: held that long, its sysschobjs X
-        keylocks deadlock a second worker. With the create staged before the
-        hooks, only the load runs here; it joins a pre-hook's transaction
-        (X table lock on the temp table, harmless) or autocommits. The
-        strategy DML below still runs transactionally, via statement('main')'s
-        default auto_begin through to adapter.commit(). -#}
+    {#- Only the temp load runs here; its create was staged before the hooks.
+        It joins a pre-hook's transaction (X lock on the temp table) or
+        autocommits, so its catalog locks never wait for the strategy DML's
+        commit - held that long they deadlocked a second worker. The strategy
+        DML below is transactional through to adapter.commit(). -#}
     {% if stage_before_hooks %}
       {% do run_query(sqlserver__get_create_table_load_sql(True, temp_relation, sql, drop_tmp_view=False)) %}
     {% else %}
@@ -218,26 +196,24 @@
 
   {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}
   {% if fresh_build %}
-    {#- Freshly built table: mask before creating (rowstore) indexes, since a
-        mask cannot be added to a column an index depends on (all versions).
-        Inside the transaction, deliberately: this table carries no masks
-        yet, so a mask failure after the cutover committed would leave it live
-        with the columns exposed. -#}
+    {#- Fresh table: masks before create_indexes (a mask cannot be added to
+        an index key column), and inside the transaction - the table carries
+        no masks yet, so a failure after the commit would leave it live and
+        exposed. -#}
     {% do apply_masks(target_relation, mask_config) %}
   {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}
 
-  {#- The atomic unit ends here, as in table.sql: in-transaction pre-hooks,
-      the load or strategy DML, the cutover, fresh-table masks, and
-      in-transaction post-hooks. Index work, grants, denies and persist_docs
-      are the adapter's housekeeping and run outside it, so sp_rename's Sch-M
-      on the live target does not span the index builds (#819). A post-hook
-      that needs the indexes present should declare transaction: false. -#}
+  {#- Atomic unit ends here, as in table.sql: in-tx pre-hooks, load or
+      strategy DML, cutover, fresh-table masks, in-tx post-hooks. Index work,
+      grants, denies and persist_docs run outside, so sp_rename's Sch-M on
+      the live target does not span the index builds (#819). A post-hook
+      that needs the indexes: transaction: false. -#}
   {% do adapter.commit_if_open() %}
 
-  {#- The tmp view, dropped now that no transaction is open: an uncommitted
-      DROP VIEW blocks catalog scans as an uncommitted CREATE does. -#}
+  {#- tmp view, dropped by name now that nothing is open (an uncommitted
+      DROP VIEW blocks catalog scans like an uncommitted CREATE) -#}
   {% if stage_before_hooks %}
     {% call statement('drop_tmp_view', auto_begin=False) -%}
       DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
@@ -254,9 +230,8 @@
     {% do apply_masks(target_relation, mask_config) %}
   {% endif %}
 
-  {#- sqlserver__create_indexes_no_txn ends with begin_if_closed, so an
-      ONLINE/RESUMABLE index leaves a transaction open here; close it so the
-      grants and persist_docs below do not run inside one held to commit. -#}
+  {#- an ONLINE/RESUMABLE index build leaves a transaction open; close it so
+      grants and persist_docs do not run inside one held to commit -#}
   {% do adapter.commit_if_open() %}
 
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
@@ -269,9 +244,8 @@
 
   {% do persist_docs(target_relation, model) %}
 
-  {#- adapter.commit() raises if it finds nothing open, and apply_grants only
-      opens one when the model configures grants. State the precondition
-      instead of relying on that. -#}
+  {#- adapter.commit() raises with nothing open, and apply_grants only opens
+      one when grants are configured; state the precondition -#}
   {% do adapter.begin_if_closed() %}
 
   -- `COMMIT` happens here

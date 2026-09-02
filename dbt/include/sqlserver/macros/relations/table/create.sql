@@ -158,15 +158,12 @@
       metadata readers #819 is about - which is why it is safe for this half to
       run long, inside a transaction or not.
 
-      The tmp view drop lives here, not with the create: the INSERT reads that
-      view, so dropping it in the stage half would break a split build. It
-      trails the INSERT in the same batch by default. A caller whose load runs
-      inside a pre-hook's transaction passes drop_tmp_view=False and drops the
-      view after that transaction commits: an uncommitted DROP VIEW holds Sch-M
-      on the view, and a database-wide catalog scan blocks on that just as it
-      does on a table (#819). The stage half re-creates the view with
-      CREATE OR ALTER after a render-time drop, so a view left behind by a
-      failed run is harmless.
+      The tmp view drop trails the INSERT here (the INSERT reads the view, so
+      it cannot go in the stage half). A caller whose load runs inside a
+      pre-hook's transaction passes drop_tmp_view=False and drops the view
+      after that commit: an uncommitted DROP VIEW blocks catalog scans like
+      an uncommitted CREATE (#819). A view left behind by a failed run is
+      harmless - the stage half drops it and uses CREATE OR ALTER.
     -#}
     {%- set query_label = get_query_options(parse_options=True) -%}
     {%- set tmp_relation = relation.incorporate(path={"identifier": relation.identifier ~ '__dbt_tmp_vw'}, type='view') -%}
@@ -287,20 +284,21 @@
         {{ setup_sql }}
     {%- endcall %}
 
-    {#- Commit the marker onto its own. 'main' above always opens a
-        transaction (default auto_begin), so this always actually commits
-        here - and with it any transaction: true pre-hook, which is why 'build'
-        scope cannot deliver rollback on this path (docs/transaction_scope.md).
-        The load below then runs AUTOCOMMITTED (auto_begin=False, nothing
-        open): the clustered design is created on the empty table and its
-        Sch-M released as that statement ends, and the INSERT holds only an X
-        table lock. Reopened inside the ambient transaction instead, that
-        Sch-M sits on the LIVE name until the materialization's trailing
-        commit - the whole load, plus masks and post-hooks (#819). The in-batch
-        BEGIN/COMMIT around the INSERT and the marker drop is a real
-        transaction under autocommit, which is exactly what their atomicity
-        needs. begin_if_closed afterwards leaves later code (masks,
-        post-hooks, the trailing adapter.commit()) a transaction to run in. -#}
+    {#- Commit the marker on its own ('main' above always opened a transaction,
+        so this always commits - taking any transaction: true pre-hook with
+        it, which is why build scope cannot deliver rollback here). The load
+        below then runs AUTOCOMMITTED:
+
+          commit marker
+          |- CREATE clustered design on the empty table   Sch-M ends with the statement
+          |- EXEC('BEGIN TRAN; INSERT WITH (TABLOCK); drop marker; COMMIT')
+          |                                               a real transaction: load and
+          |                                               unmark stay atomic (#718)
+          |- DROP VIEW
+          begin_if_closed                                 masks, post-hooks, trailing commit
+
+        Reopened before the load instead, that Sch-M sat on the LIVE name
+        until the materialization's trailing commit (#819). -#}
     {{ adapter.commit_if_open() }}
 
     {%- set load_sql -%}
@@ -347,18 +345,12 @@
         ~ " @level0type = N'SCHEMA', @level0name = N'" ~ relation.schema ~ "',"
         ~ " @level1type = N'TABLE', @level1name = N'" ~ relation.identifier ~ "'"
     ) %}
-    {#- This marker exists to survive a failed rebuild, so it must not ride on
-        the same transaction as the rebuild it's guarding: if a prior
-        statement this run (e.g. a pre-hook) already opened the ambient
-        dbt-managed transaction, a later failure would roll the marker back
-        right along with it, defeating the point. Commit it - a no-op when
-        run_query above ran standalone, i.e. the common case of this being the
-        first statement of the run. Deliberately NOT reopened: the load that
-        follows must autocommit so the new table's Sch-M is not held to the
-        materialization's trailing commit (#819); every statement after it
-        that needs a transaction opens its own (default auto_begin), and the
-        materialization's tail states its precondition with begin_if_closed
-        before adapter.commit(). -#}
+    {#- The marker exists to survive a failed rebuild, so it must not share a
+        transaction with it: commit it now (a no-op when run_query ran
+        standalone). Deliberately NOT reopened - the load that follows must
+        autocommit so the new table's Sch-M is not held to the trailing
+        commit (#819); later statements open their own, and the tail states
+        its precondition with begin_if_closed before adapter.commit(). -#}
     {{ adapter.commit_if_open() }}
 {%- endmacro %}
 

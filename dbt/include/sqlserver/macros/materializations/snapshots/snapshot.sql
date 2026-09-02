@@ -17,13 +17,8 @@
     {% do exceptions.relation_wrong_type(target_relation, 'table') %}
   {%- endif -%}
 
-  {#- Where schema resolution runs relative to the in-transaction pre-hooks -
-      the same config, and the same shape, as table and incremental; see
-      sqlserver__pre_hook_transaction_scope and docs/transaction_scope.md.
-      'load' (default) stages the views and the empty CREATE before the hooks
-      so they autocommit, then the load joins the hook's transaction (X table
-      lock only, never Sch-M). 'build' stages after the hooks, inside their
-      transaction. -#}
+  {#- load: stage before the in-tx pre-hooks; build: stage after them. See
+      sqlserver__pre_hook_transaction_scope for the two flows. -#}
   {%- set pre_hook_transaction_scope = sqlserver__pre_hook_transaction_scope() -%}
   {%- set stage_before_hooks = pre_hook_transaction_scope == 'load' -%}
 
@@ -38,12 +33,11 @@
   -- A view over the user SQL, so a query that opens with a CTE can be read from
   {% set temp_snapshot_relation_sql = model['compiled_code'] %}
 
-  {#- What this run builds and where. A first build goes through the
-      __dbt_tmp intermediate and is renamed into place, as table does: the
-      create and the load now commit independently, so building straight into
-      the target would leave an EMPTY snapshot table under the real name after
-      a failed load, which the next run would then merge into. Later runs
-      build the __dbt_temp staging table and merge it. -#}
+  {#- First build: through the __dbt_tmp intermediate, renamed into place,
+      as table does - the create and the load commit independently, so
+      building straight into the target would leave an EMPTY snapshot table
+      under the real name after a failed load, for the next run to merge
+      into. Later runs: build the __dbt_temp staging table and merge it. -#}
   {% if not target_relation_exists %}
     {% set build_relation = make_intermediate_relation(target_relation) %}
     {% set build_is_temporary = false %}
@@ -70,13 +64,9 @@
 
   {{ run_hooks(pre_hooks, inside_transaction=False) }}
 
-  {#- Schema resolution: the view over the user SQL, the build select, the
-      tmp view over it, and the empty CREATE (sqlserver__snapshot_stage).
-      Under 'load' this runs here, ahead of any transaction, so each
-      statement autocommits and the new object's Sch-M is released as its
-      statement ends (#819). A transaction: true pre-hook that creates what
-      the snapshot reads fails here with Msg 208 - declare it
-      transaction: false or set 'build'. -#}
+  {#- Stage now (sqlserver__snapshot_stage): nothing is open, so each
+      statement autocommits and the new object's Sch-M ends with its
+      statement (#819). -#}
   {% if stage_before_hooks %}
     {% set stage = sqlserver__snapshot_stage(
         strategy, temp_snapshot_relation, temp_snapshot_relation_sql,
@@ -87,9 +77,8 @@
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
   {% if not stage_before_hooks %}
-    {#- pre_hook_transaction_scope='build': the same statements, after the
-        hooks and inside their transaction, holding the new object's Sch-M
-        for the load (#819). Chosen explicitly. -#}
+    {#- build: the same statements inside the pre-hook's transaction, Sch-M
+        held for the load (#819). Chosen explicitly. -#}
     {% set stage = sqlserver__snapshot_stage(
         strategy, temp_snapshot_relation, temp_snapshot_relation_sql,
         target_relation, target_relation_exists,
@@ -100,21 +89,19 @@
 
   {{ check_time_data_types(build_sql) }}
 
-  {#- The load joins a pre-hook's transaction if one is open and autocommits
-      otherwise; X table lock either way. The tmp views are dropped on the
-      tail, after the cutover commits - an uncommitted DROP VIEW blocks
-      catalog scans just as an uncommitted CREATE does. -#}
+  {#- The load joins a pre-hook's transaction if one is open, else
+      autocommits; X table lock either way. Tmp views are dropped on the
+      tail, after the commit. -#}
   {%- set load_sql = sqlserver__get_create_table_load_sql(build_is_temporary, build_relation, build_sql, drop_tmp_view=False) -%}
 
   {% if not target_relation_exists %}
     {% call statement('main', auto_begin=False) -%}
       {{ load_sql }}
     {%- endcall %}
-    {#- statement() writes the compiled artifact for 'main' only; write the
-        whole build back over it so target/run/ holds the CREATE too -#}
+    {#- statement() writes target/run/ for 'main' only; put the CREATE back -#}
     {% do write(stage_sql ~ '\n' ~ load_sql) %}
     {#- the rename and the tail need a transaction; with no pre-hook one,
-        nothing above leaves one open -#}
+        nothing above left one open -#}
     {% do adapter.begin_if_closed() %}
     {% do adapter.rename_relation(build_relation, target_relation) %}
   {% else %}
@@ -160,20 +147,18 @@
 
   {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}
   {% if not target_relation_exists %}
-    {#- Freshly built snapshot table: mask before creating (rowstore) indexes,
-        since a mask cannot be added to a column an index depends on (all
-        versions). Inside the transaction, deliberately: the table carries no
-        masks yet, so a mask failure after the cutover committed would leave
-        it live with the columns exposed. -#}
+    {#- Fresh table: masks before create_indexes (a mask cannot be added to
+        an index key column), and inside the transaction - the table carries
+        no masks yet, so a failure after the commit would leave it live and
+        exposed. -#}
     {% do apply_masks(target_relation, mask_config) %}
   {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}
 
-  {#- The atomic unit ends here, as in table and incremental: in-transaction
-      pre-hooks, the load or merge, the cutover, fresh-table masks and
-      in-transaction post-hooks. Index work, grants, denies and persist_docs
-      run outside it (#819). -#}
+  {#- Atomic unit ends here, as in table and incremental: in-tx pre-hooks,
+      load or merge, cutover, fresh-table masks, in-tx post-hooks. Index
+      work, grants, denies and persist_docs run outside (#819). -#}
   {% do adapter.commit_if_open() %}
 
   {{ adapter.drop_relation(temp_snapshot_relation) }}
@@ -191,7 +176,7 @@
   {% endif %}
 
   {#- an ONLINE/RESUMABLE index build leaves a transaction open; close it so
-      the grants and persist_docs below do not run inside one held to commit -#}
+      grants and persist_docs do not run inside one held to commit -#}
   {% do adapter.commit_if_open() %}
 
   {% set should_revoke = should_revoke(target_relation_exists, full_refresh_mode=False) %}

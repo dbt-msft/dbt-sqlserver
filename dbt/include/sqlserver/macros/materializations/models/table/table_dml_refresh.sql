@@ -1,16 +1,12 @@
 {% macro sqlserver__table_dml_refresh_stage(target_relation, sql) %}
-  {#
-    Schema resolution for the DML refresh: clear leftovers from a prior failed
-    run, create the tmp view over the model SQL, and create the scratch table
-    EMPTY. Every statement passes auto_begin=False; table.sql calls this
-    before the in-transaction pre-hooks (pre_hook_transaction_scope='load',
-    the default), so nothing is open and each statement autocommits - the
-    scratch table's Sch-M is held for the instant of its create, not the
-    length of the load that follows (dbt-msft/dbt-sqlserver#819). Under
-    'build' it is called after the hooks instead and joins their transaction.
-
-    Returns the two relations the load half and the tail need.
-  #}
+  {#-
+    Schema resolution for the dml refresh: drop leftovers by name, create
+    the tmp view over the model SQL, create the scratch table EMPTY. Every
+    statement passes auto_begin=False. table.sql calls this before the in-tx
+    pre-hooks under load (nothing open: each statement autocommits, so the
+    scratch table's Sch-M ends with its create) and after them under build.
+    Returns the two relations the load and the tail need.
+  -#}
   {%- set refresh_relation = target_relation.incorporate(
       path={"identifier": target_relation.identifier ~ '__dbt_refresh'}
   ) -%}
@@ -41,47 +37,32 @@
 
 
 {% macro sqlserver__table_dml_refresh(target_relation, sql, stage) %}
-  {#
-    The DELETE + INSERT swap below (dml_refresh_swap) is only safe because
-    every connection sets SET XACT_ABORT ON at session level (see
-    dbt/adapters/sqlserver/sqlserver_connections.py, xact_abort credential,
-    dbt-msft/dbt-sqlserver#718). Without it, a run-time error partway
-    through the swap (e.g. a NOT NULL/constraint violation on the INSERT)
-    only aborts that statement, not the batch — the DELETE can still
-    commit, silently emptying the target. Do not add a per-macro
-    SET XACT_ABORT ON here; the session-level default is the single source
-    of truth, and do not "simplify" this back into an unguarded batch.
+  {#-
+    XACT_ABORT. The DELETE + INSERT swap below is only safe because every
+    connection runs SET XACT_ABORT ON at session level (#718): without it a
+    run-time error in the INSERT aborts that statement only, and the DELETE
+    can still commit, silently emptying the target. Do not add a per-macro
+    SET, and do not fold the swap back into an unguarded batch.
 
-    DML-only table refresh for use under RCSI.
+    Flow (#819). Sch-M conflicts with the Sch-S every metadata reader takes,
+    so no statement that holds one may share a transaction with the load.
 
-    Instead of rename-swap (which uses DDL and creates a window where the
-    table name doesnt resolve), this path:
-    1. Creates a scratch table empty (sqlserver__table_dml_refresh_stage,
-       above), then bulk-loads it here with INSERT ... WITH (TABLOCK)
-       (minimally logged, same as the SELECT INTO this replaces)
-    2. Compares schemas — if columns changed, falls back to rename-swap
-    3. Swaps data via DELETE + INSERT inside an explicit transaction
-       (RCSI ensures concurrent readers see old data until COMMIT)
-    4. table.sql drops the tmp view and the scratch table on its tail, after
-       the cutover has committed
+      stage (table.sql, before the in-tx hooks)            autocommit
+      |- DROP leftovers, CREATE VIEW, SELECT TOP 0 * INTO   Sch-M ends per statement
+      BEGIN                        first in-tx pre-hook, else the swap
+      |- INSERT scratch WITH (TABLOCK)                      X table lock only
+      |- schema compare                                     read-only probes
+      |- DELETE target + INSERT target                      X on the target
+      |- in-tx post-hooks                                   atomic with the swap
+      COMMIT                       table.sql
+      |- DROP VIEW, reconcile indexes, masks, DROP scratch, grants, docs
 
-    The scratch table is a regular table with a __dbt_refresh suffix,
-    not a global temp table. This avoids cross-session visibility issues
-    and ensures cleanup on failure (DROP IF EXISTS at the start of each run).
-
-    Lock discipline (dbt-msft/dbt-sqlserver#819). The scratch build used to be
-    one fused `SELECT * INTO` inside the materialization's ambient
-    transaction, which held Sch-M on the scratch table from the start of the
-    load through to the trailing adapter.commit(). Sch-M is the one mode
-    incompatible with the Sch-S lock every metadata reader takes, so a slow
-    model blocked metadata readers in every other session for the length of
-    its load. Now the create is staged and committed before any pre-hook
-    opens a transaction (see the stage macro), and the load below passes
-    auto_begin=False: it joins a transaction: true pre-hook's transaction if
-    one is open - taking an X table lock, which is compatible with Sch-S -
-    and autocommits otherwise. Either way no Sch-M spans the load, and the
-    pre-hook still rolls back with a failed load.
-  #}
+    RCSI keeps concurrent readers on the old rows until COMMIT. On a schema
+    change the swap is skipped and the scratch table is rebuilt and renamed
+    into place instead (below). The scratch table is a real table with a
+    __dbt_refresh suffix, not a global temp table, so it is visible for the
+    schema compare and droppable by name on the next run.
+  -#}
 
   {%- set refresh_relation = stage['refresh_relation'] -%}
   {%- set tmp_vw_relation = stage['tmp_vw_relation'] -%}
@@ -115,14 +96,10 @@
     {%- set target_columns = adapter.get_columns_in_relation(target_relation) -%}
     {%- set column_list = target_columns | map(attribute='quoted') | join(', ') -%}
 
-    {# Atomic DML swap — RCSI protects concurrent readers #}
-    {# When dbt_sqlserver_use_dbt_transactions is off, autocommit means we #}
-    {# need the explicit BEGIN/COMMIT. When the flag is on (the default), this #}
-    {# statement's auto_begin supplies the transaction unless a pre-hook #}
-    {# already did: the scratch build above declines to open one, and the #}
-    {# metadata reads just above (schema compare, column list) are read-only #}
-    {# probes that pass auto_begin=False (#819). table.sql closes it after #}
-    {# the in-transaction post-hooks. #}
+    {#- The swap. With dbt-managed transactions off, the in-batch
+        BEGIN/COMMIT makes it atomic; with them on (default) this statement's
+        auto_begin opens the transaction unless a pre-hook already did, and
+        table.sql commits it after the in-tx post-hooks. -#}
     {% call statement('dml_refresh_swap') -%}
       {% if not adapter.behavior.dbt_sqlserver_use_dbt_transactions %}
       BEGIN TRANSACTION;
@@ -135,29 +112,18 @@
       {% endif %}
     {%- endcall %}
 
-    {#- The swap's transaction is deliberately left OPEN here. table.sql closes
-        it after the in-transaction post-hooks, so a post-hook declaring
-        transaction: true is atomic with the swap - which it was not when this
-        macro committed on its own.
-
-        Everything that used to follow that commit inside this macro - the
-        scratch drop, index reconciliation, masks - now runs on table.sql's
-        common tail, outside the transaction, so the DELETE's X locks and the
-        index DDL's Sch-M on the target still do not span them (#819). Index
-        and mask reconciliation failing there leaves the new data committed
-        with indexes not yet converged, which the next run fixes: both
-        reconcile against the config rather than applying a delta. The table
-        keeps its previous masks throughout, so nothing is exposed by a failed
-        mask reconcile. -#}
+    {#- Deliberately left open: table.sql commits after the in-tx post-hooks,
+        so a transaction: true post-hook is atomic with the swap. Index and
+        mask reconciliation run on the tail, outside; if they fail the new
+        rows are committed with indexes not yet converged, and the next run
+        converges them (both reconcile against config, not a delta). -#}
 
   {% else %}
     {# Schema changed — fall back to rename-swap for this run #}
     {{ log("Schema change detected for " ~ target_relation ~ " — falling back to rename-swap", info=true) }}
 
-    {#- The scratch build above declined to open the ambient transaction, so
-        open one here: this branch's renames and drops keep the transactional
-        semantics they had before #819, and table.sql's adapter.commit() needs
-        a matching BEGIN either way. -#}
+    {#- The scratch load joined no transaction of its own; open one for this
+        branch's renames and drops, which stay transactional. -#}
     {% do adapter.begin_if_closed() %}
 
     {%- set backup_relation_type = target_relation.type -%}
@@ -222,16 +188,10 @@
     {# scratch table is now the target, nothing to drop #}
   {% endif %}
 
-  {#- Hand the tail what only this macro knows. schema_match decides the tail's
-      index strategy: 'reconcile' on the swap path, where the table persisted
-      and its indexes must converge on config before masks are re-applied;
-      'create' on the fallback, whose freshly renamed table was masked above
-      and needs mask-then-index order preserved. refresh_relation is the
-      scratch table, dropped by the tail after the commit - dropping it inside
-      the cutover transaction would put its catalog locks back in that window.
-      It is none on the fallback branch: the scratch table was renamed into
-      the target there, so that name no longer exists and the tail has nothing
-      to drop. -#}
+  {#- schema_match picks the tail's index strategy: reconcile on the swap
+      path, create on the fallback (masked above, mask-then-index order).
+      refresh_relation is the scratch table for the tail to drop after the
+      commit; none on the fallback, where it was renamed into the target. -#}
   {{ return({
     'schema_match': schema_match,
     'refresh_relation': refresh_relation if schema_match else none
