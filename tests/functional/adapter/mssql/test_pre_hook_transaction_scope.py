@@ -12,20 +12,22 @@
 Three things are observable from a dbt test and pinned here:
   1. rollback - a transaction: true pre-hook's write is gone after a failed
      load under BOTH scopes (the two differ in locks, not in atomicity).
-  2. locks - while the load runs, a second session's sys.tables scan is not
-     blocked under 'load' and is blocked under 'build'.
+  2. locks - while the load runs, the building session holds no object-level
+     Sch-M under 'load' and holds one under 'build'. Sch-M is the mode that
+     blocks the Sch-S every metadata reader takes, so that is the whole of
+     #819.
   3. bindability - a transaction: true pre-hook that creates the model's
      source fails at the stage under 'load', works under 'build', and works
      under 'load' once declared transaction: false.
 """
 
-import os
 import threading
 import time
 
-import pyodbc
 import pytest
 
+from dbt.adapters.contracts.connection import Connection
+from dbt.adapters.sqlserver.sqlserver_connections import SQLServerConnectionManager
 from dbt.tests.util import run_dbt
 
 audit_log_sql = """
@@ -64,8 +66,8 @@ from sys.all_columns a cross join sys.all_columns b cross join sys.all_columns c
 
 
 def _slow_model(scope):
-    # hashbytes over a widened payload keeps the load in the seconds range so
-    # the poller below gets a meaningful number of samples
+    # hashbytes over a widened payload keeps the load in the seconds range, so
+    # the probe below samples it many times over
     return f"""
 {{{{ config(
   materialized='table', as_columnstore=False,
@@ -89,21 +91,6 @@ def _staged_by_hook(scope, hook_tx):
 ) }}}}
 select id from {{{{ target.schema }}}}.hook_staged
 """
-
-
-def _second_session():
-    return pyodbc.connect(
-        "DRIVER={%s};SERVER=%s,%s;DATABASE=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes"
-        % (
-            os.environ["SQLSERVER_TEST_DRIVER"],
-            os.environ["SQLSERVER_TEST_HOST"],
-            os.environ["SQLSERVER_TEST_PORT"],
-            os.environ["SQLSERVER_TEST_DBNAME"],
-            os.environ["SQLSERVER_TEST_USER"],
-            os.environ["SQLSERVER_TEST_PASS"],
-        ),
-        autocommit=True,
-    )
 
 
 # -- 1. rollback ------------------------------------------------------------
@@ -154,58 +141,128 @@ class TestBuildScopeRollsBackThePreHook(_RollbackCase):
 # -- 2. locks ---------------------------------------------------------------
 
 
+# Sampled from a second connection while the model builds, once every 0.1s:
+#
+#   is the session running the load  request text names this schema + TABLOCK
+#   holding a blocking lock          OBJECT / Sch-M / GRANT on that session
+#
+# DMVs take no lock on user objects, so this reads the building session
+# directly instead of timing out a catalog scan from outside. That matters at
+# `-n auto`: another worker's DDL blocks a sys.tables scan no matter what this
+# model does, so a timing-out scan measures the suite, not the change.
+#
+# TABLOCK identifies the load half in both scopes (it is the only statement in
+# the materialization that carries the hint) and under 'build' the fused batch
+# carries the empty CREATE with it. `session_id <> @@spid` drops the probe's
+# own request, whose text contains both literals.
+_SAMPLE_SQL = """
+with loading as (
+  select r.session_id
+  from sys.dm_exec_requests r
+  cross apply sys.dm_exec_sql_text(r.sql_handle) t
+  where r.session_id <> @@spid
+    and t.text like '%{schema}%'
+    and t.text like '%TABLOCK%'
+)
+select
+  (select count(*) from loading),
+  (select count(*) from loading
+    where exists (select 1 from sys.dm_tran_locks l
+                  where l.request_session_id = loading.session_id
+                    and l.resource_type = 'OBJECT'
+                    and l.request_mode = 'Sch-M'
+                    and l.request_status = 'GRANT'))
+"""
+
+
+def _probe_connection(project):
+    """A second session, opened through the adapter's own connect path so it
+    speaks whichever backend the profile names, but owned by this test rather
+    than by dbt's connection manager: run_dbt closes every connection that
+    manager knows about, which would pull this one out from under the probe
+    thread mid-query."""
+    connection = Connection(
+        type="sqlserver",
+        name="sch_m_probe",
+        state="init",
+        transaction_open=False,
+        handle=None,
+        credentials=project.adapter.config.credentials,
+    )
+    SQLServerConnectionManager.open(connection)
+    return connection.handle
+
+
+def _probe(project, stop, samples, failures):
+    """Append True/False - Sch-M held or not - once per sample taken while the
+    load is running; ignore every sample taken when it is not."""
+    try:
+        handle = _probe_connection(project)
+        sql = _SAMPLE_SQL.format(schema=project.test_schema)
+        try:
+            while not stop.is_set():
+                cursor = handle.cursor()
+                try:
+                    cursor.execute(sql)
+                    loading, holding_sch_m = cursor.fetchone()
+                finally:
+                    cursor.close()
+                if loading:
+                    samples.append(bool(holding_sch_m))
+                time.sleep(0.1)
+        finally:
+            handle.close()
+    except BaseException as e:  # noqa: BLE001 - a probe that dies silently lies
+        failures.append(e)
+
+
 class _LockCase:
     @pytest.fixture(scope="class")
     def models(self):
         return {"big_source.sql": big_source_sql, "slow_model.sql": _slow_model(self.scope)}
 
-    def _blocked_polls_during_run(self, project):
+    def _sch_m_during_the_load(self, project):
+        if not project.run_sql(
+            "select has_perms_by_name(null, null, 'VIEW SERVER STATE')", fetch="one"
+        )[0]:
+            pytest.skip("reading sys.dm_exec_requests needs VIEW SERVER STATE")
+
         run_dbt(["run", "--select", "big_source"])
 
-        timeline = []
+        samples, failures = [], []
         stop = threading.Event()
-
-        def poll():
-            session = _second_session()
-            session.execute("SET LOCK_TIMEOUT 400")
-            while not stop.is_set():
-                try:
-                    session.execute("select count(*) from sys.tables").fetchall()
-                    timeline.append("ok")
-                except pyodbc.Error as e:
-                    timeline.append("blocked" if "1222" in str(e) else "error")
-                time.sleep(0.2)
-            session.close()
-
-        poller = threading.Thread(target=poll)
-        poller.start()
+        probe = threading.Thread(target=_probe, args=(project, stop, samples, failures))
+        probe.start()
         try:
             results = run_dbt(["run", "--select", "slow_model"])
         finally:
             stop.set()
-            poller.join()
+            probe.join()
+
+        assert not failures, f"the lock probe failed: {failures[0]!r}"
         assert results[0].status == "success"
-        assert "error" not in timeline
-        assert len(timeline) >= 8, "the load finished before the poller could sample it"
-        return timeline.count("blocked"), len(timeline)
+        assert len(samples) >= 5, "the load finished before the probe could sample it"
+        return samples.count(True), len(samples)
 
 
 class TestLoadScopeDoesNotBlockCatalogReaders(_LockCase):
     scope = "load"
 
-    def test_scan_proceeds_during_the_load(self, project):
-        blocked, polls = self._blocked_polls_during_run(project)
-        # at most the cutover's sp_rename, which is an instant
-        assert blocked <= 1, f"{blocked} of {polls} catalog scans blocked during the load"
+    def test_no_sch_m_during_the_load(self, project):
+        held, samples = self._sch_m_during_the_load(project)
+        # the create committed before the load; the INSERT takes an X table
+        # lock, which no metadata reader conflicts with
+        assert held == 0, f"Sch-M held during {held} of {samples} samples of the load"
 
 
 class TestBuildScopeBlocksCatalogReaders(_LockCase):
     scope = "build"
 
-    def test_scan_blocks_during_the_load(self, project):
-        blocked, polls = self._blocked_polls_during_run(project)
-        # the create's Sch-M is held to commit, i.e. for the whole load
-        assert blocked >= polls // 2, f"only {blocked} of {polls} catalog scans blocked"
+    def test_sch_m_spans_the_load(self, project):
+        held, samples = self._sch_m_during_the_load(project)
+        # the create shares the pre-hook's transaction, so its Sch-M is held
+        # to commit, i.e. for the whole load
+        assert held >= samples // 2, f"Sch-M held during only {held} of {samples} samples"
 
 
 # -- 3. bindability ---------------------------------------------------------
