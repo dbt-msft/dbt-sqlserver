@@ -605,3 +605,164 @@ class TestDmlRefreshColumnOrderMismatch:
 
         # Scratch cleaned up
         assert not table_exists(project, "dml_reorder_model__dbt_refresh")
+
+
+# -- Test: the columnstore survives the schema-change rename-swap fallback --
+
+dml_cci_schema_change_sql = """
+{{
+  config({
+    "materialized": "table",
+    "table_refresh_method": "dml"
+  })
+}}
+select 1 as id, 'hello' as val, 42 as new_col
+"""
+
+
+class TestDmlRefreshColumnstoreSurvivesSchemaChange:
+    """A schema change pushes the DML refresh onto its rename-swap fallback,
+    which renames the scratch table into position. The scratch came from
+    SELECT * INTO, which copies no index, and create_indexes only builds what
+    the `indexes` config names - never the as_columnstore CCI. So the model
+    came back a heap and stayed one, since every later run matched the new
+    schema and took the DELETE+INSERT path. Rebuilding the scratch through
+    create_table_as is what carries the columnstore across the swap.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"dml_cci_swap_model.sql": dml_with_columnstore_sql}
+
+    def test_columnstore_survives_schema_change(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+        assert has_columnstore_index(project, "dml_cci_swap_model")
+
+        # Add a column: the refresh cannot swap by DELETE+INSERT any more and
+        # falls back to rename-swap.
+        write_model(project, "dml_cci_swap_model.sql", dml_cci_schema_change_sql)
+
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        assert "new_col" in get_column_names(project, "dml_cci_swap_model")
+        assert has_columnstore_index(project, "dml_cci_swap_model")
+        assert not table_exists(project, "dml_cci_swap_model__dbt_refresh")
+
+
+# -- Test: NOT NULL survives the schema-change rename-swap fallback --
+
+dml_not_null_model_sql = """
+{{
+  config({
+    "materialized": "table",
+    "table_refresh_method": "dml",
+    "as_columnstore": False
+  })
+}}
+select try_cast('1' as int) as id, try_cast('hello' as varchar(5)) as val
+"""
+
+# Adds a column, which is what pushes the DML refresh onto its rename-swap
+# fallback.
+dml_not_null_model_wider_sql = """
+{{
+  config({
+    "materialized": "table",
+    "table_refresh_method": "dml",
+    "as_columnstore": False
+  })
+}}
+select try_cast('1' as int) as id,
+       try_cast('hello' as varchar(5)) as val,
+       try_cast('x' as varchar(5)) as extra
+"""
+
+dml_not_null_schema_yml = """
+version: 2
+models:
+  - name: dml_not_null_model
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: val
+        data_type: varchar(5)
+        constraints:
+          - type: not_null
+"""
+
+dml_not_null_schema_wider_yml = (
+    dml_not_null_schema_yml
+    + """      - name: extra
+        data_type: varchar(5)
+"""
+)
+
+
+def get_not_null_columns(project, table_name):
+    """Get the names of a table's NOT NULL columns, in order."""
+    sql = (
+        f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+        f"WHERE TABLE_SCHEMA = '{project.test_schema}' "
+        f"AND TABLE_NAME = '{table_name}' "
+        f"AND IS_NULLABLE = 'NO' "
+        f"ORDER BY ORDINAL_POSITION"
+    )
+    with get_connection(project.adapter):
+        _, table = project.adapter.execute(sql, fetch=True)
+    return [row[0] for row in table.rows]
+
+
+class TestDmlRefreshNotNullSurvivesSchemaChange:
+    """The other half of the same bug as
+    TestDmlRefreshColumnstoreSurvivesSchemaChange: SELECT * INTO takes each
+    column's nullability from the query rather than from the contract, so a
+    schema change used to rename a table whose NOT NULLs had all become
+    nullable - and no later run put them back, every one of them matching the
+    new schema and taking the DELETE+INSERT path.
+
+    The model selects through try_cast so the query's own columns are nullable.
+    A literal would be inferred NOT NULL and carry across on its own, which
+    would pass whether or not the contract was honoured.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "dml_not_null_model.sql": dml_not_null_model_sql,
+            "schema.yml": dml_not_null_schema_yml,
+        }
+
+    def test_not_null_survives_schema_change(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+        assert get_not_null_columns(project, "dml_not_null_model") == ["id", "val"]
+
+        # A steady-state refresh keeps the table object, so it keeps them too.
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+        assert get_not_null_columns(project, "dml_not_null_model") == ["id", "val"]
+
+        # Add a column: the refresh cannot swap by DELETE+INSERT any more and
+        # falls back to rename-swap.
+        write_model(project, "dml_not_null_model.sql", dml_not_null_model_wider_sql)
+        write_model(project, "schema.yml", dml_not_null_schema_wider_yml)
+
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        assert "extra" in get_column_names(project, "dml_not_null_model")
+        # extra is declared without a not_null constraint, so it must stay out.
+        assert get_not_null_columns(project, "dml_not_null_model") == ["id", "val"]
+        assert not table_exists(project, "dml_not_null_model__dbt_refresh")
