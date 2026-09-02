@@ -14,24 +14,35 @@
 
 {% endmacro %}
 
-{% macro build_snapshot_staging_table(strategy, temp_snapshot_relation, target_relation) %}
-    {% set temp_relation = make_temp_relation(target_relation) %}
-    {{ adapter.drop_relation(temp_relation) }}
+{% macro sqlserver__snapshot_stage(strategy, temp_snapshot_relation, temp_snapshot_relation_sql,
+                                  target_relation, target_relation_exists,
+                                  build_relation, build_is_temporary, auto_begin) %}
+    {#-
+      Schema resolution for a snapshot run, in dependency order: the view
+      over the user SQL (rendering the staging select probes it), the build
+      select, then the tmp view and the empty CREATE of what this run builds.
+      auto_begin=False ahead of the in-tx pre-hooks (load scope: each
+      statement autocommits, #819); default auto_begin after them (build).
+      Returns the build select and the rendered stage SQL, so the
+      materialization can write the whole build to the compiled artifact.
+    -#}
+    {{ adapter.drop_relation(temp_snapshot_relation) }}
+    {% call statement('create temp_snapshot_relation', auto_begin=auto_begin) -%}
+      {{ get_create_view_as_sql(temp_snapshot_relation, temp_snapshot_relation_sql) }}
+    {%- endcall %}
 
-    {% set select = snapshot_staging_table(strategy, temp_snapshot_relation, target_relation) %}
+    {% if not target_relation_exists %}
+      {% set build_sql = build_snapshot_table(strategy, temp_snapshot_relation) %}
+    {% else %}
+      {% set build_sql = snapshot_staging_table(strategy, temp_snapshot_relation, target_relation) %}
+    {% endif %}
 
-    {% set tmp_tble_vw_relation = temp_relation.incorporate(path={"identifier": temp_relation.identifier ~ '__dbt_tmp_vw'}, type='view')-%}
-    -- Dropping temp view relation if it exists
-    {{ adapter.drop_relation(tmp_tble_vw_relation) }}
+    {%- set stage_sql = sqlserver__get_create_table_stage_sql(build_is_temporary, build_relation, build_sql) -%}
+    {% call statement('create_table_stage', auto_begin=auto_begin) -%}
+      {{ stage_sql }}
+    {%- endcall %}
 
-    {% call statement('build_snapshot_staging_relation') %}
-        {{ get_create_table_as_sql(True, temp_relation, select) }}
-    {% endcall %}
-
-    -- Dropping temp view relation if it exists
-    {{ adapter.drop_relation(tmp_tble_vw_relation) }}
-
-    {% do return(temp_relation) %}
+    {% do return({'build_sql': build_sql, 'stage_sql': stage_sql}) %}
 {% endmacro %}
 
 
