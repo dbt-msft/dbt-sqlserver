@@ -19,13 +19,13 @@ done
 
 for i in {1..50};
 do
-    /opt/mssql-tools/bin/sqlcmd -C -S localhost -U sa -P "${SA_PASSWORD}" -d TestDB -I -i init.sql
+    /opt/mssql-tools/bin/sqlcmd -C -S localhost -U sa -P "${SA_PASSWORD}" -d TestDB -I -i init.sql,linked_server.sql
     if [ $? -eq 0 ]
     then
-        echo "user creation completed"
+        echo "instance configuration completed"
         break
     else
-        echo "configuring users..."
+        echo "configuring instance..."
         sleep 1
     fi
 done
