@@ -16,18 +16,22 @@
 
 {% macro sqlserver__snapshot_stage(strategy, temp_snapshot_relation, temp_snapshot_relation_sql,
                                   target_relation, target_relation_exists,
-                                  build_relation, build_is_temporary, auto_begin) %}
+                                  build_relation, build_is_temporary) %}
     {#-
       Schema resolution for a snapshot run, in dependency order: the view
       over the user SQL (rendering the staging select probes it), the build
       select, then the tmp view and the empty CREATE of what this run builds.
-      auto_begin=False ahead of the in-tx pre-hooks (load scope: each
-      statement autocommits, #819); default auto_begin after them (build).
+      Never begins a transaction (auto_begin=False throughout): ahead of the
+      in-tx pre-hooks each statement autocommits and the new object's Sch-M
+      ends with it (load scope, #819); after them these join the transaction
+      the hooks opened (build scope). A build scope with no transactional
+      pre-hook has nothing open to join, so it autocommits too rather than
+      taking a lock nothing asked for.
       Returns the build select and the rendered stage SQL, so the
       materialization can write the whole build to the compiled artifact.
     -#}
     {{ adapter.drop_relation(temp_snapshot_relation) }}
-    {% call statement('create temp_snapshot_relation', auto_begin=auto_begin) -%}
+    {% call statement('create temp_snapshot_relation', auto_begin=False) -%}
       {{ get_create_view_as_sql(temp_snapshot_relation, temp_snapshot_relation_sql) }}
     {%- endcall %}
 
@@ -38,7 +42,7 @@
     {% endif %}
 
     {%- set stage_sql = sqlserver__get_create_table_stage_sql(build_is_temporary, build_relation, build_sql) -%}
-    {% call statement('create_table_stage', auto_begin=auto_begin) -%}
+    {% call statement('create_table_stage', auto_begin=False) -%}
       {{ stage_sql }}
     {%- endcall %}
 

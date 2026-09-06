@@ -128,10 +128,13 @@
       {% do write(stage_sql ~ '\n' ~ load_sql) %}
     {% else %}
       {#- build: create and load inside the pre-hook's transaction, Sch-M held
-          for the whole load (#819). Chosen explicitly. -#}
+          for the whole load (#819). Chosen explicitly - and only ever taken
+          from a hook: auto_begin=False, so with no transactional pre-hook
+          this batch autocommits rather than opening a transaction of its
+          own and holding that Sch-M for a model that asked for nothing. -#}
       {%- set stage_sql = sqlserver__get_create_table_stage_sql(False, intermediate_relation, sql) -%}
       {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql) -%}
-      {% call statement("main") %}
+      {% call statement("main", auto_begin=False) %}
           {{ stage_sql }}
           {{ load_sql }}
       {% endcall %}
@@ -216,6 +219,7 @@
       DROP VIEW blocks catalog scans like an uncommitted CREATE) -#}
   {% if stage_before_hooks %}
     {% call statement('drop_tmp_view', auto_begin=False) -%}
+      {{ get_use_database_sql(tmp_vw_relation.database) }}
       DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
     {%- endcall %}
   {% endif %}

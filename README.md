@@ -183,7 +183,10 @@ _(default: `load`)_ Where a `table`, `incremental` or `snapshot` build resolves 
 (the tmp view and the empty `CREATE`) relative to its in-transaction pre-hooks.
 `load` stages it before them, so the new table's `Sch-M` lock is released in an
 instant and the load blocks no metadata reader in other sessions; a
-`transaction: true` pre-hook still rolls back with a failed load. `build` stages
+`transaction: true` pre-hook still rolls back with a failed load, except on the
+two paths that commit a full-refresh marker before the load
+(`full_refresh_build: prebuilt`, and an incremental `--full-refresh` of an
+existing table), where neither scope can roll it back. `build` stages
 it inside the hook's transaction, for the one case `load` cannot serve: a
 `transaction: true` pre-hook that creates an object the model reads. See
 [docs/transaction_scope.md](docs/transaction_scope.md) for the full flow and

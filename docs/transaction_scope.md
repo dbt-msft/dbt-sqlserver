@@ -99,7 +99,13 @@ swaps with `DELETE` + `INSERT` inside the transaction.
 The transaction spans **in-transaction pre-hooks → the load → the cutover →
 in-transaction post-hooks**. That is what a hook declaring `transaction: true`
 is asking for: atomicity with *the model*. A `transaction: true` pre-hook's
-writes roll back with a failed load, exactly as before. Index reconciliation,
+writes roll back with a failed load, exactly as before — on every path except
+the two that commit a `dbt_full_refresh_incomplete` marker before the load
+(`full_refresh_build: prebuilt`, and an incremental `--full-refresh` of an
+existing table). The marker exists to survive a failed rebuild, so it cannot
+share the load's transaction, and committing it commits the pre-hook with it.
+Neither scope changes that; see [Where the setting is
+inert](#pre_hook_transaction_scope). Index reconciliation,
 grants, denies and `persist_docs` are the adapter's own housekeeping and were
 never part of that promise, so they now run outside it.
 
@@ -161,12 +167,20 @@ that is also the one thing it cannot do: bind against an object a
 
 | Value | Schema resolution runs | Transaction covers | Pre-hook rolls back with a failed load | #819 fixed |
 |---|---|---|---|---|
-| `load` (default) | before the in-tx pre-hooks, autocommitted | pre-hooks + load + cutover + post-hooks | yes | yes |
-| `build` | inside the pre-hooks' transaction | pre-hooks + create + load + cutover + post-hooks | yes | no |
+| `load` (default) | before the in-tx pre-hooks, autocommitted | pre-hooks + load + cutover + post-hooks | yes¹ | yes |
+| `build` | inside the pre-hooks' transaction | pre-hooks + create + load + cutover + post-hooks | yes¹ | no |
+
+¹ Except on the two marker-committing paths described under *Where the setting
+is inert* below, where neither scope can deliver rollback.
 
 Under `load`, a `transaction: true` pre-hook that creates what the model reads
-fails at the stage with `Invalid object name`, before any hook has run. Two
-remedies:
+fails at the stage with `Invalid object name`, before any hook has run. Staging
+early fixes the intermediate's *column shape*, not just its existence, so the
+same ordering shows up in a second, less obvious form: a `transaction: true`
+pre-hook that widens or adds a column on a source the model already references
+lands a stage built from the old shape, and the load that follows fails with a
+truncation or column-count error rather than a clear `Invalid object name`.
+Same cause, same two remedies:
 
 - Declare that hook `transaction: false`. Outside-transaction pre-hooks run
   before the stage, so the object exists when the view binds. A staging-table
@@ -201,11 +215,22 @@ rollback yourself if that matters. The load itself is autocommitted on both,
 so neither holds `Sch-M` across it.
 
 **With no transactional pre-hook** the setting changes nothing: the stage
-autocommits either way, and the load autocommits too. Note that
+autocommits either way, and the load autocommits too. `build` means "join the
+transaction the hooks opened", not "open one" — with no hook to open it there
+is nothing to join, so a folder-level `+pre_hook_transaction_scope: build`
+costs nothing on the models underneath it that declare no hooks. Note that
 `transaction: true` is dbt's *default* for a pre-hook, so a plain string
 pre-hook is a transactional one.
 
 ## Residual window
+
+`table_refresh_method: dml` keeps one window of its own, on the branch that
+detects a schema change: that branch falls back to a full rebuild
+(`create_table_as`, a fused create and load) and runs it inside the swap's
+transaction, so the scratch table's `Sch-M` is held across that load. It is a
+private name, visible to database-wide catalog scans, and it predates this
+change — the steady-state `DELETE` + `INSERT` path, which is what a `dml` model
+takes on every run where the column shape is unchanged, has no such window.
 
 With a `transaction: true` pre-hook and `as_columnstore: true` (the default),
 the clustered columnstore index is built on the intermediate inside the hook's

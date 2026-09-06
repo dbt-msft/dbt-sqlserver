@@ -138,10 +138,13 @@
       {% do write(stage_sql ~ '\n' ~ load_sql) %}
     {% else %}
       {#- build: create and load inside the pre-hook's transaction, Sch-M held
-          for the whole load (#819). Chosen explicitly. -#}
+          for the whole load (#819). Chosen explicitly - and only ever taken
+          from a hook: auto_begin=False, so with no transactional pre-hook
+          this batch autocommits rather than opening a transaction of its
+          own and holding that Sch-M for a model that asked for nothing. -#}
       {%- set stage_sql = sqlserver__get_create_table_stage_sql(False, intermediate_relation, sql) -%}
       {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql) -%}
-      {% call statement('main') -%}
+      {% call statement('main', auto_begin=False) -%}
         {{ stage_sql }}
         {{ load_sql }}
       {%- endcall %}
@@ -184,10 +187,12 @@
       its own too; IF EXISTS covers both. -#}
   {% if use_dml_refresh %}
     {% call statement('dml_refresh_drop_view', auto_begin=False) -%}
+      {{ get_use_database_sql(dml_stage['tmp_vw_relation'].database) }}
       DROP VIEW IF EXISTS {{ dml_stage['tmp_vw_relation'].include(database=False) }};
     {%- endcall %}
   {% elif stage_before_hooks %}
     {% call statement('drop_tmp_view', auto_begin=False) -%}
+      {{ get_use_database_sql(tmp_vw_relation.database) }}
       DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
     {%- endcall %}
   {% endif %}
@@ -214,6 +219,7 @@
       with the statement. -#}
   {% if use_dml_refresh and dml_result['refresh_relation'] is not none %}
     {% call statement('dml_refresh_cleanup_post', auto_begin=False) -%}
+      {{ get_use_database_sql(dml_result['refresh_relation'].database) }}
       DROP TABLE IF EXISTS {{ dml_result['refresh_relation'] }};
     {%- endcall %}
   {% endif %}

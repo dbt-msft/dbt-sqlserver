@@ -15,6 +15,7 @@
   ) -%}
 
   {% call statement('dml_refresh_cleanup_pre', auto_begin=False) -%}
+    {{ get_use_database_sql(refresh_relation.database) }}
     DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
     DROP TABLE IF EXISTS {{ refresh_relation }};
   {%- endcall %}

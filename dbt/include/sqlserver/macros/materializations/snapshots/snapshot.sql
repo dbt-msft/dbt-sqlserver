@@ -22,6 +22,18 @@
   {%- set pre_hook_transaction_scope = sqlserver__pre_hook_transaction_scope() -%}
   {%- set stage_before_hooks = pre_hook_transaction_scope == 'load' -%}
 
+  {#- Hooks run before the strategy work below, which talks to the database:
+      the check strategy runs the snapshot's own SQL to compare column shapes
+      (snapshot_check_all_get_existing_columns), so a hook that creates what
+      the snapshot reads has to have run by then - on every run but the first,
+      where the missing target skips that check. Under 'load' only the in-tx
+      hooks are held back, to after the stage: that is the scope's documented
+      trade, and the stage binds the same SQL anyway. -#}
+  {{ run_hooks(pre_hooks, inside_transaction=False) }}
+  {% if not stage_before_hooks %}
+    {{ run_hooks(pre_hooks, inside_transaction=True) }}
+  {% endif %}
+
   {% set strategy_macro = strategy_dispatch(strategy_name) %}
   {% set strategy = strategy_macro(model, "snapshotted_data", "source_data", config, target_relation_exists) %}
 
@@ -62,27 +74,19 @@
       path={"identifier": build_relation.identifier ~ '__dbt_tmp_vw'}, type='view'
   ) -%}
 
-  {{ run_hooks(pre_hooks, inside_transaction=False) }}
+  {#- load: nothing is open here, so sqlserver__snapshot_stage autocommits
+      each statement and the new object's Sch-M ends with it (#819).
+      build: the in-tx pre-hooks above ran first, so these statements join
+      their transaction and that Sch-M is held for the load. Chosen
+      explicitly - with no transactional pre-hook nothing is open either way
+      and the stage never begins a transaction of its own. -#}
+  {% set stage = sqlserver__snapshot_stage(
+      strategy, temp_snapshot_relation, temp_snapshot_relation_sql,
+      target_relation, target_relation_exists,
+      build_relation, build_is_temporary) %}
 
-  {#- Stage now (sqlserver__snapshot_stage): nothing is open, so each
-      statement autocommits and the new object's Sch-M ends with its
-      statement (#819). -#}
   {% if stage_before_hooks %}
-    {% set stage = sqlserver__snapshot_stage(
-        strategy, temp_snapshot_relation, temp_snapshot_relation_sql,
-        target_relation, target_relation_exists,
-        build_relation, build_is_temporary, auto_begin=False) %}
-  {% endif %}
-
-  {{ run_hooks(pre_hooks, inside_transaction=True) }}
-
-  {% if not stage_before_hooks %}
-    {#- build: the same statements inside the pre-hook's transaction, Sch-M
-        held for the load (#819). Chosen explicitly. -#}
-    {% set stage = sqlserver__snapshot_stage(
-        strategy, temp_snapshot_relation, temp_snapshot_relation_sql,
-        target_relation, target_relation_exists,
-        build_relation, build_is_temporary, auto_begin=True) %}
+    {{ run_hooks(pre_hooks, inside_transaction=True) }}
   {% endif %}
   {% set build_sql = stage['build_sql'] %}
   {% set stage_sql = stage['stage_sql'] %}
@@ -163,6 +167,7 @@
 
   {{ adapter.drop_relation(temp_snapshot_relation) }}
   {% call statement('drop_tmp_view', auto_begin=False) -%}
+    {{ get_use_database_sql(tmp_vw_relation.database) }}
     DROP VIEW IF EXISTS {{ tmp_vw_relation.include(database=False) }};
   {%- endcall %}
 

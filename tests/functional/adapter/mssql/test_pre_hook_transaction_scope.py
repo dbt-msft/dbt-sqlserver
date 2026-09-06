@@ -19,6 +19,9 @@ Three things are observable from a dbt test and pinned here:
   3. bindability - a transaction: true pre-hook that creates the model's
      source fails at the stage under 'load', works under 'build', and works
      under 'load' once declared transaction: false.
+  4. ordering - the snapshot materialization's own database work (the check
+     strategy runs the snapshot SQL to compare column shapes) still happens
+     after the pre-hooks each scope promises to have run by then.
 """
 
 import threading
@@ -65,18 +68,39 @@ from sys.all_columns a cross join sys.all_columns b cross join sys.all_columns c
 """
 
 
-def _slow_model(scope):
-    # hashbytes over a widened payload keeps the load in the seconds range, so
-    # the probe below samples it many times over
+# hashbytes over a widened payload keeps the load in the seconds range, so the
+# probe below samples it many times over
+_slow_select = """
+select a.id, a.payload, v.n, hashbytes('SHA2_512', replicate(a.payload, 50)) as h
+from {{ ref('big_source') }} a
+cross join (values (1), (2), (3), (4)) v(n)
+"""
+
+
+def _slow_model(scope, pre_hook=True, materialized="table"):
+    hook = "pre_hook=[{'sql': \"select 1 as noop\", 'transaction': True}]," if pre_hook else ""
     return f"""
 {{{{ config(
-  materialized='table', as_columnstore=False,
+  materialized='{materialized}', as_columnstore=False,
   pre_hook_transaction_scope='{scope}',
-  pre_hook=[{{'sql': "select 1 as noop", 'transaction': True}}]
+  {hook}
 ) }}}}
-select a.id, a.payload, v.n, hashbytes('SHA2_512', replicate(a.payload, 50)) as h
-from {{{{ ref('big_source') }}}} a
-cross join (values (1), (2), (3), (4)) v(n)
+{_slow_select}
+"""
+
+
+def _slow_snapshot(scope):
+    """First build of a snapshot: the stage, then the load - the path
+    sqlserver__snapshot_stage owns."""
+    return f"""
+{{% snapshot slow_snap %}}
+{{{{ config(
+  unique_key='id', strategy='check', check_cols=['n'],
+  as_columnstore=False,
+  pre_hook_transaction_scope='{scope}'
+) }}}}
+{_slow_select}
+{{% endsnapshot %}}
 """
 
 
@@ -217,15 +241,26 @@ def _probe(project, stop, samples, failures):
 
 
 class _LockCase:
+    pre_hook = True
+    materialized = "table"
+
     @pytest.fixture(scope="class")
     def models(self):
-        return {"big_source.sql": big_source_sql, "slow_model.sql": _slow_model(self.scope)}
+        return {
+            "big_source.sql": big_source_sql,
+            "slow_model.sql": _slow_model(self.scope, self.pre_hook, self.materialized),
+        }
+
+    def _build_the_model(self):
+        return run_dbt(["run", "--select", "slow_model"])
 
     def _sch_m_during_the_load(self, project):
-        if not project.run_sql(
+        # deliberately not a skip: this is the only functional guard on the
+        # lock #819 is about, and a silent skip on a login without the
+        # permission would retire it with no signal at all
+        assert project.run_sql(
             "select has_perms_by_name(null, null, 'VIEW SERVER STATE')", fetch="one"
-        )[0]:
-            pytest.skip("reading sys.dm_exec_requests needs VIEW SERVER STATE")
+        )[0], "these tests read sys.dm_exec_requests; grant the test login VIEW SERVER STATE"
 
         run_dbt(["run", "--select", "big_source"])
 
@@ -234,7 +269,7 @@ class _LockCase:
         probe = threading.Thread(target=_probe, args=(project, stop, samples, failures))
         probe.start()
         try:
-            results = run_dbt(["run", "--select", "slow_model"])
+            results = self._build_the_model()
         finally:
             stop.set()
             probe.join()
@@ -242,27 +277,75 @@ class _LockCase:
         assert not failures, f"the lock probe failed: {failures[0]!r}"
         assert results[0].status == "success"
         assert len(samples) >= 5, "the load finished before the probe could sample it"
-        return samples.count(True), len(samples)
+        return samples
 
 
-class TestLoadScopeDoesNotBlockCatalogReaders(_LockCase):
+class _NoSchM(_LockCase):
+    def test_no_sch_m_during_the_load(self, project):
+        samples = self._sch_m_during_the_load(project)
+        held = samples.count(True)
+        assert held == 0, f"Sch-M held during {held} of {len(samples)} samples: {samples}"
+
+
+class TestLoadScopeDoesNotBlockCatalogReaders(_NoSchM):
+    """load: the create committed before the load, and the INSERT takes an X
+    table lock, which no metadata reader conflicts with."""
+
     scope = "load"
 
-    def test_no_sch_m_during_the_load(self, project):
-        held, samples = self._sch_m_during_the_load(project)
-        # the create committed before the load; the INSERT takes an X table
-        # lock, which no metadata reader conflicts with
-        assert held == 0, f"Sch-M held during {held} of {samples} samples of the load"
+
+class TestBuildScopeWithoutAnInTxHookHoldsNothing(_NoSchM):
+    """build with no transactional pre-hook: there is no transaction to join,
+    so the create and the load autocommit exactly as under load. Pins what
+    docs/transaction_scope.md promises - a folder-level +build must not take
+    the lock for models underneath it that have no hooks."""
+
+    scope, pre_hook = "build", False
+
+
+class TestIncrementalBuildScopeWithoutAnInTxHookHoldsNothing(_NoSchM):
+    """The same promise on incremental's fresh-build branch."""
+
+    scope, pre_hook, materialized = "build", False, "incremental"
+
+
+class TestSnapshotBuildScopeWithoutAnInTxHookHoldsNothing(_NoSchM):
+    """And on a snapshot's first build, whose stage is sqlserver__snapshot_stage."""
+
+    scope, pre_hook = "build", False
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"big_source.sql": big_source_sql}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {"slow_snap.sql": _slow_snapshot(self.scope)}
+
+    def _build_the_model(self):
+        return run_dbt(["snapshot"])
 
 
 class TestBuildScopeBlocksCatalogReaders(_LockCase):
     scope = "build"
 
     def test_sch_m_spans_the_load(self, project):
-        held, samples = self._sch_m_during_the_load(project)
-        # the create shares the pre-hook's transaction, so its Sch-M is held
-        # to commit, i.e. for the whole load
-        assert held >= samples // 2, f"Sch-M held during only {held} of {samples} samples"
+        samples = self._sch_m_during_the_load(project)
+        # The create shares the pre-hook's transaction, so its Sch-M is held to
+        # commit - held CONTINUOUSLY from the create to the end of the load,
+        # which is what this asserts, rather than merely "held in most
+        # samples". The request is matched by its batch text, so it is visible
+        # for a moment at each end while no Sch-M is held yet - and the two
+        # DMV reads in one sample are not atomic, so the sample that lands on
+        # the commit can see the request still running with its locks already
+        # gone. One sample at each end is allowed to miss; none in between.
+        assert True in samples, f"Sch-M never held during the load: {samples}"
+        first = samples.index(True)
+        last = len(samples) - 1 - samples[::-1].index(True)
+        held = samples[first : last + 1]
+        assert all(held), f"Sch-M released mid-load: {samples}"
+        assert len(samples) - len(held) <= 2, f"Sch-M held for only part of the load: {samples}"
+        assert len(held) >= 5, f"too little of the load sampled: {samples}"
 
 
 # -- 3. bindability ---------------------------------------------------------
@@ -309,3 +392,53 @@ select 1 as id
     def test_invalid_value_raises(self, project):
         results = run_dbt(["run"], expect_pass=False)
         assert "pre_hook_transaction_scope" in str(results[0].message)
+
+
+# -- 4. ordering ------------------------------------------------------------
+
+
+def _hook_sourced_snapshot(scope, hook_tx):
+    """A check-strategy snapshot whose source a pre-hook creates.
+
+    The check strategy runs the snapshot's own SQL to compare column shapes
+    (snapshot_check_all_get_existing_columns), but only once the target
+    exists - so this binds trivially on the first run and only reaches the
+    strategy probe on the second. Both escape hatches from 'load' have to
+    survive that: transaction: false, and scope 'build'.
+    """
+    return f"""
+{{% snapshot hook_sourced_snap %}}
+{{{{ config(
+  unique_key='id', strategy='check', check_cols='all',
+  pre_hook_transaction_scope='{scope}',
+  pre_hook=[{{'sql': "drop table if exists {{{{ target.schema }}}}.hook_sourced; "
+                    "select 1 as id, cast('a' as varchar(10)) as txt "
+                    "into {{{{ target.schema }}}}.hook_sourced",
+             'transaction': {hook_tx}}}]
+) }}}}
+select id, txt from {{{{ target.schema }}}}.hook_sourced
+{{% endsnapshot %}}
+"""
+
+
+class _HookSourcedSnapshot:
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {"hook_sourced_snap.sql": _hook_sourced_snapshot(self.scope, self.hook_tx)}
+
+    def test_second_run_still_binds(self, project):
+        assert run_dbt(["snapshot"])[0].status == "success"
+        # the source belongs to the hook, so take it away again: otherwise the
+        # first run's copy is still there and the strategy probe binds against
+        # it whether the hook has run or not
+        project.run_sql(f"drop table if exists {project.test_schema}.hook_sourced")
+        # the run that reaches the check strategy's own query
+        assert run_dbt(["snapshot"])[0].status == "success"
+
+
+class TestLoadScopeRunsOutsideTxHooksBeforeTheStrategy(_HookSourcedSnapshot):
+    scope, hook_tx = "load", "False"
+
+
+class TestBuildScopeRunsInTxHooksBeforeTheStrategy(_HookSourcedSnapshot):
+    scope, hook_tx = "build", "True"
