@@ -22,6 +22,8 @@ Three things are observable from a dbt test and pinned here:
   4. ordering - the snapshot materialization's own database work (the check
      strategy runs the snapshot SQL to compare column shapes) still happens
      after the pre-hooks each scope promises to have run by then.
+  5. the exception to (1) - the two paths that commit a full-refresh marker
+     before the load commit the pre-hook with it, under either scope.
 """
 
 import threading
@@ -442,3 +444,120 @@ class TestLoadScopeRunsOutsideTxHooksBeforeTheStrategy(_HookSourcedSnapshot):
 
 class TestBuildScopeRunsInTxHooksBeforeTheStrategy(_HookSourcedSnapshot):
     scope, hook_tx = "build", "True"
+
+
+# -- 5. where neither scope can roll the pre-hook back -----------------------
+
+# `bad: false` gives the source a castable value, so the model can be built
+# once successfully before the run that fails.
+switchable_source_rows_sql = """
+{{ config(materialized='table', as_columnstore=False) }}
+select 1 as id,
+       cast({{ "'not_a_number'" if var('bad', true) else "'20'" }} as varchar(20)) as txt
+"""
+
+
+def _marker_model(scope, materialized, full_refresh_build):
+    return f"""
+{{{{ config(
+  materialized='{materialized}', as_columnstore=False,
+  full_refresh_build='{full_refresh_build}',
+  pre_hook_transaction_scope='{scope}',
+  pre_hook=[{{'sql': "insert into {{{{ ref('audit_log') }}}} (marker) values (1)",
+             'transaction': True}}]
+) }}}}
+select id, cast(txt as int) as val from {{{{ ref('source_rows') }}}}
+"""
+
+
+class _MarkerCase:
+    """Both of these paths mark the target `dbt_full_refresh_incomplete` and
+    commit that marker before the load - the marker's whole purpose is to
+    outlive a failed rebuild, so it cannot share the load's transaction, and
+    committing it commits any transaction: true pre-hook with it.
+
+    So the rollback the other tests in this file assert is NOT available here,
+    under either scope. That is documented (README, docs/transaction_scope.md,
+    the macro comments); this pins it, so a change that quietly starts or stops
+    delivering rollback here has to come past a test either way.
+    """
+
+    def _audit_rows(self, project):
+        return project.run_sql(
+            f"select count(*) from {project.test_schema}.audit_log", fetch="one"
+        )[0]
+
+    def _marked_incomplete(self, project, model):
+        return project.run_sql(
+            "select count(*) from sys.extended_properties where major_id = "
+            f"object_id('{project.test_schema}.{model}') "
+            "and name = 'dbt_full_refresh_incomplete'",
+            fetch="one",
+        )[0]
+
+
+class _PrebuiltMarker(_MarkerCase):
+    """full_refresh_build: prebuilt, on a first build."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "audit_log.sql": audit_log_sql,
+            "source_rows.sql": source_rows_sql,
+            "marker_model.sql": _marker_model(self.scope, "table", "prebuilt"),
+        }
+
+    def test_pre_hook_write_survives_the_failed_load(self, project):
+        run_dbt(["run"], expect_pass=False)
+        assert self._audit_rows(project) == 1, (
+            "prebuilt commits its in-progress marker before the load, taking the "
+            "pre-hook's write with it, so the write must still be there"
+        )
+        assert self._marked_incomplete(project, "marker_model") == 1, (
+            "the marker is what forces that commit; if it is gone, this test is "
+            "no longer measuring the path it claims to"
+        )
+
+
+class TestPrebuiltCommitsThePreHookUnderLoad(_PrebuiltMarker):
+    scope = "load"
+
+
+class TestPrebuiltCommitsThePreHookUnderBuild(_PrebuiltMarker):
+    scope = "build"
+
+
+class _IncrementalFullRefreshMarker(_MarkerCase):
+    """An incremental --full-refresh of an existing table, on the default
+    full_refresh_build - sqlserver__mark_full_refresh_incomplete commits."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "audit_log.sql": audit_log_sql,
+            "source_rows.sql": switchable_source_rows_sql,
+            "marker_model.sql": _marker_model(self.scope, "incremental", "heap_then_index"),
+        }
+
+    def test_pre_hook_write_survives_the_failed_load(self, project):
+        # a clean build first: the marker path only applies to a table that
+        # already exists
+        run_dbt(["run", "--vars", "bad: false"])
+        assert self._audit_rows(project) == 1
+
+        # audit_log is rebuilt by this run too, so it starts empty again: one
+        # row afterwards means this run's hook write survived
+        run_dbt(["run", "--full-refresh"], expect_pass=False)
+        assert self._audit_rows(project) == 1, (
+            "the full-refresh marker commits before the load, taking the "
+            "pre-hook's write with it, so the write must still be there"
+        )
+        assert self._marked_incomplete(project, "marker_model") == 1
+
+
+class TestIncrementalFullRefreshCommitsThePreHookUnderLoad(_IncrementalFullRefreshMarker):
+    scope = "load"
+
+
+class TestIncrementalFullRefreshCommitsThePreHookUnderBuild(_IncrementalFullRefreshMarker):
+    scope = "build"
