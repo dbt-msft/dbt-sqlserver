@@ -281,6 +281,8 @@ A *model-level* constraint carrying `name:` is applied by `ALTER TABLE … ADD C
 
 Name a constraint when you want it stable across environments (schema-comparison tools report the generated names as differences) or need to reference it later. A `name:` on a *column-level* constraint is ignored with a warning — declare it under the model's `constraints:` key instead.
 
+The full set of rules, with the test that verifies each, is in [docs/constraints.md](docs/constraints.md).
+
 ```yaml
 models:
   - name: fact_sales
@@ -342,6 +344,8 @@ Two things are worth knowing before adding them:
 
   It drops the foreign keys in both directions — the inbound ones other tables hold against this model, and this model's own outbound ones — so the rebuild's backup drop succeeds. The trade-off is explicit and worth stating: **the child's foreign key does not exist between the parent's rebuild and the child's next build.** (dbt-postgres makes the same trade silently, by issuing every `drop table` with `cascade`.)
 
+  Add the hook *before* the first rebuild. Once a rebuild has failed with `Msg 3726`, the new table is already in place but without its own named constraints — those are applied after the backup drop that failed — and the child's key now points at `<model>__dbt_backup`, because a foreign key follows the object, not the name. A plain `dbt run` does not recover: the parent trips over the same backup and the child is skipped behind it. Rebuild the child alone — that run fails too, since the parent has no key to reference, but its swap drops the old child and the stale key with it — and a plain `dbt run` then rebuilds both in order. Dropping the child's key by hand (`ALTER TABLE <child> DROP CONSTRAINT <name>`) does the same.
+
   `table_refresh_method: dml` is *not* a workaround. Its steady-state refresh issues `DELETE FROM <parent>`, which fails with `Msg 547` as soon as the child holds referencing rows, and its schema-change path falls back to the same rename-swap, hitting `Msg 3726` anyway.
 
 - **SQL Server has no cross-database foreign keys.** `to: ref(...)` resolves to a fully qualified relation, database included, which SQL Server accepts as long as it names the current database. A target in another database fails with `references invalid table`.
@@ -363,7 +367,7 @@ Every bullet above is about *named* constraints. Unnamed ones ride the `CREATE T
 
 An *unnamed* `primary_key` or `unique` constraint on a column that also carries a [data mask](#dynamic-data-masking-masked_with--masks) is rejected by the build. The constraint rides the `CREATE TABLE`, so its index already exists by the time `apply_masks` runs, and the adapter refuses to mask any column that an index has as a key: *is configured for masking but is also an index key column*. Declare that constraint at the model level **with a `name:`** instead — named constraints are applied by `ALTER TABLE` after the masks are in place, which the adapter allows.
 
-With `full_refresh_build: prebuilt`, a `primary_key` or `unique` constraint creates a nonclustered index on the table *before* the bulk load. That secondary index has to be maintained row by row during `INSERT … WITH (TABLOCK)`, which is fully logged and adds to a load that `prebuilt` exists to make cheap. If a model is on `prebuilt` because its load time matters, weigh the key constraints against that; `check`, `not_null` and `foreign_key` do not create indexes and do not carry this cost.
+A contract-enforced model is always loaded as `CREATE TABLE` followed by `INSERT … WITH (TABLOCK)`, on every build path. A `primary_key` or `unique` constraint — named or not — puts a nonclustered index on that table *before* the load, so the index is maintained row by row while the rows go in, and that part of the load is fully logged where an index-free heap would have been minimally logged. The cost lands on every rebuild of the model; it is most visible with `full_refresh_build: prebuilt`, whose point is a cheap bulk load. If a model's load time matters, weigh the key constraints against it; `check`, `not_null` and `foreign_key` do not create indexes and do not carry this cost.
 
 ### Dynamic Data Masking (`masked_with` / `masks`)
 

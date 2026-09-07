@@ -491,8 +491,9 @@ class TestDmlRefreshKeepsConstraints:
 
 class TestForeignKeyToRef:
     """`to: ref(...)` is the form dbt-core actually produces, and it resolves to
-    a fully rendered relation - database included. T-SQL's REFERENCES grammar
-    takes [schema.]table only, so the database qualifier has to come off."""
+    a fully rendered relation - database included. SQL Server accepts that
+    three-part REFERENCES target while it names the current database, so it is
+    passed through as-is and has to resolve to the right object."""
 
     @pytest.fixture(scope="class")
     def models(self):

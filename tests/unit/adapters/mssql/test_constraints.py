@@ -141,6 +141,17 @@ class TestRenderModelConstraint:
         """They are applied by ALTER after the swap instead."""
         assert render_model(type=ConstraintType.primary_key, name="PK_x", columns=["id"]) is None
 
+    @pytest.mark.parametrize("type_", [ConstraintType.primary_key, ConstraintType.unique])
+    def test_a_named_constraint_still_validates_its_expression_up_front(self, type_):
+        """The ALTER that applies a named key runs after the build has committed
+        and swapped the new table in. A bad `expression` has to fail before
+        that, while nothing has been built yet - the same moment an unnamed
+        one fails."""
+        with pytest.raises(DbtValidationError, match="Invalid expression"):
+            render_model(
+                type=type_, name="K_x", columns=["id"], expression="with (fillfactor = 90)"
+            )
+
 
 class TestRenderRawModelAlterConstraints:
     def test_only_named_constraints_are_altered_in(self):

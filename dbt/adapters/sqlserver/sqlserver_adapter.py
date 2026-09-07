@@ -702,9 +702,15 @@ class SQLServerAdapter(SQLAdapter):
 
         A named one renders nothing here and is applied afterwards by
         ``render_raw_model_alter_constraints`` instead - see
-        ``sqlserver__build_model_constraints``.
+        ``sqlserver__build_model_constraints``. Its ``expression`` is still
+        validated now: the ALTER runs after the build has committed and swapped
+        the table in, and a typo there should fail before any of that happens.
         """
         if constraint.name:
+            if constraint.type in (ConstraintType.unique, ConstraintType.primary_key):
+                cls._clustering(
+                    constraint.type.value.replace("_", " "), constraint.expression or ""
+                )
             return None
         return cls._render_model_constraint_body(constraint)
 
