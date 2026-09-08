@@ -1,14 +1,116 @@
+from pathlib import Path
 from unittest.mock import MagicMock
 
+import jinja2
 import pytest
+from jinja2.runtime import Macro as _Jinja2Macro
 
 from dbt.adapters.exceptions import IndexConfigError, IndexConfigNotDictError
 from dbt.adapters.sqlserver.relation_configs.index import SQLServerIndexConfig, SQLServerIndexType
+from dbt.adapters.sqlserver.sqlserver_adapter import SQLServerAdapter
 from dbt.exceptions import DbtRuntimeError
 
 
 def test_sqlserver_index_type_default():
     assert SQLServerIndexType.default() == SQLServerIndexType.nonclustered
+
+
+class _MacroReturn(BaseException):
+    def __init__(self, value):
+        self.value = value
+
+
+_orig_macro_call = _Jinja2Macro.__call__
+
+
+def _patched_macro_call(self, *args, **kwargs):
+    try:
+        return _orig_macro_call(self, *args, **kwargs)
+    except _MacroReturn as exc:
+        return exc.value
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _patch_jinja2_macro_return():
+    _Jinja2Macro.__call__ = _patched_macro_call
+    yield
+    _Jinja2Macro.__call__ = _orig_macro_call
+
+
+MACRO_PATH = (
+    Path(__file__).resolve().parents[4]
+    / "dbt"
+    / "include"
+    / "sqlserver"
+    / "macros"
+    / "adapters"
+    / "indexes.sql"
+)
+
+MACRO_SRC = MACRO_PATH.read_text(encoding="utf-8")
+
+
+class _FakeRelation:
+    def __init__(self, database, schema, identifier):
+        self.database = database
+        self.schema = schema
+        self.identifier = identifier
+
+    def __str__(self):
+        return f"[{self.database}].[{self.schema}].[{self.identifier}]"
+
+    def include(self, database=False):
+        if database:
+            return str(self)
+        return f"[{self.schema}].[{self.identifier}]"
+
+
+def _render_index_macro(call_expr, **ctx):
+    env = jinja2.Environment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        extensions=["jinja2.ext.do"],
+    )
+    env.globals.update(
+        {
+            "information_schema_hints": lambda: "",
+            "get_use_database_sql": lambda db: f"USE [{db}];",
+            "escape_single_quotes": lambda value: str(value).replace("'", "''"),
+            "adapter": SQLServerAdapter,
+            "this": _FakeRelation("mydb", "myschema", "my_model"),
+            "return": lambda v: (_ for _ in ()).throw(_MacroReturn(v)),
+        }
+    )
+
+    template = env.from_string(MACRO_SRC + "\n" + "{{ " + call_expr + " }}")
+    return template.render(**ctx).strip()
+
+
+class TestIssue578IndexNaming:
+    @pytest.mark.parametrize(
+        "identifier, expected",
+        [
+            ("my_model", "my_model"),
+            ("my_model__dbt_tmp", "my_model"),
+            ("my_model__dbt_backup", "my_model"),
+            ("my_model__dbt_tmp_vw", "my_model"),
+            ("my__dbt_tmp_model", "my__dbt_tmp_model"),
+        ],
+    )
+    def test_strip_dbt_suffix(self, identifier, expected):
+        assert _render_index_macro(f"sqlserver__strip_dbt_suffix('{identifier}')") == expected
+
+    def test_generated_cci_name_removes_tmp_suffix(self):
+        rel = _FakeRelation("mydb", "myschema", "my_model__dbt_tmp")
+        sql = _render_index_macro("sqlserver__create_clustered_columnstore_index(rel)", rel=rel)
+        assert "my_model__dbt_tmp_cci" not in sql
+        assert "my_model_cci" in sql
+
+    def test_generated_cci_name_removes_backup_suffix(self):
+        rel = _FakeRelation("mydb", "myschema", "my_model__dbt_backup")
+        sql = _render_index_macro("sqlserver__create_clustered_columnstore_index(rel)", rel=rel)
+        assert "my_model__dbt_backup_cci" not in sql
+        assert "my_model_cci" in sql
 
 
 def test_sqlserver_index_type_valid_types():

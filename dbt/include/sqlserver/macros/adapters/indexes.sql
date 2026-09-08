@@ -8,10 +8,22 @@
 {%- endmacro %}
 
 
+{% macro sqlserver__strip_dbt_suffix(identifier) -%}
+    {%- set ns = namespace(result=identifier) -%}
+    {%- for suffix in ['__dbt_tmp_vw', '__dbt_backup', '__dbt_tmp'] -%}
+        {%- if ns.result.endswith(suffix) -%}
+            {%- set ns.result = ns.result[:(ns.result | length) - (suffix | length)] -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {{ return(ns.result) }}
+{%- endmacro %}
+
+
 {% macro sqlserver__create_clustered_columnstore_index(relation) -%}
     {#- cci_name embeds the schema, so it must be quoted as an identifier
         (raw only in the string comparison below) -- issue #409 -#}
-    {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
+    {%- set stripped_identifier = sqlserver__strip_dbt_suffix(relation.identifier) -%}
+    {%- set cci_name = (relation.schema ~ '_' ~ stripped_identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
     {%- set relation_name = relation.include(database=False) -%}
     {{ get_use_database_sql(relation.database) }}
     if EXISTS (
