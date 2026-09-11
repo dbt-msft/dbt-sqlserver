@@ -275,6 +275,33 @@ class TestDmlRefresh:
         # Scratch table should be cleaned up
         assert not table_exists(project, "dml_model__dbt_refresh")
 
+    def test_scratch_load_is_not_fused_with_its_create(self, project):
+        """#819: the scratch build must not be a single `SELECT * INTO`.
+
+        Fused, it holds Sch-M on the scratch table for the whole load and
+        blocks every metadata reader in every other session. Split, `main` is
+        the load INSERT and the create is its own statement.
+        """
+        run_dbt(["run"])
+        write_model(project, "dml_model.sql", dml_model_v2_sql)
+        results = run_dbt(["run"])
+        assert results[0].status == "success"
+
+        run_dir = os.path.join(project.project_root, "target", "run")
+        for root, _dirs, files in os.walk(run_dir):
+            if "dml_model.sql" in files:
+                with open(os.path.join(root, "dml_model.sql")) as f:
+                    main_sql = f.read()
+                break
+        else:
+            raise AssertionError("Could not find the compiled run SQL for dml_model")
+
+        # `main` is the load, and the load only moves rows.
+        assert "INSERT INTO" in main_sql
+        assert "WITH (TABLOCK)" in main_sql
+        assert "SELECT * INTO" not in main_sql
+        assert "SELECT TOP 0" not in main_sql
+
     def test_schema_change_falls_back_to_rename(self, project):
         # First run — creates the table
         results = run_dbt(["run"])

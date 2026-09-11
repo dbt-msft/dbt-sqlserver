@@ -42,7 +42,13 @@
     columnstore index (it reports every column as included, never as a key), so
     a normal columnstore table has no index-key columns and masks apply freely. -#}
 {% macro sqlserver__get_mask_index_key_columns(relation) %}
-    {% call statement('get_mask_index_key_columns', fetch_result=True) %}
+    {#- Read-only probe: auto_begin=False so it cannot OPEN the ambient
+        transaction. It still joins one that is already open, so callers
+        that legitimately run inside a transaction are unaffected; what it
+        stops is a probe in the post-cutover tail reopening a transaction
+        that the following mask/index DDL then joins and holds to commit
+        (dbt-msft/dbt-sqlserver#819). -#}
+    {% call statement('get_mask_index_key_columns', fetch_result=True, auto_begin=False) %}
         select distinct col.name as name
         from sys.index_columns ic {{ information_schema_hints() }}
         inner join sys.columns col {{ information_schema_hints() }}
@@ -61,7 +67,9 @@
 {#- Columns that DDM cannot mask at all (a mask ALTER would fail): computed,
     FILESTREAM, sparse COLUMN_SET, and Always Encrypted columns. -#}
 {% macro sqlserver__get_unmaskable_columns(relation) %}
-    {% call statement('get_unmaskable_columns', fetch_result=True) %}
+    {#- Read-only probe: auto_begin=False so it cannot open the ambient
+        transaction - see sqlserver__get_columns_in_relation (#819). -#}
+    {% call statement('get_unmaskable_columns', fetch_result=True, auto_begin=False) %}
         select col.name as name
         from sys.columns col {{ information_schema_hints() }}
         where col.object_id = OBJECT_ID('{{ escape_single_quotes(relation.include(database=False)) }}')

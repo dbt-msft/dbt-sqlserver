@@ -90,7 +90,13 @@
 
 {% macro sqlserver__get_columns_in_relation(relation) -%}
     {% set query_label = get_query_options() %}
-    {% call statement('get_columns_in_relation', fetch_result=True) %}
+    {#- Read-only probe: auto_begin=False so it cannot OPEN the ambient
+        transaction. It still joins one that is already open, so callers
+        that legitimately run inside a transaction are unaffected; what it
+        stops is a probe in the post-cutover tail reopening a transaction
+        that the following mask/index DDL then joins and holds to commit
+        (dbt-msft/dbt-sqlserver#819). -#}
+    {% call statement('get_columns_in_relation', fetch_result=True, auto_begin=False) %}
         {{ get_use_database_sql(relation.database) }}
         select
             c.name collate database_default as column_name,

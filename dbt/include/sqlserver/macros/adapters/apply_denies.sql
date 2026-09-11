@@ -52,7 +52,9 @@
 
 {#- Lower-cased names of every database principal, for the existence guard. -#}
 {% macro sqlserver__get_existing_principals() %}
-    {% call statement('get_existing_principals', fetch_result=True) %}
+    {#- Read-only probe: auto_begin=False so it cannot open the ambient
+        transaction - see sqlserver__get_columns_in_relation (#819). -#}
+    {% call statement('get_existing_principals', fetch_result=True, auto_begin=False) %}
         select name from sys.database_principals {{ information_schema_hints() }}
     {% endcall %}
     {% set result = [] %}

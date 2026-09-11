@@ -7,8 +7,11 @@ query hint without either path interfering with the other.
 
 The test lives on a dedicated branch that merges both feature branches because
 neither individual branch can exercise the combined output: #640 alone ignores
-query_options config, and #613 alone uses the non-contract `SELECT * INTO`
-path which has no TABLOCK to emit.
+query_options config, and #613 alone used the non-contract `SELECT * INTO`
+path, which had no TABLOCK to emit.
+
+Since #819 the non-contract path is a split create-then-load too, so it emits
+TABLOCK as well; the second class below covers it.
 """
 
 import os
@@ -63,3 +66,33 @@ class TestContractTableWithQueryOptions:
         assert "MAXDOP 1" in sql
         # The default LABEL is always present.
         assert "LABEL =" in sql
+
+
+def _run_sql(project, model_name):
+    target_dir = os.path.join(project.project_root, "target", "run")
+    for root, _dirs, files in os.walk(target_dir):
+        if f"{model_name}.sql" in files:
+            with open(os.path.join(root, f"{model_name}.sql")) as f:
+                return f.read()
+    raise AssertionError(f"Could not find compiled {model_name}.sql")
+
+
+class TestNonContractTableWithQueryOptions:
+    """#819 split the non-contract build too, so it emits TABLOCK and the
+    OPTION clause on the same statement - the create moves no rows and carries
+    neither."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"plain_with_options.sql": model_sql}
+
+    def test_split_build_keeps_both_hints(self, project):
+        results = run_dbt(["run"])
+        assert results[0].status == "success"
+
+        sql = _run_sql(project, "plain_with_options")
+        assert "SELECT TOP 0 * INTO" in sql
+        assert "WITH (TABLOCK)" in sql
+        assert "MAXDOP 1" in sql
+        # The fused form is what #819 removed.
+        assert "SELECT * INTO" not in sql
