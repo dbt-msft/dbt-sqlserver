@@ -1,6 +1,6 @@
 import pytest
 
-from dbt.tests.util import get_connection, run_dbt, write_file
+from dbt.tests.util import get_connection, run_dbt, run_dbt_and_capture, write_file
 
 model_sql = """
 SELECT 1 AS data
@@ -58,6 +58,33 @@ SELECT 'ABC' AS source
 view_literal_lower = """
 {{ config(materialized='view') }}
 SELECT 'abc' AS source
+"""
+
+# A view over a table created outside dbt, so the table survives between runs and
+# can change shape underneath the view. `select *` is expanded and cached at
+# CREATE/ALTER VIEW time, which is what the skip path has to keep in sync.
+select_star_view = """
+{{ config(materialized='view') }}
+SELECT * FROM {{ this.schema }}.refresh_source
+"""
+
+# A parent view whose column type changes between runs, and a child view that
+# reads it. The child's own SQL never changes, so its CREATE is skipped on the
+# second run - the path that used to leave the child reporting the parent's old
+# type (#838).
+parent_view_varchar = """
+{{ config(materialized='view') }}
+SELECT CAST('1' AS varchar(10)) AS payload
+"""
+
+parent_view_int = """
+{{ config(materialized='view') }}
+SELECT CAST(1 AS int) AS payload
+"""
+
+child_view = """
+{{ config(materialized='view') }}
+SELECT * FROM {{ ref('parent_view') }}
 """
 
 schema = """
@@ -141,7 +168,14 @@ class TestTabletoViewPreservesGrants(BaseTableView):
 
 
 class TestViewMaterializationNoOp(BaseTableView):
-    """Test that rerunning an unchanged view avoids altering the view."""
+    """Test that rerunning an unchanged view avoids rebuilding the view.
+
+    ``modify_date`` used to be the signal here, but the skip path now runs
+    ``sp_refreshview`` (see TestSkippedViewRefreshesSelectStarColumns), which bumps
+    ``modify_date`` just as an ``ALTER`` would - so that column no longer separates a
+    skip from a rebuild. The emitted SQL does: a skip issues ``sp_refreshview`` and
+    no ``CREATE OR ALTER VIEW``, and leaves the stored definition byte-identical.
+    """
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -150,32 +184,16 @@ class TestViewMaterializationNoOp(BaseTableView):
     def test_unchanged_view_does_not_alter(self, project):
         self.create_object(project, f"CREATE VIEW {project.test_schema}.mat_object AS {model_sql}")
 
-        before_modify_date = project.run_sql(
-            f"""
-            select modify_date
-            from sys.objects o
-            join sys.schemas s on o.schema_id = s.schema_id
-            where upper(s.name) = upper('{project.test_schema}')
-              and upper(o.name) = upper('mat_object')
-            """,
-            fetch="one",
-        )[0]
+        before_definition = _stored_view_definition(project)
 
-        results = run_dbt(["run"])
+        results, log_output = run_dbt_and_capture(["--debug", "run"])
         assert len(results) == 1
 
-        after_modify_date = project.run_sql(
-            f"""
-            select modify_date
-            from sys.objects o
-            join sys.schemas s on o.schema_id = s.schema_id
-            where upper(s.name) = upper('{project.test_schema}')
-              and upper(o.name) = upper('mat_object')
-            """,
-            fetch="one",
-        )[0]
+        emitted_sql = log_output.lower()
+        assert "sp_refreshview" in emitted_sql
+        assert "create or alter view" not in emitted_sql
 
-        assert after_modify_date == before_modify_date
+        assert _stored_view_definition(project) == before_definition
 
 
 class TestViewtoTable(BaseTableView):
@@ -251,3 +269,97 @@ class TestViewLiteralCaseChangeRebuilds(BaseTableView):
             project.run_sql(f"select source from {project.test_schema}.mat_object", fetch="one")[0]
             == "abc"
         )
+
+
+def _view_columns(project):
+    """The view's cached column list, in order, as SQL Server currently reports it."""
+    rows = project.run_sql(
+        f"""
+        select c.name
+        from sys.columns c
+        where c.object_id = object_id('{project.test_schema}.mat_object')
+        order by c.column_id
+        """,
+        fetch="all",
+    )
+    return [row[0] for row in rows]
+
+
+class TestSkippedViewRefreshesSelectStarColumns(BaseTableView):
+    """A skipped rebuild must still re-derive a cached ``select *`` column list.
+
+    SQL Server expands an unqualified ``select *`` at CREATE/ALTER VIEW time and caches
+    the result. When the model SQL is unchanged the CREATE is skipped, so a column added
+    to a referenced table never reached the view: it kept serving the old shape - old
+    names in old positions - while every dbt run reported success. The skip path runs
+    ``sp_refreshview``, which re-derives that metadata without any DDL on the view.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"mat_object.sql": select_star_view, "schema.yml": schema}
+
+    def test_added_column_reaches_skipped_view(self, project):
+        self.create_object(project, f"CREATE TABLE {project.test_schema}.refresh_source (a int)")
+
+        run_dbt(["run"])
+        assert _view_columns(project) == ["a"]
+
+        project.run_sql(f"alter table {project.test_schema}.refresh_source add b int")
+
+        # The model SQL is unchanged, so the CREATE/ALTER is skipped ...
+        results, log_output = run_dbt_and_capture(["--debug", "run"])
+        assert len(results) == 1
+        assert "create or alter view" not in log_output.lower()
+
+        # ... but the view still reports the table's current shape.
+        assert _view_columns(project) == ["a", "b"]
+
+
+def _column_type(project, relation, column):
+    """The data type SQL Server currently reports for a column of `relation`."""
+    return project.run_sql(
+        f"""
+        select t.name
+        from sys.columns c
+        join sys.types t on c.user_type_id = t.user_type_id
+        where c.object_id = object_id('{project.test_schema}.{relation}')
+          and c.name = '{column}'
+        """,
+        fetch="one",
+    )[0]
+
+
+class TestSkippedChildViewRefreshesParentColumnType(BaseTableView):
+    """A child view must not keep reporting its parent view's old column type.
+
+    The child's SQL is unchanged when the parent's column changes type, so its
+    CREATE/ALTER is skipped - and the cached column metadata a view carries records
+    the type it resolved at CREATE time. The skip used to be a literal no-op, which
+    left the child serving the stale type indefinitely; the refresh on that path
+    re-derives it from the parent, which dbt has already rebuilt by then. See
+    https://github.com/dbt-msft/dbt-sqlserver/issues/838.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "parent_view.sql": parent_view_varchar,
+            "child_view.sql": child_view,
+        }
+
+    def test_parent_type_change_reaches_child_view(self, project):
+        run_dbt(["run"])
+        assert _column_type(project, "parent_view", "payload") == "varchar"
+        assert _column_type(project, "child_view", "payload") == "varchar"
+
+        write_file(parent_view_int, project.project_root, "models", "parent_view.sql")
+
+        # The child's SQL is unchanged, so only the parent is rebuilt ...
+        results, log_output = run_dbt_and_capture(["--debug", "run"])
+        assert len(results) == 2
+        assert "sp_refreshview" in log_output.lower()
+
+        # ... but the child still reports the parent's current type.
+        assert _column_type(project, "parent_view", "payload") == "int"
+        assert _column_type(project, "child_view", "payload") == "int"
