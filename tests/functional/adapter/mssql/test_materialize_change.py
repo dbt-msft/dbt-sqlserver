@@ -68,6 +68,25 @@ select_star_view = """
 SELECT * FROM {{ this.schema }}.refresh_source
 """
 
+# A parent view whose column type changes between runs, and a child view that
+# reads it. The child's own SQL never changes, so its CREATE is skipped on the
+# second run - the path that used to leave the child reporting the parent's old
+# type (#838).
+parent_view_varchar = """
+{{ config(materialized='view') }}
+SELECT CAST('1' AS varchar(10)) AS payload
+"""
+
+parent_view_int = """
+{{ config(materialized='view') }}
+SELECT CAST(1 AS int) AS payload
+"""
+
+child_view = """
+{{ config(materialized='view') }}
+SELECT * FROM {{ ref('parent_view') }}
+"""
+
 schema = """
 version: 2
 models:
@@ -295,3 +314,52 @@ class TestSkippedViewRefreshesSelectStarColumns(BaseTableView):
 
         # ... but the view still reports the table's current shape.
         assert _view_columns(project) == ["a", "b"]
+
+
+def _column_type(project, relation, column):
+    """The data type SQL Server currently reports for a column of `relation`."""
+    return project.run_sql(
+        f"""
+        select t.name
+        from sys.columns c
+        join sys.types t on c.user_type_id = t.user_type_id
+        where c.object_id = object_id('{project.test_schema}.{relation}')
+          and c.name = '{column}'
+        """,
+        fetch="one",
+    )[0]
+
+
+class TestSkippedChildViewRefreshesParentColumnType(BaseTableView):
+    """A child view must not keep reporting its parent view's old column type.
+
+    The child's SQL is unchanged when the parent's column changes type, so its
+    CREATE/ALTER is skipped - and the cached column metadata a view carries records
+    the type it resolved at CREATE time. The skip used to be a literal no-op, which
+    left the child serving the stale type indefinitely; the refresh on that path
+    re-derives it from the parent, which dbt has already rebuilt by then. See
+    https://github.com/dbt-msft/dbt-sqlserver/issues/838.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "parent_view.sql": parent_view_varchar,
+            "child_view.sql": child_view,
+        }
+
+    def test_parent_type_change_reaches_child_view(self, project):
+        run_dbt(["run"])
+        assert _column_type(project, "parent_view", "payload") == "varchar"
+        assert _column_type(project, "child_view", "payload") == "varchar"
+
+        write_file(parent_view_int, project.project_root, "models", "parent_view.sql")
+
+        # The child's SQL is unchanged, so only the parent is rebuilt ...
+        results, log_output = run_dbt_and_capture(["--debug", "run"])
+        assert len(results) == 2
+        assert "sp_refreshview" in log_output.lower()
+
+        # ... but the child still reports the parent's current type.
+        assert _column_type(project, "parent_view", "payload") == "int"
+        assert _column_type(project, "child_view", "payload") == "int"
