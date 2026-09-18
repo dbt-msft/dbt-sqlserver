@@ -59,6 +59,11 @@ _KEYED_CONSTRAINTS = frozenset(
 # full just to read its column names.
 _SQL_COMMENT = re.compile(r"(?s)/\*.*?\*/|--[^\n]*\n")
 
+# sp_describe_first_result_set reports what it declines to describe with its
+# own 11500-11599 family, which every backend carries through in the message
+# text. Anything outside it is the query's own error.
+_DESCRIBE_DECLINED = re.compile(r"\(\s*115\d\d\s*\)|metadata could not be determined", re.I)
+
 # sp_describe_first_result_set reports true SQL Server types; reading
 # ``cursor.description`` reports Python classes, which collapse whole families
 # (every integer width arrives as ``int``, every string type as ``varchar``).
@@ -341,6 +346,10 @@ class SQLServerAdapter(SQLAdapter):
         through ``#temp`` tables, where executing works), or a type this
         backend's driver has no known executed name for. The caller then
         executes as before, which is slower but never disagrees with itself.
+
+        A query that fails to compile is raised rather than absorbed: no
+        fallback can produce metadata for it, and its error names what is
+        wrong.
         """
         credentials = self.connections.profile.credentials
         if is_adbc_backend(credentials.backend):
@@ -360,6 +369,11 @@ class SQLServerAdapter(SQLAdapter):
         try:
             _, cursor = self.connections.add_select_query(describe_sql)
         except Exception as e:
+            if not _DESCRIBE_DECLINED.search(str(e)):
+                # Handling this error has already closed the connection, so the
+                # fallback would fail on that instead and report "Attempt to
+                # use a closed connection" in place of the bad column name.
+                raise
             logger.debug(f"Could not describe a CTE query, falling back to executing it: {e}")
             return None
 

@@ -199,3 +199,83 @@ class TestDescribedTypeFollowsTheBackend:
             actual = _executed_name_for_system_type("uniqueidentifier", SQLServerBackend.pyodbc)
 
         assert actual is None
+
+
+class TestADescribeFailureKeepsTheQuerysOwnError:
+    """A model selecting a column that does not exist upstream must report that
+    column, not a connection fault.
+
+    The describe runs first for a CTE-headed query, so a query that cannot
+    compile fails there. Handling that error rolls the transaction back and
+    closes the connection, so an execute attempted afterwards raises "Attempt
+    to use a closed connection" and that is what reaches the operator -- the
+    Msg 207 naming the column survives only in the debug log. Executing could
+    not have produced column metadata for an uncompilable query anyway, so the
+    describe's error is the answer.
+    """
+
+    def _describe_raises(self, adapter, error):
+        """Fail the describe; let anything else through to a working cursor."""
+        cursor = FakeCursor(rows=[])
+
+        def add_select_query(sql):
+            if "sp_describe_first_result_set" in sql:
+                raise error
+            return (MagicMock(), cursor)
+
+        adapter.connections.add_select_query = MagicMock(side_effect=add_select_query)
+        adapter.connections.data_type_code_to_name = MagicMock(return_value="varchar")
+        return adapter.connections.add_select_query
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "('42S22', \"[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]"
+            "Invalid column name 'bed_status'. (207) (SQLExecDirectW)\")",
+            "('42S02', \"[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]"
+            "Invalid object name 'inpatients.gone'. (208) (SQLExecDirectW)\")",
+        ],
+        ids=["invalid-column", "invalid-object"],
+    )
+    def test_a_query_error_is_raised_rather_than_retried(self, adapter, message):
+        add_select_query = self._describe_raises(adapter, RuntimeError(message))
+
+        with pytest.raises(RuntimeError, match=r"\(20[78]\)"):
+            adapter.get_column_schema_from_query("with cte as (select 1 as id) select * from cte")
+
+        assert add_select_query.call_count == 1, (
+            "the query was executed after its own error had already been raised by the describe"
+        )
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "('42000', \"[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]"
+            "The metadata could not be determined because statement 'select * from #t' "
+            'uses a temp table. (11514) (SQLExecDirectW)")',
+            "('42000', \"[42000] ... is not compatible with ... (11526) (SQLExecDirectW)\")",
+        ],
+        ids=["temp-table", "not-compatible"],
+    )
+    def test_a_describe_limitation_still_falls_back_to_executing(self, adapter, message):
+        """sp_describe_first_result_set declines some queries that execute
+        perfectly well; those must keep their fallback."""
+        add_select_query = self._describe_raises(adapter, RuntimeError(message))
+
+        columns = adapter.get_column_schema_from_query(
+            "with cte as (select 1 as id) select * from cte"
+        )
+
+        assert [c.column for c in columns] == ["id", "payload"]
+        assert add_select_query.call_count == 2, "the fallback execute did not run"
+
+    def test_a_non_cte_query_never_reaches_the_describe(self, adapter):
+        """Anything not opening with a CTE is wrapped as `where 1 = 0` before it
+        arrives, so it executes without a describe and is unaffected."""
+        cursor = attach(adapter, FakeCursor(rows=[]))
+
+        adapter.get_column_schema_from_query("select * from (select 1) x where 1 = 0")
+
+        assert cursor.closed
+        sent = adapter.connections.add_select_query.call_args[0][0]
+        assert "sp_describe_first_result_set" not in sent
