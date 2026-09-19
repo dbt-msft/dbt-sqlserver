@@ -2,17 +2,10 @@
 
 ``IF NOT EXISTS (SELECT * FROM sys.schemas ...) BEGIN CREATE SCHEMA ... END`` is
 check-then-act: with ``threads > 1``, or two dbt processes pointed at one
-database, several sessions pass the check together and all but one fail their
-create with ``Msg 2714, There is already an object named '<schema>' in the
-database``. The run dies on a schema that by then exists and is usable. CI that
-builds a schema per pull request hits this on the first run of a new branch.
-
-SQL Server has no ``CREATE SCHEMA IF NOT EXISTS``, and catching 2714 is not an
-option: every connection runs ``SET XACT_ABORT ON`` (#718), under which the failed
-create dooms the enclosing transaction, so swallowing the error would trade a clear
-failure for a silently discarded transaction. ``create_schema_if_not_exists``
-serializes the check and the create behind a database-scoped application lock
-instead. See https://github.com/dbt-msft/dbt-sqlserver/issues/839.
+database, sessions pass the check together and all but one fail with ``Msg 2714,
+There is already an object named '<schema>' in the database``.
+``create_schema_if_not_exists`` serializes the check and the create behind an
+application lock. See https://github.com/dbt-msft/dbt-sqlserver/issues/839.
 """
 
 import threading
@@ -36,15 +29,49 @@ models:
           - not_null
 """
 
+MISSING_PRINCIPAL = "dbt_no_such_principal_839"
 
-class TestConcurrentCreateSchema:
-    """Sessions racing to create the same schema must all succeed."""
+
+def lock_free_on_another_connection(project, resource: str) -> bool:
+    """dbt keys connections by thread, so probe off-thread to get a second
+    session rather than the one the caller is using."""
+    result: list[bool] = []
+
+    def probe() -> None:
+        with project.adapter.connection_named("lock_probe"):
+            _, table = project.adapter.execute(
+                "DECLARE @rc int;"
+                f" EXEC @rc = sp_getapplock @Resource = '{resource}',"
+                " @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = 2000;"
+                " select @rc",
+                fetch=True,
+            )
+            acquired = table.rows[0][0] >= 0
+            if acquired:
+                project.adapter.execute(
+                    f"EXEC sp_releaseapplock @Resource = '{resource}', @LockOwner = 'Session'"
+                )
+            result.append(acquired)
+
+    worker = threading.Thread(target=probe)
+    worker.start()
+    worker.join()
+    return result[0]
+
+
+class TestConcurrentSchemaCreation:
+    """Every guard that creates a schema on demand, on one dbt project.
+
+    Each test works on a schema of its own, so they share the project without
+    sharing state.
+    """
 
     @pytest.fixture(scope="class")
     def models(self):
-        return {"guarded_model.sql": seed_model}
+        return {"guarded_model.sql": seed_model, "schema.yml": schema_yml}
 
     def test_racing_sessions_create_schema_once(self, project):
+        """Sessions racing to create the same schema must all succeed."""
         target = project.adapter.Relation.create(
             database=project.database, schema=f"{project.test_schema}_race"
         )
@@ -85,21 +112,12 @@ class TestConcurrentCreateSchema:
         with project.adapter.connection_named("race_teardown"):
             project.adapter.drop_schema(target)
 
-
-class TestDataTestSchemaGuardIsConcurrencySafe:
-    """The guard `sqlserver__get_test_sql` emits must be the safe one.
-
-    A data test creates the target schema itself, so it carries its own copy of
-    the guard - the one #839 was reported against. Racing it deterministically
-    through ``dbt test`` is not practical, so assert instead that the statement it
-    emits is the serialized form rather than a bare check-then-act.
-    """
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"guarded_model.sql": seed_model, "schema.yml": schema_yml}
-
     def test_test_sql_serializes_schema_creation(self, project):
+        """A data test creates the target schema through its own copy of the guard.
+
+        Racing ``dbt test`` deterministically is not practical, so assert the
+        statement it emits is the serialized form rather than check-then-act.
+        """
         run_dbt(["run"])
         results, log_output = run_dbt_and_capture(["--debug", "test"])
         assert len(results) == 1
@@ -107,3 +125,36 @@ class TestDataTestSchemaGuardIsConcurrencySafe:
         emitted = log_output.lower()
         assert "sp_getapplock" in emitted
         assert "sp_releaseapplock" in emitted
+
+    def test_failed_create_releases_the_lock(self, project):
+        """A create that fails must still hand the lock back.
+
+        The lock is session-scoped and dbt reuses the connection, so a release
+        skipped by ``SET XACT_ABORT ON`` strands it for the rest of the run and
+        every other thread building that schema waits out the timeout.
+        """
+        target = project.adapter.Relation.create(
+            database=project.database, schema=f"{project.test_schema}_lockfail"
+        )
+        resource = f"dbt_create_schema_{target.schema}"
+
+        with project.adapter.connection_named("lock_owner"):
+            project.adapter.drop_schema(target)
+
+            # AUTHORIZATION to a principal that does not exist gets past the
+            # existence check and then fails, which is the case that skips the
+            # release.
+            with pytest.raises(Exception) as excinfo:
+                project.adapter.execute_macro(
+                    "sqlserver__create_schema_with_authorization",
+                    kwargs={"relation": target, "schema_authorization": MISSING_PRINCIPAL},
+                )
+            assert MISSING_PRINCIPAL in str(excinfo.value), (
+                f"the original error must be rethrown, not swallowed: {excinfo.value}"
+            )
+
+            # Still inside the failed connection's lifetime, as dbt would be.
+            assert lock_free_on_another_connection(project, resource), (
+                f"'{resource}' is still held after a failed CREATE SCHEMA; every "
+                "other thread building that schema now blocks for the 30s timeout"
+            )
