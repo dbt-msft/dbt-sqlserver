@@ -1,6 +1,6 @@
 import pytest
 
-from dbt.tests.util import run_dbt, run_dbt_and_capture
+from dbt.tests.util import relation_from_name, run_dbt, run_dbt_and_capture
 
 models__invalid_value_sql = """
 {{
@@ -610,3 +610,99 @@ class TestFullRefreshBuild:
         assert rows[0] == 1
         idx = get_rowstore_indexes(project, unique_schema, "cache_drift_table")
         assert set(idx) == {"CLUSTERED"}
+
+
+class TestFullRefreshMarkerIsDatabaseQualified:
+    """``USE`` persists for the session, so a two-part name resolves against
+    whichever database the connection was last left on. Off-database the
+    marker's guard and its proc disagree - NULL ``OBJECT_ID`` satisfies the
+    former and makes the latter reject the name (Msg 15135) - while the
+    reader instead reports 0 and lets the append through.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"guard_model.sql": models__guard_model_sql}
+
+    @pytest.fixture(autouse=True)
+    def unmarked_table(self, project, unique_schema):
+        """A marker left behind fails the next test's build - the guard
+        working - so each test supplies its own starting state."""
+        self.drop_marker(project, unique_schema)
+        yield
+        self.drop_marker(project, unique_schema)
+
+    @staticmethod
+    def drop_marker(project, unique_schema, table="guard_model"):
+        project.run_sql(
+            f"""if exists (select 1 from sys.extended_properties
+                    where major_id = OBJECT_ID('{unique_schema}.{table}')
+                    and name = 'dbt_full_refresh_incomplete')
+                EXEC sp_dropextendedproperty @name = N'dbt_full_refresh_incomplete',
+                    @level0type = N'SCHEMA', @level0name = '{unique_schema}',
+                    @level1type = N'TABLE', @level1name = '{table}'"""
+        )
+
+    @staticmethod
+    def add_marker(project, unique_schema, table="guard_model"):
+        project.run_sql(
+            f"""EXEC sp_addextendedproperty @name = N'dbt_full_refresh_incomplete',
+                @value = '1', @level0type = N'SCHEMA', @level0name = '{unique_schema}',
+                @level1type = N'TABLE', @level1name = '{table}'"""
+        )
+
+    @staticmethod
+    def marker_count(project, unique_schema, table="guard_model"):
+        return project.run_sql(
+            f"""select count(*) from sys.extended_properties
+                where major_id = OBJECT_ID('{unique_schema}.{table}')
+                and name = 'dbt_full_refresh_incomplete'""",
+            fetch="one",
+        )[0]
+
+    def mark_off_database(self, project, macro, relation):
+        """Run a marker macro with the connection left on another database."""
+        with project.adapter.connection_named("off_database_marker"):
+            project.adapter.execute("USE master")
+            return project.adapter.execute_macro(macro, kwargs={"relation": relation})
+
+    def test_marker_lands_from_a_connection_on_another_database(self, project, unique_schema):
+        run_dbt(["run", "--models", "guard_model"])
+        relation = relation_from_name(project.adapter, "guard_model")
+
+        try:
+            self.mark_off_database(project, "sqlserver__mark_full_refresh_incomplete", relation)
+        except Exception as exc:
+            raise AssertionError(
+                f"marking {relation} failed from a connection on another database: {exc}. "
+                "The statement needs {{ get_use_database_sql(relation.database) }} ahead "
+                "of its OBJECT_ID lookup and sp_addextendedproperty call."
+            ) from exc
+
+        assert self.marker_count(project, unique_schema) == 1, (
+            "the marker reported success without landing on the object"
+        )
+
+    def test_marking_an_already_marked_table_is_idempotent(self, project, unique_schema):
+        """An already-marked table is where the guard and the proc show their
+        disagreement: the guard sees none, so the proc runs against a property
+        that is already there."""
+        run_dbt(["run", "--models", "guard_model"])
+        relation = relation_from_name(project.adapter, "guard_model")
+        self.add_marker(project, unique_schema)
+
+        self.mark_off_database(project, "sqlserver__mark_full_refresh_incomplete", relation)
+
+        assert self.marker_count(project, unique_schema) == 1
+
+    def test_reader_sees_a_marker_from_a_connection_on_another_database(
+        self, project, unique_schema
+    ):
+        run_dbt(["run", "--models", "guard_model"])
+        relation = relation_from_name(project.adapter, "guard_model")
+        self.add_marker(project, unique_schema)
+
+        with pytest.raises(Exception, match="did not complete"):
+            self.mark_off_database(
+                project, "sqlserver__assert_no_incomplete_full_refresh", relation
+            )

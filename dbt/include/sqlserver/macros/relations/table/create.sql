@@ -337,13 +337,21 @@
     {#- mark a table as having a full refresh in flight; the marker rides the
         object, so a successful swap (old table dropped) or in-place rebuild
         (table dropped) clears it naturally -#}
+    {#- USE persists for the session, so without it both halves resolve
+        against wherever the last statement left the connection - and there
+        they disagree: OBJECT_ID returns NULL, so the guard runs the EXEC even
+        when the marker is present, and the proc rejects the same name as
+        absent (Msg 15135). -#}
     {% do run_query(
-        "if not exists (select 1 from sys.extended_properties where major_id = OBJECT_ID('"
-        ~ relation.schema ~ "." ~ relation.identifier
-        ~ "') and name = 'dbt_full_refresh_incomplete')"
+        get_use_database_sql(relation.database)
+        ~ " if not exists (select 1 from sys.extended_properties"
+        ~ " where class = 1 and minor_id = 0"
+        ~ " and name = 'dbt_full_refresh_incomplete' and major_id = OBJECT_ID('"
+        ~ escape_single_quotes(relation.include(database=False))
+        ~ "'))"
         ~ " EXEC sp_addextendedproperty @name = N'dbt_full_refresh_incomplete', @value = '1',"
-        ~ " @level0type = N'SCHEMA', @level0name = N'" ~ relation.schema ~ "',"
-        ~ " @level1type = N'TABLE', @level1name = N'" ~ relation.identifier ~ "'"
+        ~ " @level0type = N'SCHEMA', @level0name = N'" ~ escape_single_quotes(relation.schema) ~ "',"
+        ~ " @level1type = N'TABLE', @level1name = N'" ~ escape_single_quotes(relation.identifier) ~ "'"
     ) %}
     {#- The marker exists to survive a failed rebuild, so it must not share a
         transaction with it: commit it now (a no-op when run_query ran
@@ -356,10 +364,16 @@
 
 
 {% macro sqlserver__assert_no_incomplete_full_refresh(relation) -%}
+    {#- Needs the USE more than the marker does: off-database this returns 0
+        rather than erroring, which reads as "no marker" and lets the append
+        through. -#}
     {%- set marker = run_query(
-        "select count(*) as marker_count from sys.extended_properties where major_id = OBJECT_ID('"
-        ~ relation.schema ~ "." ~ relation.identifier
-        ~ "') and name = 'dbt_full_refresh_incomplete'"
+        get_use_database_sql(relation.database)
+        ~ " select count(*) as marker_count from sys.extended_properties"
+        ~ " where class = 1 and minor_id = 0"
+        ~ " and name = 'dbt_full_refresh_incomplete' and major_id = OBJECT_ID('"
+        ~ escape_single_quotes(relation.include(database=False))
+        ~ "')"
     ) -%}
     {%- if marker.rows[0][0] > 0 -%}
         {{ exceptions.raise_compiler_error(
