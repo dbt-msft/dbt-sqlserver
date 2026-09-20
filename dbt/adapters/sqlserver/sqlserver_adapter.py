@@ -59,12 +59,7 @@ _KEYED_CONSTRAINTS = frozenset(
 # full just to read its column names.
 _SQL_COMMENT = re.compile(r"(?s)/\*.*?\*/|--[^\n]*\n")
 
-# sp_describe_first_result_set reports what it declines to describe with its
-# own 11500-11599 family, which every backend carries through in the message
-# text. Anything outside it is the query's own error.
-_DESCRIBE_DECLINED = re.compile(r"\(\s*115\d\d\s*\)|metadata could not be determined", re.I)
-
-# sp_describe_first_result_set reports true SQL Server types; reading
+# The describe reports true SQL Server types; reading
 # ``cursor.description`` reports Python classes, which collapse whole families
 # (every integer width arrives as ``int``, every string type as ``varchar``).
 # Contract comparison comes through this method either way, so the describe
@@ -336,20 +331,20 @@ class SQLServerAdapter(SQLAdapter):
     def _describe_result_set(self, sql: str) -> Optional[List[BaseColumn]]:
         """Read a query's column shape without running it, or None to fall back.
 
-        ``sp_describe_first_result_set`` compiles the query and reports its
-        result shape, which is all this method ever wanted. It is already how
-        ``sqlserver__get_columns_in_query`` handles CTEs (#698).
+        ``sys.dm_exec_describe_first_result_set`` compiles the query and
+        reports its result shape, which is all this method ever wanted. It is
+        the table-valued form of the ``sp_describe_first_result_set`` that
+        ``sqlserver__get_columns_in_query`` uses for CTEs (#698).
 
         Returns None -- deliberately, rather than raising -- whenever the
         describe cannot be trusted to match what executing would have reported:
-        an unsupported backend, a query it refuses to describe (it cannot see
-        through ``#temp`` tables, where executing works), or a type this
+        an unsupported backend, a query the describe fails on, or a type this
         backend's driver has no known executed name for. The caller then
         executes as before, which is slower but never disagrees with itself.
 
-        A query that fails to compile is raised rather than absorbed: no
-        fallback can produce metadata for it, and its error names what is
-        wrong.
+        A query that fails to compile is no exception: executing it fails at
+        compile too, costing nothing, and raises the query's own error --
+        Msg 207 naming the missing column -- through the normal path.
         """
         credentials = self.connections.profile.credentials
         if is_adbc_backend(credentials.backend):
@@ -359,26 +354,24 @@ class SQLServerAdapter(SQLAdapter):
             # disagree on that backend.
             return None
 
+        # The function rather than ``exec sp_describe_first_result_set``: the
+        # procedure raises whatever stops it describing, and handling a raised
+        # error closes the connection, so the fallback executed on a closed
+        # handle and reported that instead. The function hands the same
+        # failures back as rows with an error_number, which leaves the
+        # connection alone and needs no parsing of driver message text (which
+        # mssql-python strips of the error number anyway).
+        #
         # Inline rather than bound: mssql-python binds str as varchar and the
-        # procedure demands nvarchar(max). columns.sql:24 escapes it the same
+        # function demands nvarchar(max). columns.sql:24 escapes it the same
         # way for the same reason.
-        describe_sql = "exec sp_describe_first_result_set @tsql = N'{}'".format(
-            sql.replace("'", "''")
-        )
+        describe_sql = (
+            "select is_hidden, name, system_type_name, error_number, error_message"
+            " from sys.dm_exec_describe_first_result_set(N'{}', null, 0)"
+        ).format(sql.replace("'", "''"))
 
+        _, cursor = self.connections.add_select_query(describe_sql)
         try:
-            _, cursor = self.connections.add_select_query(describe_sql)
-        except Exception as e:
-            if not _DESCRIBE_DECLINED.search(str(e)):
-                # Handling this error has already closed the connection, so the
-                # fallback would fail on that instead and report "Attempt to
-                # use a closed connection" in place of the bad column name.
-                raise
-            logger.debug(f"Could not describe a CTE query, falling back to executing it: {e}")
-            return None
-
-        try:
-            fields = [description[0].lower() for description in cursor.description]
             rows = cursor.fetchall()
         except Exception as e:
             logger.debug(f"Could not read a described result set, executing the query: {e}")
@@ -386,32 +379,35 @@ class SQLServerAdapter(SQLAdapter):
         finally:
             _discard_pending_results(cursor)
 
-        try:
-            hidden, name, type_name = (
-                fields.index("is_hidden"),
-                fields.index("name"),
-                fields.index("system_type_name"),
+        errors = [
+            f"Msg {error_number}: {message}" for *_, error_number, message in rows if error_number
+        ]
+        if errors:
+            # Nothing to tell apart here. A query the describe declines -- one
+            # under SET STATISTICS XML, say -- executes fine; one that does
+            # not compile fails executing too, with its own message.
+            logger.debug(
+                f"Could not describe a CTE query, executing it instead: {'; '.join(errors)}"
             )
-        except ValueError:  # pragma: no cover - shape is fixed by SQL Server
             return None
 
         columns = []
-        for row in rows:
-            if row[hidden]:
+        for hidden, name, type_name, *_ in rows:
+            if hidden:
                 continue
             # "varchar(10)" / "decimal(10,2)" -> "varchar" / "decimal"
-            base_type = str(row[type_name]).split("(")[0].strip().lower()
+            base_type = str(type_name).split("(")[0].strip().lower()
             executed_name = _executed_name_for_system_type(base_type, credentials.backend)
-            if executed_name is None or row[name] is None:
+            if executed_name is None or name is None:
                 logger.debug(
                     f"Describing a CTE query reported {base_type!r}, which has no "
                     "equivalent in the executed path; executing it instead"
                 )
                 return None
-            columns.append(self.Column.create(row[name], executed_name))
+            columns.append(self.Column.create(name, executed_name))
 
         # Every select has at least one column, so nothing described means
-        # sp_describe_first_result_set could not work the shape out. Returning
+        # the describe could not work the shape out. Returning
         # an empty list would read as "this query has no columns" and surface
         # as a baffling contract mismatch; execute instead.
         return columns or None
