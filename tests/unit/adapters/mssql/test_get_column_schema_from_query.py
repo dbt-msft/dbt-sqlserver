@@ -222,7 +222,7 @@ def describe_error(error_number, message):
     return (None, None, None, error_number, message)
 
 
-class TestADescribeFailureKeepsTheQuerysOwnError:
+class TestADescribeFailureLeavesTheConnectionUsable:
     """A describe that fails must leave the connection usable for the execute
     that follows it.
 
@@ -292,8 +292,8 @@ class TestADescribeFailureKeepsTheQuerysOwnError:
         assert raised.value is own_error
 
     def test_a_declined_describe_falls_back_to_executing(self, adapter):
-        """sp_describe_first_result_set declines some queries that execute
-        perfectly well; those must keep their fallback."""
+        """Metadata discovery declines some queries that execute perfectly
+        well; those must keep their fallback."""
         cursor = FakeCursor(rows=[])
         add_select_query = self._route(
             adapter,

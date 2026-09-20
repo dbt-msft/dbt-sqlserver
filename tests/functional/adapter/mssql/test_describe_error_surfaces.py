@@ -1,13 +1,14 @@
 """A query error must reach the user as that error.
 
 A CTE-headed query cannot be wrapped as ``select * from (...) where 1 = 0``,
-so its column shape is read with ``sp_describe_first_result_set`` instead.
-That describe compiles the query, so a model naming a column that does not
-exist fails there rather than at its build. Handling that failure closes the
-connection, so falling back to executing the query reports "Attempt to use a
-closed connection" and the Msg 207 survives only at debug level - which is not
-where someone reading a scheduler's task log is looking, and retrying cannot
-help because a missing column is not transient.
+so its column shape is read by describing it instead. That describe compiles
+the query, so a model naming a column that does not exist fails there rather
+than at its build. The describe used to be ``sp_describe_first_result_set``,
+which raises; handling that failure closes the connection, so falling back to
+executing the query reported "Attempt to use a closed connection" and the Msg
+207 survived only at debug level - which is not where someone reading a
+scheduler's task log is looking, and retrying cannot help because a missing
+column is not transient.
 """
 
 import contextlib
@@ -66,8 +67,8 @@ class TestADescribeErrorNamesTheColumn:
 
 
 class TestADeclinedDescribeStillFallsBackToExecuting:
-    """sp_describe_first_result_set declines some queries that execute
-    perfectly well, and those must still get their columns by executing.
+    """Metadata discovery declines some queries that execute perfectly well,
+    and those must still get their columns by executing.
 
     SET STATISTICS XML ON is a dependable way to make it decline: every
     describe then fails with Msg 11541 while the query itself runs normally. A

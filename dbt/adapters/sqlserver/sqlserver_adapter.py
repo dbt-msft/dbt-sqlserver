@@ -368,6 +368,7 @@ class SQLServerAdapter(SQLAdapter):
         describe_sql = (
             "select is_hidden, name, system_type_name, error_number, error_message"
             " from sys.dm_exec_describe_first_result_set(N'{}', null, 0)"
+            " order by column_ordinal"
         ).format(sql.replace("'", "''"))
 
         _, cursor = self.connections.add_select_query(describe_sql)
