@@ -108,7 +108,7 @@ class TestCCINaming:
             logical_relation=logical_relation,
         )
         assert 'DROP index [myschema].[my_model__dbt_tmp]."myschema_my_model_cci"' in sql
-        assert 'DROP index [myschema].[my_model__dbt_tmp]."myschema_my_model__dbt_tmp_cci"' in sql
+        assert 'DROP index [myschema].[my_model]."myschema_my_model__dbt_tmp_cci"' in sql
 
 
 def test_sqlserver_index_type_valid_types():

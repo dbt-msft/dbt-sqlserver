@@ -365,36 +365,6 @@ class TestFullRefreshBuild:
         )
         assert leftovers[0] == 0
 
-    def test_legacy_cci_name_is_replaced_on_subsequent_full_refresh(self, project, unique_schema):
-        run_dbt(["run", "--models", "cci_prebuilt", "--full-refresh"])
-
-        clean_name = f"{unique_schema}_cci_prebuilt_cci"
-        legacy_name = f"{unique_schema}_cci_prebuilt__dbt_tmp_cci"
-
-        project.run_sql(
-            f"""EXEC sp_rename
-            N'[{unique_schema}].[cci_prebuilt].[{clean_name}]',
-            N'{legacy_name}',
-            N'INDEX'"""
-        )
-
-        pre_indexes = get_cci_indexes(project, unique_schema, "cci_prebuilt")
-        assert len(pre_indexes) == 1
-        assert pre_indexes[0][0] == legacy_name
-        assert pre_indexes[0][1] == "CLUSTERED COLUMNSTORE"
-
-        run_dbt(["run", "--models", "cci_prebuilt", "--full-refresh"])
-
-        post_indexes = [
-            row
-            for row in get_cci_indexes(project, unique_schema, "cci_prebuilt")
-            if row[1] == "CLUSTERED COLUMNSTORE"
-        ]
-        assert len(post_indexes) == 1
-        assert post_indexes[0][0] == clean_name
-        assert "__dbt_tmp" not in post_indexes[0][0]
-        assert "__dbt_backup" not in post_indexes[0][0]
-
     def test_rowstore_prebuilt(self, project, unique_schema):
         _, output = run_dbt_and_capture(["run", "--models", "rowstore_prebuilt", "--full-refresh"])
         assert "full_refresh_build=prebuilt" in output

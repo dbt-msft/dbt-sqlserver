@@ -149,7 +149,7 @@
 {%- endmacro %}
 
 
-{% macro sqlserver__get_create_table_load_sql(temporary, relation, sql, logical_relation=none, drop_tmp_view=True) -%}
+{% macro sqlserver__get_create_table_load_sql(temporary, relation, sql, drop_tmp_view=True, logical_relation=none) -%}
     {#-
       Second half of a table build: load the object the stage half created,
       then clean up and add the clustered columnstore index.
