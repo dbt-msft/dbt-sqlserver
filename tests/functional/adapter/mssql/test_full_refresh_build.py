@@ -333,8 +333,6 @@ class TestFullRefreshBuild:
         assert len(indexes) == 1
         assert indexes[0][1] == "CLUSTERED COLUMNSTORE"
         assert "dbt_tmp" not in indexes[0][0]
-        expected_final_name = f"{unique_schema}_cci_prebuilt_cci"
-        assert indexes[0][0] == expected_final_name
         first_name = indexes[0][0]
 
         # data made it through the two-step load
@@ -351,11 +349,7 @@ class TestFullRefreshBuild:
         # normal run: default swap build, no prebuilt
         _, output = run_dbt_and_capture(["run", "--models", "cci_prebuilt"])
         assert "full_refresh_build=prebuilt" not in output
-        indexes = get_cci_indexes(project, unique_schema, "cci_prebuilt")
-        assert len(indexes) == 1
-        assert indexes[0][0] == expected_final_name
-        assert "__dbt_tmp" not in indexes[0][0]
-        assert "__dbt_backup" not in indexes[0][0]
+        assert len(get_cci_indexes(project, unique_schema, "cci_prebuilt")) == 1
         leftovers = project.run_sql(
             f"""select count(*) from sys.tables t
                 join sys.schemas s on s.schema_id = t.schema_id

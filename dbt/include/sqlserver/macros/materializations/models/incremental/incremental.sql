@@ -164,7 +164,7 @@
         commit - held that long they deadlocked a second worker. The strategy
         DML below is transactional through to adapter.commit(). -#}
     {% if stage_before_hooks %}
-      {% do run_query(sqlserver__get_create_table_load_sql(True, temp_relation, sql, drop_tmp_view=False, logical_relation=temp_relation)) %}
+      {% do run_query(sqlserver__get_create_table_load_sql(True, temp_relation, sql, drop_tmp_view=False)) %}
     {% else %}
       {% do run_query(get_create_table_as_sql(True, temp_relation, sql)) %}
     {% endif %}

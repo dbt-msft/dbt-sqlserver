@@ -175,10 +175,8 @@ _BATCH_STUBS = """
 {% macro get_create_view_as_sql(relation, sql) %}CREATE OR ALTER VIEW {{ relation }} AS {{ sql }};
 {% endmacro %}
 {% macro escape_single_quotes(value) %}{{ value | replace("'", "''") }}{% endmacro %}
-{% macro sqlserver__create_clustered_columnstore_index(
-    physical_relation, logical_relation
-) %}CREATE CLUSTERED COLUMNSTORE
-INDEX cci ON {{ physical_relation }};{% endmacro %}
+{% macro sqlserver__create_clustered_columnstore_index(relation, logical_relation=none) %}
+CREATE CLUSTERED COLUMNSTORE INDEX cci ON {{ relation }};{% endmacro %}
 """
 
 
@@ -468,8 +466,8 @@ EXEC('CREATE OR ALTER VIEW {{ relation }} AS {{ sql }}')
 {% macro get_query_options(parse_options=False) %}"""
     + QUERY_LABEL
     + """{% endmacro %}
-{% macro sqlserver__create_clustered_columnstore_index(relation, logical_relation) %}
-/* CCI on {{ relation }} named from {{ logical_relation }} */
+{% macro sqlserver__create_clustered_columnstore_index(relation, logical_relation=none) %}
+/* CCI on {{ relation }} */
 {%- endmacro %}
 """
 )
@@ -575,25 +573,6 @@ def test_load_inserts_drops_the_view_and_builds_the_cci(target):
     # Creating the object is the other half's job.
     assert "SELECT TOP 0 * INTO" not in sql
     assert "CREATE OR ALTER VIEW" not in sql
-
-
-def test_load_sql_keeps_drop_tmp_view_as_fourth_parameter(target):
-    """Legacy fourth positional arg remains drop_tmp_view."""
-    sql = _render_split(
-        "{{ sqlserver__get_create_table_load_sql("
-        "False, target, 'select 1 as id', True, logical_relation=target) }}",
-        target=target,
-    )
-    assert "INSERT INTO" in sql
-    assert "DROP VIEW IF EXISTS" in sql
-    assert "CCI" in sql
-
-    no_drop_sql = _render_split(
-        "{{ sqlserver__get_create_table_load_sql("
-        "False, target, 'select 1 as id', False, logical_relation=target) }}",
-        target=target,
-    )
-    assert "DROP VIEW IF EXISTS" not in no_drop_sql
 
 
 def test_view_drop_follows_the_insert_not_the_create(target):

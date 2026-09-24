@@ -9,15 +9,14 @@
 
 
 {% macro sqlserver__create_clustered_columnstore_index(relation, logical_relation=none) -%}
-    {%- if logical_relation is none -%}
-        {%- set logical_relation = relation -%}
-    {%- endif -%}
-    {#- cci_name embeds the schema, so it must be quoted as an identifier
-        (raw only in the string comparison below) -- issue #409 -#}
-    {%- set cci_name = (logical_relation.schema ~ '_' ~ logical_relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
-    {%- set legacy_cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
+    {#- Named after logical_relation, the name relation takes once swapped in, so a
+        __dbt_tmp build doesn't leave its suffix on the index. Index names are scoped per
+        table, so the build table and the live one can both hold it. cci_name embeds the
+        schema, so it must be quoted as an identifier (raw only in the string comparison
+        below) -- issue #409 -#}
+    {%- set name_relation = logical_relation or relation -%}
+    {%- set cci_name = (name_relation.schema ~ '_' ~ name_relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
     {%- set relation_name = relation.include(database=False) -%}
-    {%- set logical_relation_name = logical_relation.include(database=False) -%}
     {{ get_use_database_sql(relation.database) }}
     if EXISTS (
         SELECT *
@@ -26,24 +25,9 @@
         AND object_id=object_id('{{ escape_single_quotes(relation_name) }}')
     )
     DROP index {{ relation_name }}.{{ adapter.quote(cci_name) }}
-    {#- Legacy CCI cleanup on the LOGICAL relation: pre‑split builds persisted
-        tmp‑prefixed CCI names on the live table. Split paths clear it via
-        swap/drop, but this ensures persistent live relations don’t retain
-        stale pre‑clean‑name CCI names. -#}
-    {%- if cci_name != legacy_cci_name -%}
-        if EXISTS (
-            SELECT *
-            FROM sys.indexes {{ information_schema_hints() }}
-            WHERE name = '{{ escape_single_quotes(legacy_cci_name) }}'
-            AND object_id=object_id('{{ escape_single_quotes(logical_relation_name) }}')
-        )
-        DROP index {{ logical_relation_name }}.{{ adapter.quote(legacy_cci_name) }}
-    {% endif %}
-
     CREATE CLUSTERED COLUMNSTORE INDEX {{ adapter.quote(cci_name) }}
     ON {{ relation_name }}
 {% endmacro %}
-
 
 {% macro drop_xml_indexes() -%}
     {{ log("Running drop_xml_indexes() macro...") }}

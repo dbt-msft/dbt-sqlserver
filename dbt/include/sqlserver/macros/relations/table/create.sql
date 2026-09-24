@@ -186,11 +186,7 @@
 
     {% set as_columnstore = config.get('as_columnstore', default=true) %}
     {% if not temporary and as_columnstore -%}
-        {#-
-        Add a clustered columnstore index. Name from the logical/final
-        relation, create on the physical relation built in this macro.
-        -#}
-        {{ sqlserver__create_clustered_columnstore_index(relation, logical_relation or relation) }}
+        {{ sqlserver__create_clustered_columnstore_index(relation, logical_relation) }}
    {% endif %}
 {%- endmacro %}
 
@@ -207,7 +203,7 @@
       sqlserver__get_create_table_stage_sql for why that matters (#819).
     -#}
     {{ sqlserver__get_create_table_stage_sql(temporary, relation, sql) }}
-    {{ sqlserver__get_create_table_load_sql(temporary, relation, sql, logical_relation=relation) }}
+    {{ sqlserver__get_create_table_load_sql(temporary, relation, sql) }}
 {% endmacro %}
 
 
@@ -302,7 +298,7 @@
 
     {%- set load_sql -%}
     {% if as_columnstore %}
-        {{ sqlserver__create_clustered_columnstore_index(relation, relation) }}
+        {{ sqlserver__create_clustered_columnstore_index(relation) }}
     {% elif prebuilt_ns.clustered_dict is not none %}
         {{ sqlserver__get_create_index_sql(relation, prebuilt_ns.clustered_dict) }}
     {% endif %}
