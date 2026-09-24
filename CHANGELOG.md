@@ -1,5 +1,7 @@
 # Changelog
 
+<!-- towncrier release notes start -->
+
 ### v1.11.2
 
 #### Bugfixes
