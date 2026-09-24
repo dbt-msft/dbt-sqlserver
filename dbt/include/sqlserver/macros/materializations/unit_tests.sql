@@ -1,10 +1,7 @@
 {% macro sqlserver__get_unit_test_sql(main_sql, expected_fixture_sql, expected_column_names) -%}
 
-  USE [{{ target.database }}];
-  IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{{ target.schema }}')
-  BEGIN
-  EXEC('CREATE SCHEMA [{{ target.schema }}]')
-  END
+  {{ get_use_database_sql(target.database) }}
+  {{ create_schema_if_not_exists(target.schema) }}
 
   {% set test_view %}
       [{{ target.schema }}].[testview_{{ local_md5(main_sql) }}_{{ range(1300, 19000) | random }}]
