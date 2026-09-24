@@ -1,0 +1,1 @@
+Add the `sqlserver__openquery` macro for safely executing pass-through queries against linked servers, including remote-SQL quote escaping, carriage-return stripping and the SQL Server 8 KB query-length validation. Add a SQL Server best-practices guide covering when to use `OPENQUERY` instead of distributed four-part-name joins.
