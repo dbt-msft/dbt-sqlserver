@@ -52,6 +52,10 @@ coverage.xml
 # Django stuff:
 *.log
 
+# Local throwaway checks and plans
+tests/local/
+.plan/
+
 # dbt test logs (one subdir per test schema; accumulates indefinitely)
 logs/
 

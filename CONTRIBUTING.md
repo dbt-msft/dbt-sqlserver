@@ -1,5 +1,7 @@
 # Development of the adapter
 
+Code, comment and test conventions are in [AGENTS.md](AGENTS.md).
+
 Python 3.11 is used for developing the adapter. To get started, bootstrap your environment as follows:
 
 Create a virtual environment, [pyenv](https://github.com/pyenv/pyenv) is used in the example:
