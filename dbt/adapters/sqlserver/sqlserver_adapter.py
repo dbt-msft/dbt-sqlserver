@@ -184,6 +184,13 @@ class SQLServerAdapter(SQLAdapter):
         SQLServerConnectionManager._dbt_sqlserver_use_dbt_transactions = use_dbt_transactions
         self.connections._dbt_sqlserver_use_dbt_transactions = use_dbt_transactions
 
+    @SQLAdapter.behavior.setter
+    def behavior(self, flags: List[BehaviorFlag]) -> None:
+        # The base setter extends `flags` in place, and it is passed the module-level
+        # DEFAULT_BASE_BEHAVIOR_FLAGS, which then grows on every adapter init (#855).
+        # Drop once dbt-adapters stops mutating it.
+        SQLAdapter.behavior.fset(self, list(flags))
+
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
         return [
