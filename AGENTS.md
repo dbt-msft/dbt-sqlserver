@@ -15,7 +15,7 @@ Conventions for contributors and AI agents. Setup, CI and releasing are in [CONT
 3. **Plan.** When there's more than one reasonable fix, or it changes behavior users rely on, post the options and a recommendation in the issue before writing code. Without built-in planning, keep options and todos in `.plan/` (gitignored) and delete it when done.
 4. **Decide on evidence.** Base each decision on code, docs, versions or a live query. Don't guess, and don't iterate by blind trial and error.
 5. **Fix.** Make the smallest change that turns the test green, then run `make unit` and the affected functional tests (`uv run pytest tests/functional/<path>`) before the full `make functional`.
-6. **PR.** Link the issue and note the evidence behind the fix. Add a `CHANGELOG.md` entry for user-facing changes and mark behavior changes.
+6. **PR.** Fill in the [template](.github/pull_request_template.md). Add a `CHANGELOG.md` entry for user-facing changes and mark behavior changes.
 
 ## Text
 
