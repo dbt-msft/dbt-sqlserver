@@ -116,6 +116,11 @@ directory = "bugfix"
 name = "Bugfixes"
 showcontent = true
 
+[[tool.towncrier.type]]
+directory = "misc"
+name = "Under the hood"
+showcontent = true
+
 [tool.ruff]
 line-length = 99
 target-version = "py311"
