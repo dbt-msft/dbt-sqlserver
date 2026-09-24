@@ -128,11 +128,11 @@ An Arrow-native backend built on [ADBC](https://arrow.apache.org/adbc/), avoidin
 pip install -U "dbt-sqlserver[adbc]"
 ```
 
-The driver binary is not on PyPI and must be installed once via the `dbc` CLI. See [docs/adbc_backend.md](docs/adbc_backend.md) for the full setup, configuration, and known-differences guide.
+The driver binary is not on PyPI and must be installed once via the `dbc` CLI. See [docs/adbc_backend.md](https://github.com/dbt-msft/dbt-sqlserver/blob/master/docs/adbc_backend.md) for the full setup, configuration, and known-differences guide.
 
 ## Changelog
 
-See [the changelog](CHANGELOG.md)
+See [the changelog](https://github.com/dbt-msft/dbt-sqlserver/blob/master/CHANGELOG.md)
 
 ## Configuration
 
@@ -163,7 +163,7 @@ The same setting is also honoured via `vars:` for backwards compatibility; the b
 
 ### `backend`
 
-*(default: `pyodbc`)* Set to `mssql-python` or `adbc` (experimental, see [docs/adbc_backend.md](docs/adbc_backend.md)) in a profile target to use that backend instead of `pyodbc`. The adapter fails if the required backend package (Python dependency), such as `pyodbc`, `mssql-python`, or `adbc-driver-manager`, is not installed.
+*(default: `pyodbc`)* Set to `mssql-python` or `adbc` (experimental, see [docs/adbc_backend.md](https://github.com/dbt-msft/dbt-sqlserver/blob/master/docs/adbc_backend.md)) in a profile target to use that backend instead of `pyodbc`. The adapter fails if the required backend package (Python dependency), such as `pyodbc`, `mssql-python`, or `adbc-driver-manager`, is not installed.
 
 ### `dbt_sqlserver_enable_safe_type_expansion`
 
@@ -189,7 +189,7 @@ two paths that commit a full-refresh marker before the load
 existing table), where neither scope can roll it back. `build` stages
 it inside the hook's transaction, for the one case `load` cannot serve: a
 `transaction: true` pre-hook that creates an object the model reads. See
-[docs/transaction_scope.md](docs/transaction_scope.md) for the full flow and
+[docs/transaction_scope.md](https://github.com/dbt-msft/dbt-sqlserver/blob/master/docs/transaction_scope.md) for the full flow and
 the post-hook ordering change.
 
 ### `dbt_sqlserver_use_dbt_transactions`
@@ -202,11 +202,12 @@ The driver connection remains in autocommit mode (`autocommit=true`) in both mod
 
 This is now the default and should be tested carefully with project-specific materializations and hooks. Projects that depend on autocommit-only behavior should set the flag to `false` during migration.
 
+**Compatibility notes:** Enabling `dbt_sqlserver_use_dbt_transactions: true` may expose transaction-state assumptions hidden by autocommit-only mode. Explicit transaction macros may interact with dbt-managed transactions, and cleanup after failed DDL/DML may differ. Review pre/post hooks for in-transaction vs out-of-transaction semantics.
+
 ```yaml
 # dbt_project.yml
 flags:
-  dbt_sqlserver_enable_safe_type_expansion: true
-  dbt_sqlserver_use_dbt_transactions: true # default
+  dbt_sqlserver_use_dbt_transactions: false # legacy autocommit; deprecated
 ```
 
 ### `dbt_sqlserver_use_native_string_types`
@@ -257,8 +258,6 @@ your_profile:
            prefer_single_alter_column=true) }}
 ```
 
-**Compatibility notes:** Enabling `dbt_sqlserver_use_dbt_transactions: true` may expose transaction-state assumptions hidden by autocommit-only mode. Explicit transaction macros may interact with dbt-managed transactions, and cleanup after failed DDL/DML may differ. Review pre/post hooks for in-transaction vs out-of-transaction semantics.
-
 ### `as_columnstore`
 
 *(default: `true`)* When building a table, the adapter creates a [clustered columnstore index](https://learn.microsoft.com/en-us/sql/relational-databases/indexes/columnstore-indexes-overview) (CCI) on it. Set `as_columnstore: false` to build a plain rowstore table instead.
@@ -296,7 +295,7 @@ A *model-level* constraint carrying `name:` is applied by `ALTER TABLE … ADD C
 
 Name a constraint when you want it stable across environments (schema-comparison tools report the generated names as differences) or need to reference it later. A `name:` on a *column-level* constraint is ignored with a warning — declare it under the model's `constraints:` key instead.
 
-The full set of rules, with the test that verifies each, is in [docs/constraints.md](docs/constraints.md).
+The full set of rules, with the test that verifies each, is in [docs/constraints.md](https://github.com/dbt-msft/dbt-sqlserver/blob/master/docs/constraints.md).
 
 ```yaml
 models:
@@ -455,7 +454,7 @@ The `denies` config re-applies object-level DENYs after each build, diffed again
 
 This adapter is community-maintained.
 You are welcome to contribute by creating issues, opening or reviewing pull requests, or helping other users in the Slack channel.
-If you're unsure how to get started, check out our [contributing guide](CONTRIBUTING.md).
+If you're unsure how to get started, check out our [contributing guide](https://github.com/dbt-msft/dbt-sqlserver/blob/master/CONTRIBUTING.md).
 
 ## License
 
