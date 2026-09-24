@@ -120,7 +120,7 @@ your_profile:
 
 ## Changelog
 
-See [the changelog](CHANGELOG.md)
+See [the changelog](https://github.com/dbt-msft/dbt-sqlserver/blob/release/v1.11/CHANGELOG.md)
 
 ## Configuration
 
@@ -167,7 +167,7 @@ Safe expansions are further gated by `column_type_expansion_max_rows` (default 1
 
 ### `dbt_sqlserver_use_dbt_transactions`
 
-_(default: `false`)_ When enabled, makes dbt's transaction hooks real at the SQL Server level by emitting `BEGIN TRANSACTION` / `COMMIT TRANSACTION` through the adapter's `add_begin_query` and `add_commit_query` methods. 
+_(default: `false`)_ When enabled, makes dbt's transaction hooks real at the SQL Server level by emitting `BEGIN TRANSACTION` / `COMMIT TRANSACTION` through the adapter's `add_begin_query` and `add_commit_query` methods.
 
 The default is `false`, preserving existing behavior where `begin`/`commit` hooks are logical no-ops and the ODBC driver auto-commits each statement. When `dbt_sqlserver_use_dbt_transactions: true`, the adapter emits real T-SQL transaction statements, and rollback uses `IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION`.
 
@@ -175,10 +175,11 @@ The driver connection remains in autocommit mode (`autocommit=true`) in both mod
 
 This mode is opt-in and should be tested carefully with project-specific materializations and hooks.
 
+**Compatibility notes:** Enabling `dbt_sqlserver_use_dbt_transactions: true` may expose transaction-state assumptions hidden by autocommit-only mode. Explicit transaction macros may interact with dbt-managed transactions, and cleanup after failed DDL/DML may differ. Review pre/post hooks for in-transaction vs out-of-transaction semantics.
+
 ```yaml
 # dbt_project.yml
 flags:
-  dbt_sqlserver_enable_safe_type_expansion: true
   dbt_sqlserver_use_dbt_transactions: true # <-- opt-in; default is false
 ```
 
@@ -221,8 +222,6 @@ your_profile:
            prefer_single_alter_column=true) }}
 ```
 
-**Compatibility notes:** Enabling `dbt_sqlserver_use_dbt_transactions: true` may expose transaction-state assumptions hidden by autocommit-only mode. Explicit transaction macros may interact with dbt-managed transactions, and cleanup after failed DDL/DML may differ. Review pre/post hooks for in-transaction vs out-of-transaction semantics.
-
 ### `as_columnstore`
 
 *(default: `true`)* When building a table, the adapter creates a [clustered columnstore index](https://learn.microsoft.com/en-us/sql/relational-databases/indexes/columnstore-indexes-overview) (CCI) on it. Set `as_columnstore: false` to build a plain rowstore table instead.
@@ -260,7 +259,7 @@ A *model-level* constraint carrying `name:` is applied by `ALTER TABLE … ADD C
 
 Name a constraint when you want it stable across environments (schema-comparison tools report the generated names as differences) or need to reference it later. A `name:` on a *column-level* constraint is ignored with a warning — declare it under the model's `constraints:` key instead.
 
-The full set of rules, with the test that verifies each, is in [docs/constraints.md](docs/constraints.md).
+The full set of rules, with the test that verifies each, is in [docs/constraints.md](https://github.com/dbt-msft/dbt-sqlserver/blob/release/v1.11/docs/constraints.md).
 
 ```yaml
 models:
@@ -402,7 +401,7 @@ Behaviour:
 
 This adapter is community-maintained.
 You are welcome to contribute by creating issues, opening or reviewing pull requests, or helping other users in the Slack channel.
-If you're unsure how to get started, check out our [contributing guide](CONTRIBUTING.md).
+If you're unsure how to get started, check out our [contributing guide](https://github.com/dbt-msft/dbt-sqlserver/blob/release/v1.11/CONTRIBUTING.md).
 
 ## License
 
