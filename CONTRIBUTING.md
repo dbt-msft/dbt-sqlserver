@@ -1,5 +1,7 @@
 # Development of the adapter
 
+Code, comment and test conventions are in [AGENTS.md](AGENTS.md).
+
 Python 3.11 is used for developing the adapter. To get started, bootstrap your environment as follows:
 
 Create a virtual environment, [pyenv](https://github.com/pyenv/pyenv) is used in the example:
@@ -140,7 +142,7 @@ The following environment variables are available:
 
 ## Releasing a new version
 
-Make sure the version number is bumped in `dbt/adapters/sqlserver/__version__.py`. Then publish a GitHub Release with a tag named `v<version>`.
+Build the changelog from the `changes/` fragments with `uv run towncrier build --version <version>`, then bump the version number in `dbt/adapters/sqlserver/__version__.py`. Then publish a GitHub Release with a tag named `v<version>`.
 A GitHub Actions workflow will be triggered to build the package and push it to PyPI.
 
 If you're releasing support for a new version of `dbt-core`, also bump the `dbt-core` constraint in `dependencies` in `pyproject.toml`.

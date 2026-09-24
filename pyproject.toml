@@ -71,6 +71,7 @@ dev = [
     "pytest-dotenv",
     "pytest-xdist",
     "ruff",
+    "towncrier>=26.9.0",
     "twine",
     "ty",
 ]
@@ -97,6 +98,26 @@ namespaces = true
 link-mode = "copy"
 environments = "python_version >= '3.11'"
 
+[tool.towncrier]
+directory = "changes"
+filename = "CHANGELOG.md"
+title_format = "### v{version}"
+issue_format = "[#{issue}](https://github.com/dbt-msft/dbt-sqlserver/issues/{issue})"
+
+[[tool.towncrier.type]]
+directory = "behavior"
+name = "Behavior changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "bugfix"
+name = "Bugfixes"
+showcontent = true
 
 [tool.ruff]
 line-length = 99
