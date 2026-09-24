@@ -199,3 +199,121 @@ class TestDescribedTypeFollowsTheBackend:
             actual = _executed_name_for_system_type("uniqueidentifier", SQLServerBackend.pyodbc)
 
         assert actual is None
+
+
+class DescribeCursor(FakeCursor):
+    """What sys.dm_exec_describe_first_result_set hands back: one row per
+    column, or -- when it cannot describe the query -- rows carrying an
+    error_number instead of raising."""
+
+    def __init__(self, rows):
+        super().__init__(rows=rows)
+
+    def fetchall(self):
+        rows, self._rows = self._rows, []
+        return rows
+
+
+def described(name, system_type_name):
+    return (False, name, system_type_name, None, None)
+
+
+def describe_error(error_number, message):
+    return (None, None, None, error_number, message)
+
+
+class TestADescribeFailureLeavesTheConnectionUsable:
+    """A describe that fails must leave the connection usable for the execute
+    that follows it.
+
+    ``sp_describe_first_result_set`` raised its failures, and handling a raised
+    error closes the connection -- so the fallback executed on a closed handle
+    and reported "Attempt to use a closed connection", both for a query it
+    merely declined and for one naming a column that does not exist. The
+    table-valued form reports the same failures as rows, so nothing is raised
+    until the query itself runs. The live versions, with real 207 and 11541
+    errors, are in tests/functional/adapter/mssql/test_describe_error_surfaces.py.
+    """
+
+    CTE = "with cte as (select 1 as id) select * from cte"
+
+    def _route(self, adapter, describe_rows, execute):
+        """Answer the describe with ``describe_rows``; hand anything else to ``execute``."""
+
+        def add_select_query(sql):
+            if "describe_first_result_set" in sql:
+                return (MagicMock(), DescribeCursor(describe_rows))
+            return execute(sql)
+
+        adapter.connections.add_select_query = MagicMock(side_effect=add_select_query)
+        adapter.connections.data_type_code_to_name = MagicMock(return_value="varchar")
+        return adapter.connections.add_select_query
+
+    def test_the_describe_uses_the_function_that_does_not_raise(self, adapter):
+        add_select_query = self._route(
+            adapter, [described("id", "int")], execute=lambda sql: pytest.fail("executed")
+        )
+
+        adapter.get_column_schema_from_query(self.CTE)
+
+        sent = add_select_query.call_args_list[0][0][0]
+        assert "sys.dm_exec_describe_first_result_set(" in sent
+        assert "exec sp_describe_first_result_set" not in sent
+
+    @pytest.mark.parametrize(
+        "errors",
+        [
+            [
+                describe_error(207, "Invalid column name 'bed_status'."),
+                describe_error(
+                    11501, "The batch could not be analyzed because of compile errors."
+                ),
+            ],
+            [
+                describe_error(208, "Invalid object name 'inpatients.gone'."),
+                describe_error(11529, "The metadata could not be determined ..."),
+            ],
+        ],
+        ids=["invalid-column", "invalid-object"],
+    )
+    def test_a_query_error_is_raised_by_executing_it(self, adapter, errors):
+        """Executing fails at compile, so it costs nothing, and raises the
+        query's own error through the normal path."""
+        own_error = RuntimeError(errors[0][4])
+
+        def execute(sql):
+            raise own_error
+
+        self._route(adapter, errors, execute)
+
+        with pytest.raises(RuntimeError) as raised:
+            adapter.get_column_schema_from_query(self.CTE)
+
+        assert raised.value is own_error
+
+    def test_a_declined_describe_falls_back_to_executing(self, adapter):
+        """Metadata discovery declines some queries that execute perfectly
+        well; those must keep their fallback."""
+        cursor = FakeCursor(rows=[])
+        add_select_query = self._route(
+            adapter,
+            [describe_error(11541, "sp_describe_first_result_set cannot be invoked when ...")],
+            execute=lambda sql: (MagicMock(), cursor),
+        )
+
+        columns = adapter.get_column_schema_from_query(self.CTE)
+
+        assert [c.column for c in columns] == ["id", "payload"]
+        assert add_select_query.call_count == 2, "the fallback execute did not run"
+        assert cursor.closed
+
+    def test_a_non_cte_query_never_reaches_the_describe(self, adapter):
+        """Anything not opening with a CTE is wrapped as `where 1 = 0` before it
+        arrives, so it executes without a describe and is unaffected."""
+        cursor = attach(adapter, FakeCursor(rows=[]))
+
+        adapter.get_column_schema_from_query("select * from (select 1) x where 1 = 0")
+
+        assert cursor.closed
+        sent = adapter.connections.add_select_query.call_args[0][0]
+        assert "describe_first_result_set" not in sent
