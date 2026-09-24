@@ -1,6 +1,6 @@
 import pytest
 
-from dbt.tests.util import get_connection, run_dbt, run_dbt_and_capture, write_file
+from dbt.tests.util import get_connection, run_dbt, write_file
 
 model_sql = """
 SELECT 1 AS data
@@ -149,14 +149,7 @@ class TestTabletoViewPreservesGrants(BaseTableView):
 
 
 class TestViewMaterializationNoOp(BaseTableView):
-    """Test that rerunning an unchanged view avoids rebuilding the view.
-
-    ``modify_date`` used to be the signal here, but the skip path now runs
-    ``sp_refreshview`` (see TestSkippedViewRefreshesSelectStarColumns), which bumps
-    ``modify_date`` just as an ``ALTER`` would - so that column no longer separates a
-    skip from a rebuild. The emitted SQL does: a skip issues ``sp_refreshview`` and
-    no ``CREATE OR ALTER VIEW``, and leaves the stored definition byte-identical.
-    """
+    """Rerunning an unchanged view must not alter or refresh it."""
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -164,17 +157,12 @@ class TestViewMaterializationNoOp(BaseTableView):
 
     def test_unchanged_view_does_not_alter(self, project):
         self.create_object(project, f"CREATE VIEW {project.test_schema}.mat_object AS {model_sql}")
-
         before_definition = _stored_view_definition(project)
+        before_modify_date = _view_modify_date(project)
 
-        results, log_output = run_dbt_and_capture(["--debug", "run"])
-        assert len(results) == 1
-
-        emitted_sql = log_output.lower()
-        assert "sp_refreshview" in emitted_sql
-        assert "create or alter view" not in emitted_sql
-
+        assert len(run_dbt(["run"])) == 1
         assert _stored_view_definition(project) == before_definition
+        assert _view_modify_date(project) == before_modify_date
 
 
 class TestViewtoTable(BaseTableView):
@@ -187,6 +175,17 @@ class TestViewtoTable(BaseTableView):
     def test_passes(self, project):
         self.create_object(project, f"CREATE VIEW {project.test_schema}.mat_object AS {model_sql}")
         run_dbt(["run"])
+
+
+def _view_modify_date(project):
+    """Advanced by both ``ALTER VIEW`` and ``sp_refreshview``."""
+    return project.run_sql(
+        f"""
+        select modify_date from sys.objects
+        where object_id = object_id('{project.test_schema}.mat_object')
+        """,
+        fetch="one",
+    )[0]
 
 
 def _stored_view_definition(project):
@@ -252,46 +251,48 @@ class TestViewLiteralCaseChangeRebuilds(BaseTableView):
         )
 
 
-def _view_columns(project):
-    """The view's cached column list, in order, as SQL Server currently reports it."""
+def _view_shape(project):
+    """The view's cached (name, type) pairs, in order."""
     rows = project.run_sql(
         f"""
-        select c.name
+        select c.name, t.name
         from sys.columns c
+        join sys.types t on c.user_type_id = t.user_type_id
         where c.object_id = object_id('{project.test_schema}.mat_object')
         order by c.column_id
         """,
         fetch="all",
     )
-    return [row[0] for row in rows]
+    return [(row[0], row[1]) for row in rows]
 
 
-class TestSkippedViewRefreshesSelectStarColumns(BaseTableView):
-    """A skipped rebuild must still re-derive a cached ``select *`` column list.
-
-    SQL Server expands an unqualified ``select *`` at CREATE/ALTER VIEW time and caches
-    the result. When the model SQL is unchanged the CREATE is skipped, so a column added
-    to a referenced table never reached the view: it kept serving the old shape - old
-    names in old positions - while every dbt run reported success. The skip path runs
-    ``sp_refreshview``, which re-derives that metadata without any DDL on the view.
-    """
+class TestSkippedViewTracksItsSourceShape(BaseTableView):
+    """An unchanged view is refreshed when a source changes shape, and only then."""
 
     @pytest.fixture(scope="class")
     def models(self):
         return {"mat_object.sql": select_star_view, "schema.yml": schema}
 
-    def test_added_column_reaches_skipped_view(self, project):
-        self.create_object(project, f"CREATE TABLE {project.test_schema}.refresh_source (a int)")
-
+    def test_skipped_view_follows_its_source(self, project):
+        self.create_object(
+            project, f"CREATE TABLE {project.test_schema}.refresh_source (a varchar(10))"
+        )
         run_dbt(["run"])
-        assert _view_columns(project) == ["a"]
+        assert _view_shape(project) == [("a", "varchar")]
+
+        before_modify_date = _view_modify_date(project)
+        run_dbt(["run"])
+        assert _view_modify_date(project) == before_modify_date
 
         project.run_sql(f"alter table {project.test_schema}.refresh_source add b int")
+        run_dbt(["run"])
+        assert _view_shape(project) == [("a", "varchar"), ("b", "int")]
 
-        # The model SQL is unchanged, so the CREATE/ALTER is skipped ...
-        results, log_output = run_dbt_and_capture(["--debug", "run"])
-        assert len(results) == 1
-        assert "create or alter view" not in log_output.lower()
+        # Same name and position: only the type comparison catches it.
+        project.run_sql(f"alter table {project.test_schema}.refresh_source alter column a int")
+        run_dbt(["run"])
+        assert _view_shape(project) == [("a", "int"), ("b", "int")]
 
-        # ... but the view still reports the table's current shape.
-        assert _view_columns(project) == ["a", "b"]
+        before_modify_date = _view_modify_date(project)
+        run_dbt(["run"])
+        assert _view_modify_date(project) == before_modify_date
