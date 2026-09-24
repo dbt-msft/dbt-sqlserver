@@ -41,8 +41,6 @@
     {% endfor %}
     {% set build_sql = get_create_view_as_sql(intermediate_relation, sql) %}
   {% elif existing_relation is not none and existing_relation.type == 'view' %}
-    {#- One round trip, two answers: did the model's SQL change (rebuild), and if not,
-        has the view's cached column metadata gone stale (refresh)? -#}
     {% set current_view_definition_table = run_query(get_view_skip_check_sql(existing_relation, sql)) %}
     {% set view_metadata_is_stale = false %}
     {% if current_view_definition_table is not none and current_view_definition_table.rows | length > 0 %}
@@ -70,18 +68,14 @@
         {% set model_body = (model_body[:-1] if model_body.endswith(';') else model_body) | trim %}
         {% set should_skip_view_update = stored_body == model_body %}
       {% endif %}
-      {#- Only consulted on the skip path: a rebuild re-derives the metadata itself. -#}
       {% set view_metadata_is_stale = current_view_definition_table.rows[0][1] == 1 %}
     {% endif %}
     {% if should_skip_view_update and view_metadata_is_stale %}
-      {#- Something the view reads changed shape, so its cached metadata (including any
-          `select *` expansion) no longer matches its sources. sp_refreshview re-derives
-          it without reissuing the CREATE: no DDL, no grant/deny churn. The USE prefix is
-          required - sp_refreshview resolves its argument in the current database. -#}
+      {#- A source changed shape under an unchanged body (e.g. a `select *` expansion).
+          sp_refreshview resolves its argument in the current database, hence the USE. -#}
       {% set object_name = "quotename('" ~ target_relation.schema ~ "') + '.' + quotename('" ~ target_relation.identifier ~ "')" %}
       {% set build_sql = get_use_database_sql(target_relation.database) ~ " declare @dbt_sqlserver_refresh_target nvarchar(max) = " ~ object_name ~ "; exec sp_refreshview @dbt_sqlserver_refresh_target;" %}
     {% elif should_skip_view_update %}
-      {#- Unchanged text, metadata still current: nothing should touch the view. -#}
       {% set build_sql = 'declare @dbt_sqlserver_noop int;' %}
     {% else %}
       {% set build_sql = get_create_view_as_sql(target_relation, sql) %}

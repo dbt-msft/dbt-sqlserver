@@ -191,25 +191,13 @@
     {{ return(adapter.dispatch('get_view_skip_check_sql')(relation, compiled_sql)) }}
 {% endmacro %}
 
-{#- Both inputs to the view materialization's skip decision in one round trip:
-    `definition` for the body comparison, `needs_refresh` for whether the view's cached
-    column metadata still matches what its body resolves to now. The second is a check
-    rather than an unconditional repair because sp_refreshview advances
-    sys.objects.modify_date like an ALTER, churning every unchanged view on every run.
-
-    sys.dm_exec_describe_first_result_set reports the fresh shape without executing the
-    body. Three details there are load-bearing:
-
-      - referenced once - each reference is another compile of the body;
-      - its error row is kept, so a body it cannot describe trips the mismatch and gets
-        refreshed rather than assumed current;
-      - both sysname comparisons are pinned with COLLATE DATABASE_DEFAULT, or comparing
-        against sys.columns fails outright wherever the two collations differ.
-
-    The body is inlined because the procedure demands nvarchar and mssql-python binds str
-    as varchar. sys.columns is hinted like every other catalog read: this runs for every
-    view on every run, so it must not wait on another writer's catalog locks, and a torn
-    read only costs one needless refresh or one run's delay. -#}
+{#- `definition` for the skip decision, and `needs_refresh` when the cached column
+    metadata no longer matches what the body resolves to. Refreshing unconditionally
+    would advance modify_date on every unchanged view.
+    - dm_exec_describe_first_result_set is referenced once: each reference compiles the body.
+    - Its error row is kept, so a body it cannot describe is refreshed.
+    - COLLATE DATABASE_DEFAULT, or the join fails where catalog and database collations differ.
+    - The body is inlined: the function needs nvarchar and mssql-python binds str as varchar. -#}
 {% macro sqlserver__get_view_skip_check_sql(relation, compiled_sql) -%}
   {%- set object_name = "quotename('" ~ relation.schema ~ "') + '.' + quotename('" ~ relation.identifier ~ "')" -%}
   {{ get_use_database_sql(relation.database) }}

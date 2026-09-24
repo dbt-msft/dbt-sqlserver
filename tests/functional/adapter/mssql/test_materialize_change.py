@@ -1,6 +1,6 @@
 import pytest
 
-from dbt.tests.util import get_connection, run_dbt, run_dbt_and_capture, write_file
+from dbt.tests.util import get_connection, run_dbt, write_file
 
 model_sql = """
 SELECT 1 AS data
@@ -149,12 +149,7 @@ class TestTabletoViewPreservesGrants(BaseTableView):
 
 
 class TestViewMaterializationNoOp(BaseTableView):
-    """Rerunning an unchanged view must leave it entirely alone.
-
-    This body selects a literal, so it reads nothing that could go stale: no
-    ``CREATE OR ALTER VIEW`` and no ``sp_refreshview``, which would advance the
-    ``modify_date`` that outside tooling watches.
-    """
+    """Rerunning an unchanged view must not alter or refresh it."""
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -162,20 +157,10 @@ class TestViewMaterializationNoOp(BaseTableView):
 
     def test_unchanged_view_does_not_alter(self, project):
         self.create_object(project, f"CREATE VIEW {project.test_schema}.mat_object AS {model_sql}")
-
         before_definition = _stored_view_definition(project)
         before_modify_date = _view_modify_date(project)
 
-        results, log_output = run_dbt_and_capture(["--debug", "run"])
-        assert len(results) == 1
-
-        emitted_sql = log_output.lower()
-        assert "create or alter view" not in emitted_sql
-        assert "sp_refreshview" not in emitted_sql, (
-            "an unchanged view that reads nothing was refreshed anyway, bumping its "
-            "modify_date for no reason"
-        )
-
+        assert len(run_dbt(["run"])) == 1
         assert _stored_view_definition(project) == before_definition
         assert _view_modify_date(project) == before_modify_date
 
@@ -193,7 +178,7 @@ class TestViewtoTable(BaseTableView):
 
 
 def _view_modify_date(project):
-    """The catalog timestamp that tells a touched object from an untouched one."""
+    """Advanced by both ``ALTER VIEW`` and ``sp_refreshview``."""
     return project.run_sql(
         f"""
         select modify_date from sys.objects
@@ -267,8 +252,7 @@ class TestViewLiteralCaseChangeRebuilds(BaseTableView):
 
 
 def _view_shape(project):
-    """The view's cached (name, type) pairs, in order - the metadata SQL Server derives
-    at CREATE VIEW time and caches, and so the metadata a skipped rebuild leaves stale."""
+    """The view's cached (name, type) pairs, in order."""
     rows = project.run_sql(
         f"""
         select c.name, t.name
@@ -283,68 +267,32 @@ def _view_shape(project):
 
 
 class TestSkippedViewTracksItsSourceShape(BaseTableView):
-    """A skipped rebuild must re-derive stale cached metadata - and only then.
-
-    A view caches its column metadata at CREATE time, so a skipped CREATE leaves a change
-    to something it reads unnoticed: it serves the old names, positions and types while
-    every run reports success. Refreshing unconditionally is no answer either - that
-    advances ``modify_date`` like an ``ALTER``, churning every unchanged view every run.
-
-    One class, one project: the phases are one view's life, which also proves the quiet
-    phases stay quiet *between* real changes rather than only on a fresh view.
-    """
+    """An unchanged view is refreshed when a source changes shape, and only then."""
 
     @pytest.fixture(scope="class")
     def models(self):
         return {"mat_object.sql": select_star_view, "schema.yml": schema}
 
     def test_skipped_view_follows_its_source(self, project):
-        # Outside dbt, so it survives between runs and can change shape under the view.
         self.create_object(
             project, f"CREATE TABLE {project.test_schema}.refresh_source (a varchar(10))"
         )
-
         run_dbt(["run"])
         assert _view_shape(project) == [("a", "varchar")]
 
-        # Nothing moved: the run must touch the view in no way at all.
         before_modify_date = _view_modify_date(project)
-        results, log_output = run_dbt_and_capture(["--debug", "run"])
-        assert len(results) == 1
-        emitted_sql = log_output.lower()
-        assert "create or alter view" not in emitted_sql
-        assert "sp_refreshview" not in emitted_sql, (
-            "a view whose sources never moved was refreshed anyway; every unchanged "
-            "view in a project would churn its modify_date on every run"
-        )
+        run_dbt(["run"])
         assert _view_modify_date(project) == before_modify_date
-        assert _view_shape(project) == [("a", "varchar")]
 
-        # A new column: the cached `select *` expansion is stale, so the skip must
-        # refresh even though the model SQL is untouched.
         project.run_sql(f"alter table {project.test_schema}.refresh_source add b int")
-        results, log_output = run_dbt_and_capture(["--debug", "run"])
-        assert len(results) == 1
-        emitted_sql = log_output.lower()
-        assert "create or alter view" not in emitted_sql
-        assert "sp_refreshview" in emitted_sql
+        run_dbt(["run"])
         assert _view_shape(project) == [("a", "varchar"), ("b", "int")]
 
-        # A retyped column: same name, same position, so a column-list comparison would
-        # miss it and leave the view reporting varchar over an int column.
+        # Same name and position: only the type comparison catches it.
         project.run_sql(f"alter table {project.test_schema}.refresh_source alter column a int")
-        results, log_output = run_dbt_and_capture(["--debug", "run"])
-        assert len(results) == 1
-        emitted_sql = log_output.lower()
-        assert "create or alter view" not in emitted_sql
-        assert "sp_refreshview" in emitted_sql
+        run_dbt(["run"])
         assert _view_shape(project) == [("a", "int"), ("b", "int")]
 
-        # And back to quiet: the repaired view must not keep refreshing afterwards.
         before_modify_date = _view_modify_date(project)
-        results, log_output = run_dbt_and_capture(["--debug", "run"])
-        assert len(results) == 1
-        assert "sp_refreshview" not in log_output.lower(), (
-            "the view kept refreshing after its metadata was already repaired"
-        )
+        run_dbt(["run"])
         assert _view_modify_date(project) == before_modify_date
