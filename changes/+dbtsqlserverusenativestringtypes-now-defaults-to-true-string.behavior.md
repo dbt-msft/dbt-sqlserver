@@ -1,0 +1,1 @@
+`dbt_sqlserver_use_native_string_types` now defaults to `True`: `STRING` maps to `VARCHAR(MAX)`, `NCHAR` to `NCHAR(1)`, and `NVARCHAR` to `NVARCHAR(4000)`, instead of the legacy `VARCHAR(8000)`/`CHAR(1)` mappings. The `False` (legacy) behavior is deprecated and will be removed in a future release.

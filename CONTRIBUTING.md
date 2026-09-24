@@ -142,7 +142,11 @@ The following environment variables are available:
 
 ## Releasing a new version
 
-Build the changelog from the `changes/` fragments with `uv run towncrier build --version <version>`, then bump the version number in `dbt/adapters/sqlserver/__version__.py`. Then publish a GitHub Release with a tag named `v<version>`.
+Bump the version number in `dbt/adapters/sqlserver/__version__.py`, then publish a GitHub Release with a tag named `v<version>`. `CHANGELOG.md` gets one section per final version:
+
+* Pre-release (`1.12.0rc4`): leave the `changes/` fragments in place and use `uv run towncrier build --draft --version <version>` as the release notes.
+* Final release (`1.12.0`): run `uv run towncrier build --version <version>`, which writes the section and removes the fragments.
+
 A GitHub Actions workflow will be triggered to build the package and push it to PyPI.
 
 If you're releasing support for a new version of `dbt-core`, also bump the `dbt-core` constraint in `dependencies` in `pyproject.toml`.
