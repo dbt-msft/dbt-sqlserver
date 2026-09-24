@@ -68,6 +68,7 @@ dev = [
     "pytz",
     "ruff",
     "tox>=3.13",
+    "towncrier>=26.9.0",
     "twine",
 ]
 
@@ -93,6 +94,32 @@ namespaces = true
 link-mode = "copy"
 environments = "python_version >= '3.11'"
 override-dependencies = ["pathspec>=0.9,<1.1"] # Remove on dbt-core v1.12 or migration to ty by astral
+
+[tool.towncrier]
+directory = "changes"
+filename = "CHANGELOG.md"
+title_format = "### v{version}"
+issue_format = "[#{issue}](https://github.com/dbt-msft/dbt-sqlserver/issues/{issue})"
+
+[[tool.towncrier.type]]
+directory = "behavior"
+name = "Behavior changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "bugfix"
+name = "Bugfixes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "misc"
+name = "Under the hood"
+showcontent = true
 
 [tool.ruff]
 line-length = 99
