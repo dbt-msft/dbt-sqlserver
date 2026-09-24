@@ -130,7 +130,7 @@
       {#- The stage committed before the hooks. The load joins a pre-hook's
           transaction if one is open, else autocommits; X table lock either
           way. The tmp view is dropped on the tail, after the commit. -#}
-      {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql, drop_tmp_view=False) -%}
+      {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql, drop_tmp_view=False, logical_relation=target_relation) -%}
       {% call statement('main', auto_begin=False) -%}
         {{ load_sql }}
       {%- endcall %}
@@ -143,7 +143,7 @@
           this batch autocommits rather than opening a transaction of its
           own and holding that Sch-M for a model that asked for nothing. -#}
       {%- set stage_sql = sqlserver__get_create_table_stage_sql(False, intermediate_relation, sql) -%}
-      {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql) -%}
+      {%- set load_sql = sqlserver__get_create_table_load_sql(False, intermediate_relation, sql, logical_relation=target_relation) -%}
       {% call statement('main', auto_begin=False) -%}
         {{ stage_sql }}
         {{ load_sql }}

@@ -96,7 +96,7 @@
   {#- The load joins a pre-hook's transaction if one is open, else
       autocommits; X table lock either way. Tmp views are dropped on the
       tail, after the commit. -#}
-  {%- set load_sql = sqlserver__get_create_table_load_sql(build_is_temporary, build_relation, build_sql, drop_tmp_view=False) -%}
+  {%- set load_sql = sqlserver__get_create_table_load_sql(build_is_temporary, build_relation, build_sql, drop_tmp_view=False, logical_relation=target_relation) -%}
 
   {% if not target_relation_exists %}
     {% call statement('main', auto_begin=False) -%}

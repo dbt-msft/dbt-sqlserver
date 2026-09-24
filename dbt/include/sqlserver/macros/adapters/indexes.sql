@@ -8,10 +8,14 @@
 {%- endmacro %}
 
 
-{% macro sqlserver__create_clustered_columnstore_index(relation) -%}
-    {#- cci_name embeds the schema, so it must be quoted as an identifier
-        (raw only in the string comparison below) -- issue #409 -#}
-    {%- set cci_name = (relation.schema ~ '_' ~ relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
+{% macro sqlserver__create_clustered_columnstore_index(relation, logical_relation=none) -%}
+    {#- Named after logical_relation, the name relation takes once swapped in, so a
+        __dbt_tmp build doesn't leave its suffix on the index. Index names are scoped per
+        table, so the build table and the live one can both hold it. cci_name embeds the
+        schema, so it must be quoted as an identifier (raw only in the string comparison
+        below) -- issue #409 -#}
+    {%- set name_relation = logical_relation or relation -%}
+    {%- set cci_name = (name_relation.schema ~ '_' ~ name_relation.identifier ~ '_cci') | replace(".", "") | replace(" ", "") -%}
     {%- set relation_name = relation.include(database=False) -%}
     {{ get_use_database_sql(relation.database) }}
     if EXISTS (
