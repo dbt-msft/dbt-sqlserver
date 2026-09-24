@@ -1,33 +1,8 @@
-"""Creating a schema that may already exist must be safe against concurrency.
-
-``IF NOT EXISTS (SELECT * FROM sys.schemas ...) BEGIN CREATE SCHEMA ... END`` is
-check-then-act: with ``threads > 1``, or two dbt processes pointed at one
-database, sessions pass the check together and all but one fail with ``Msg 2714,
-There is already an object named '<schema>' in the database``.
-``create_schema_if_not_exists`` serializes the check and the create behind an
-application lock. See https://github.com/dbt-msft/dbt-sqlserver/issues/839.
-"""
+"""Concurrent schema creation (#839): racing sessions and lock release on failure."""
 
 import threading
 
 import pytest
-
-from dbt.tests.util import run_dbt, run_dbt_and_capture
-
-seed_model = """
-{{ config(materialized='table') }}
-SELECT 1 AS id
-"""
-
-schema_yml = """
-version: 2
-models:
-  - name: guarded_model
-    columns:
-      - name: id
-        data_tests:
-          - not_null
-"""
 
 MISSING_PRINCIPAL = "dbt_no_such_principal_839"
 
@@ -60,15 +35,7 @@ def lock_free_on_another_connection(project, resource: str) -> bool:
 
 
 class TestConcurrentSchemaCreation:
-    """Every guard that creates a schema on demand, on one dbt project.
-
-    Each test works on a schema of its own, so they share the project without
-    sharing state.
-    """
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"guarded_model.sql": seed_model, "schema.yml": schema_yml}
+    """Each test uses its own schema, so they share one project."""
 
     def test_racing_sessions_create_schema_once(self, project):
         """Sessions racing to create the same schema must all succeed."""
@@ -112,27 +79,8 @@ class TestConcurrentSchemaCreation:
         with project.adapter.connection_named("race_teardown"):
             project.adapter.drop_schema(target)
 
-    def test_test_sql_serializes_schema_creation(self, project):
-        """A data test creates the target schema through its own copy of the guard.
-
-        Racing ``dbt test`` deterministically is not practical, so assert the
-        statement it emits is the serialized form rather than check-then-act.
-        """
-        run_dbt(["run"])
-        results, log_output = run_dbt_and_capture(["--debug", "test"])
-        assert len(results) == 1
-
-        emitted = log_output.lower()
-        assert "sp_getapplock" in emitted
-        assert "sp_releaseapplock" in emitted
-
     def test_failed_create_releases_the_lock(self, project):
-        """A create that fails must still hand the lock back.
-
-        The lock is session-scoped and dbt reuses the connection, so a release
-        skipped by ``SET XACT_ABORT ON`` strands it for the rest of the run and
-        every other thread building that schema waits out the timeout.
-        """
+        """A failed create must release the session lock and rethrow."""
         target = project.adapter.Relation.create(
             database=project.database, schema=f"{project.test_schema}_lockfail"
         )

@@ -1,24 +1,10 @@
 {#
-    Concurrency-safe `CREATE SCHEMA`, emitted as a statement fragment: the caller
-    supplies its own `USE <database>` prefix.
-
-    `IF NOT EXISTS (...) BEGIN CREATE SCHEMA ... END` is check-then-act, so with
-    `threads > 1` - or two runs against one database - sessions pass the check
-    together and all but one fail with `Msg 2714`. SQL Server has no
-    `CREATE SCHEMA IF NOT EXISTS`, so an application lock serializes the check and
-    the create instead.
-
-    The lock is session-scoped rather than transaction-scoped: callers run both
-    inside dbt's transaction and in autocommit, and a nested `BEGIN TRAN` would not
-    release a transaction-scoped lock until dbt itself commits - which in
-    `sqlserver__get_test_sql` is after the test query, queueing every data test on
-    the schema behind the one before it.
-
-    Releasing is therefore this macro's responsibility. `SET XACT_ABORT ON` (#718)
-    aborts the batch on a failed create, skipping a trailing `sp_releaseapplock`
-    and stranding the lock for the life of the connection, so the `CATCH` releases
-    it and rethrows the original error. A lock request that times out falls through
-    to the bare check.
+    SQL Server has no `CREATE SCHEMA IF NOT EXISTS`, and check-then-act races under
+    concurrency (Msg 2714), so an applock serializes the check and the create.
+    The lock is session-scoped: a transaction-scoped one would be held until dbt
+    commits, after the test query in `get_test_sql`. `XACT_ABORT` skips a trailing
+    release when the create fails, so the `CATCH` releases and rethrows. A timed-out
+    request falls through to the bare check.
 #}
 {% macro create_schema_if_not_exists(schema, authorization=none) -%}
   {%- set lock_resource = 'dbt_create_schema_' ~ schema -%}
