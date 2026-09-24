@@ -2,7 +2,7 @@
     "name": "Python 3",
     "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
     "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2.17.0": {
+        "ghcr.io/devcontainers/features/docker-in-docker:4.1.1": {
             "moby": false
         }
     },
