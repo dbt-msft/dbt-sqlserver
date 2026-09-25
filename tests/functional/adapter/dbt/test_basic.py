@@ -73,7 +73,9 @@ class TestSingularTests(BaseSingularTests):
     pass
 
 
-@pytest.mark.skip(reason="SQLServer doesn't support nested CTE")
+@pytest.mark.skip(
+    reason="The ephemeral model has its own WITH, and T-SQL can't nest one inside a CTE"
+)
 class TestSingularTestsEphemeral(BaseSingularTestsEphemeral):
     pass
 
@@ -82,7 +84,6 @@ class TestEmpty(BaseEmpty):
     pass
 
 
-@pytest.mark.skip(reason="SQLServer doesn't support nested CTE")
 class TestEphemeral(BaseEphemeral):
     pass
 
