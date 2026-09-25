@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and help
+    url: https://github.com/dbt-msft/dbt-sqlserver/discussions/categories/q-a
+    about: Ask in GitHub Discussions.
+  - name: dbt Slack
+    url: https://getdbt.slack.com/archives/CMRMDDQ9W
+    about: Chat with the community.
+  - name: Microsoft Fabric
+    url: https://github.com/microsoft/dbt-fabric/issues
+    about: Fabric Data Warehouse uses the dbt-fabric adapter.
+  - name: Azure Synapse Analytics
+    url: https://github.com/microsoft/dbt-synapse/issues
+    about: Synapse dedicated SQL pools use the dbt-synapse adapter.
