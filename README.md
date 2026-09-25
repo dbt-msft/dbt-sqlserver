@@ -39,7 +39,7 @@ We've bundled all documentation on the dbt docs site:
 - [Profile setup & authentication](https://docs.getdbt.com/reference/warehouse-profiles/mssql-profile)
 - [Adapter documentation, usage and important notes](https://docs.getdbt.com/reference/resource-configs/mssql-configs)
 
-Join us on the [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W) to ask questions, get help, or to discuss the project.
+Ask questions and get help in [GitHub Discussions](https://github.com/dbt-msft/dbt-sqlserver/discussions/categories/q-a). The [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W) channel is there for chatting with the community.
 
 ## Installation
 
@@ -453,7 +453,7 @@ The `denies` config re-applies object-level DENYs after each build, diffed again
 [![Integration tests on SQL Server](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/integration-tests-sqlserver.yml/badge.svg)](https://github.com/dbt-msft/dbt-sqlserver/actions/workflows/integration-tests-sqlserver.yml)
 
 This adapter is community-maintained.
-You are welcome to contribute by creating issues, opening or reviewing pull requests, or helping other users in the Slack channel.
+You are welcome to contribute by creating issues, opening or reviewing pull requests, or helping other users in [Discussions](https://github.com/dbt-msft/dbt-sqlserver/discussions) and on the [dbt Slack](https://getdbt.slack.com/archives/CMRMDDQ9W).
 If you're unsure how to get started, check out our [contributing guide](https://github.com/dbt-msft/dbt-sqlserver/blob/master/CONTRIBUTING.md).
 
 ## License
