@@ -1,6 +1,7 @@
 import datetime as _dt
 import re
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from contextlib import contextmanager
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 import agate
 import dbt_common.exceptions
@@ -905,6 +906,28 @@ class SQLServerAdapter(SQLAdapter):
         if not parsed:
             return False
         return create_needs_own_batch(parsed.build_options)
+
+    # dbt-core's run-operation runs on connections with these names.
+    _RUN_OPERATION_CONNECTION_PREFIXES = ("macro_", "inline_query")
+
+    @contextmanager
+    def connection_named(
+        self, name: str, query_header_context: Any = None, should_release_connection: bool = True
+    ) -> Iterator[None]:
+        """Commit a run-operation's open transaction when it finishes cleanly.
+
+        Stopgap for dbt-labs/dbt#16434, remove once dbt-core commits after a
+        run-operation: dbt-core never does, so with dbt-managed transactions
+        on, a write through ``statement()`` (auto_begin) is rolled back when
+        the connection closes. The commit sits after the ``yield`` so it runs
+        only when the macro did not raise; a failed macro still rolls back.
+        Matching on the connection name is a heuristic, since dbt-core marks
+        run-operation connections no other way.
+        """
+        with super().connection_named(name, query_header_context, should_release_connection):
+            yield
+            if name.startswith(self._RUN_OPERATION_CONNECTION_PREFIXES):
+                self.commit_if_open()
 
     @available
     def commit_if_open(self) -> None:
