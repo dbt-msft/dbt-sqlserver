@@ -283,6 +283,10 @@ You can also set it per model:
 
 With `table_refresh_method: dml`, a schema change makes the refresh fall back to a rename-swap. On that run — and only that run — the scratch table is rebuilt the way this adapter builds every other table, so it carries the model's columnstore index, and under an enforced contract its `NOT NULL`s and inline constraints, into the swap. That run therefore executes the model's SQL twice — once for the `SELECT … INTO` that probes for the schema change, once for the rebuild — and builds the columnstore index once. Steady-state refreshes are unaffected and keep the single `SELECT … INTO`. A table that lost its columnstore index to this bug before you upgraded is not repaired automatically: its schema still matches, so it stays on the cheap path. To rebuild it, temporarily set `full_refresh_build: prebuilt` and run with `--full-refresh`.
 
+### Ephemeral models
+
+Ephemeral models are supported, with one limit: an ephemeral model can't start with its own `WITH`. dbt inlines it as a CTE, and T-SQL can't nest a `WITH` inside one (still true on SQL Server 2025). Write it with derived tables instead, or materialize it as a `view`, which SQL Server expands into the calling query the same way.
+
 ### Constraints
 
 Constraints declared in a model's yaml are applied when — and only when — the model's [contract](https://docs.getdbt.com/reference/resource-configs/contract) is enforced, which is what every dbt adapter does and keeps their cost opt-in. (dbt-core does not raise if you declare constraints with the contract off — they are simply never emitted.) `not_null`, `check`, `unique`, `primary_key` and `foreign_key` are all supported.

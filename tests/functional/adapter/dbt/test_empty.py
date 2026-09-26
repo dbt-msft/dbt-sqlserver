@@ -1,9 +1,10 @@
 import pytest
 
-from dbt.tests.adapter.empty._models import model_input_sql, schema_sources_yml
-
-# switch for 1.9
-# from dbt.tests.adapter.empty import _models
+from dbt.tests.adapter.empty._models import (
+    ephemeral_model_input_sql,
+    model_input_sql,
+    schema_sources_yml,
+)
 from dbt.tests.adapter.empty.test_empty import (  # MetadataWithEmptyFlag
     BaseTestEmpty,
     BaseTestEmptyInlineSourceRef,
@@ -13,6 +14,9 @@ from dbt.tests.util import run_dbt
 model_sql_sqlserver = """
 select *
 from {{ ref('model_input') }} as model_input_alias
+union all
+select *
+from {{ ref('ephemeral_model_input') }} as ephemeral_model_input_alias
 union all
 select *
 from {{ source('seed_sources', 'raw_source') }} as raw_source_alias
@@ -35,8 +39,7 @@ class TestEmpty(BaseTestEmpty):
     def models(self):
         return {
             "model_input.sql": model_input_sql,
-            # # no support for ephemeral models in SQLServer
-            # "ephemeral_model_input.sql": _models.ephemeral_model_input_sql,
+            "ephemeral_model_input.sql": ephemeral_model_input_sql,
             "model.sql": model_sql_sqlserver,
             "sources.yml": schema_sources_yml,
         }
@@ -47,7 +50,7 @@ class TestEmpty(BaseTestEmpty):
 
         # run without empty - 3 expected rows in output - 1 from each input
         run_dbt(["run"])
-        self.assert_row_count(project, "model", 2)
+        self.assert_row_count(project, "model", 3)
 
         # run with empty - 0 expected rows in output
         run_dbt(["run", "--empty"])
