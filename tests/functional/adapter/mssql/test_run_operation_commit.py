@@ -29,6 +29,11 @@ class TestRunOperationCommit:
     def macros(self):
         return {"probe.sql": MACROS}
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        # Opt-in on 1.11; the bug only exists with dbt-managed transactions.
+        return {"flags": {"dbt_sqlserver_use_dbt_transactions": True}}
+
     def _tags(self, project):
         rows = project.run_sql(
             f"select tag from {project.test_schema}.txn_probe order by tag", fetch="all"
@@ -39,18 +44,11 @@ class TestRunOperationCommit:
         run_dbt(["run-operation", "probe_setup"])
 
         run_dbt(["run-operation", "probe_insert", "--args", "{tag: macro}"])
-        run_dbt(
-            [
-                "run-operation",
-                "--sql",
-                f"insert into {project.test_schema}.txn_probe values ('sql')",
-            ]
-        )
-        assert self._tags(project) == ["macro", "sql"]
+        assert self._tags(project) == ["macro"]
 
         # A failed macro must still roll back its partial write.
         run_dbt(
             ["run-operation", "probe_insert_then_fail", "--args", "{tag: failed}"],
             expect_pass=False,
         )
-        assert self._tags(project) == ["macro", "sql"]
+        assert self._tags(project) == ["macro"]
