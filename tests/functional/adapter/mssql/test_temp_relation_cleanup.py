@@ -107,6 +107,47 @@ class TestTempRelationCleanup(BaseTempRelationCleanup):
         self.validate_temp_objects(project)
 
 
+unit_test_yml = """
+unit_tests:
+  - name: ut_pass
+    model: table_model
+    given: []
+    expect:
+      rows: [{data: 1}]
+  - name: ut_fail
+    model: table_model
+    given: []
+    expect:
+      rows: [{data: 2}]
+"""
+
+
+class TestUnitTestTempCleanup(BaseTempRelationCleanup):
+    """A unit test's fixture table is dropped whether the test passes or fails."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"dbt_sqlserver_use_dbt_transactions": True}}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "table_model.sql": table_model,
+            "schema.yml": model_yml,
+            "unit_tests.yml": unit_test_yml,
+        }
+
+    def test_drops_fixture_table(self, project):
+        run_dbt(["run"])
+        results = run_dbt(["test", "--select", "test_type:unit"], expect_pass=False)
+        assert sorted((r.node.name, str(r.status)) for r in results) == [
+            ("ut_fail", "fail"),
+            ("ut_pass", "pass"),
+        ]
+
+        self.validate_temp_objects(project)
+
+
 class TestIncrementalTempCleanup(BaseTempRelationCleanup):
     """Tests if the `dbt_tmp` views are properly cleaned up in an incremental model"""
 
