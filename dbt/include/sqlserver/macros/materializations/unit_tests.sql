@@ -1,3 +1,13 @@
+{%- materialization unit, adapter='sqlserver' -%}
+  {#- The default drops its fixture table inside the transaction
+      statement('main') opens and never commits, so with
+      dbt_sqlserver_use_dbt_transactions on the drop rolls back
+      (dbt-labs/dbt#16499). -#}
+  {% set relations = materialization_unit_default() %}
+  {% do adapter.commit_if_open() %}
+  {{ return(relations) }}
+{%- endmaterialization -%}
+
 {% macro sqlserver__get_unit_test_sql(main_sql, expected_fixture_sql, expected_column_names) -%}
 
   {{ get_use_database_sql(target.database) }}
