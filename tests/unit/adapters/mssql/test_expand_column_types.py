@@ -89,7 +89,16 @@ class TestExpandColumnTypes:
         with patch.object(adapter, "expand_column_types") as mock_expand:
             adapter.expand_target_column_types(goal, current, max_rows=max_rows)
 
-        mock_expand.assert_called_once_with(goal, current, max_rows)
+        mock_expand.assert_called_once_with(goal, current, max_rows, None)
+
+    def test_expand_target_column_types_forwards_prefer_single(self, adapter):
+        goal = make_rel("goal")
+        current = make_rel("current")
+
+        with patch.object(adapter, "expand_column_types") as mock_expand:
+            adapter.expand_target_column_types(goal, current, prefer_single_alter_column=True)
+
+        mock_expand.assert_called_once_with(goal, current, 1000000, True)
 
     @pytest.mark.parametrize(
         "dtype,expected_type",
@@ -133,7 +142,8 @@ class TestExpandColumnTypes:
         adapter.expand_column_types(goal, current, max_rows=-1)
 
         goal_col.string_type_instance.assert_called_once_with(-1)
-        adapter.alter_column_type.assert_called_once_with(current, "c", expected_type)
+        # Unset config: a same-family resize takes the single ALTER COLUMN.
+        adapter.alter_column_type.assert_called_once_with(current, "c", expected_type, True)
 
     def test_varchar_max_to_bounded_does_not_expand(self, adapter):
         """varchar(max) current, varchar(100) goal should not call alter_column_type()."""
@@ -166,6 +176,82 @@ class TestExpandColumnTypes:
         adapter.expand_column_types(goal, current, max_rows=-1)
 
         adapter.alter_column_type.assert_not_called()
+
+
+class TestPreferSingleChoice:
+    """Unset, prefer_single_alter_column picks the single ALTER COLUMN only for
+    a same-family resize; an explicit value always wins (#836)."""
+
+    def _columns(self, adapter, same_family, safe):
+        goal_col = MagicMock()
+        goal_col.name = "c"
+        goal_col.is_string = MagicMock(return_value=False)
+        goal_col.data_type = "new_type"
+        current_col = MagicMock()
+        current_col.name = "c"
+        current_col.data_type = "old_type"
+        current_col.can_expand_to = MagicMock(return_value=same_family)
+        current_col.can_expand_safe = MagicMock(return_value=safe)
+        goal, current = make_rel("goal"), make_rel("current")
+        current.database, current.schema, current.identifier = "db", "s", "current"
+        adapter.get_columns_in_relation.side_effect = lambda r: (
+            [goal_col] if r is goal else [current_col]
+        )
+        return goal, current
+
+    @pytest.mark.parametrize(
+        "same_family,safe,config,expected",
+        [
+            (True, False, None, True),
+            (False, True, None, False),
+            (True, False, False, False),
+            (False, True, True, True),
+        ],
+    )
+    def test_choice(self, adapter, same_family, safe, config, expected):
+        goal, current = self._columns(adapter, same_family, safe)
+        adapter.expand_column_types(goal, current, max_rows=-1, prefer_single_alter_column=config)
+        adapter.alter_column_type.assert_called_once_with(current, "c", "new_type", expected)
+
+
+class TestAlterColumnType:
+    """The model's prefer_single_alter_column reaches the macro (#836): a macro
+    run from Python sees no model config, and dbt-adapters' dispatcher forwards
+    only relation, column_name and new_column_type."""
+
+    @pytest.fixture
+    def raw_adapter(self):
+        config = MagicMock()
+        config.flags = {}
+        config.project_name = "test"
+        config.credentials.type = "sqlserver"
+        adapter = SQLServerAdapter(config, MagicMock())
+        adapter.execute_macro = MagicMock()
+        return adapter
+
+    @pytest.mark.parametrize("prefer_single", [True, False])
+    def test_passes_the_setting_to_the_sqlserver_macro(self, raw_adapter, prefer_single):
+        rel = make_rel()
+        raw_adapter.alter_column_type(rel, "c", "varchar(63)", prefer_single)
+
+        raw_adapter.execute_macro.assert_called_once_with(
+            "sqlserver__alter_column_type",
+            kwargs={
+                "relation": rel,
+                "column_name": "c",
+                "new_column_type": "varchar(63)",
+                "prefer_single": prefer_single,
+            },
+        )
+
+    def test_without_the_setting_uses_the_dispatcher(self, raw_adapter):
+        rel = make_rel()
+        raw_adapter.alter_column_type(rel, "c", "varchar(63)")
+
+        raw_adapter.execute_macro.assert_called_once_with(
+            "alter_column_type",
+            kwargs={"relation": rel, "column_name": "c", "new_column_type": "varchar(63)"},
+        )
 
 
 class TestGetRowCount:

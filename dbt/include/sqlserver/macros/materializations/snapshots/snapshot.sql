@@ -115,7 +115,8 @@
     {% set expansion_max_rows = config.get('column_type_expansion_max_rows', 1000000) %}
     {% do adapter.expand_target_column_types(from_relation=staging_table,
                                              to_relation=target_relation,
-                                             max_rows=expansion_max_rows) %}
+                                             max_rows=expansion_max_rows,
+                                             prefer_single_alter_column=config.get('prefer_single_alter_column')) %}
 
     {% set remove_columns = ['dbt_change_type', 'DBT_CHANGE_TYPE', 'dbt_unique_key', 'DBT_UNIQUE_KEY'] %}
     {% if unique_key | is_list %}

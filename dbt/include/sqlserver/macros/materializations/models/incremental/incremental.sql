@@ -175,7 +175,8 @@
       {% do adapter.expand_target_column_types(
                from_relation=temp_relation,
                to_relation=target_relation,
-               max_rows=expansion_max_rows) %}
+               max_rows=expansion_max_rows,
+               prefer_single_alter_column=config.get('prefer_single_alter_column')) %}
     {% endif %}
     {#-- Process schema changes. Returns dict of changes if successful. Use source columns for upserting/merging --#}
     {% set dest_columns = process_schema_changes(on_schema_change, temp_relation, existing_relation) %}

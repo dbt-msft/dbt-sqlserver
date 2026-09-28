@@ -10,7 +10,8 @@ from dbt.adapters.sqlserver.relation_configs import SQLServerIndexConfig
 @dataclass
 class SQLServerConfigs(AdapterConfig):
     auto_provision_aad_principals: Optional[bool] = False
-    prefer_single_alter_column: Optional[bool] = False
+    # unset: single ALTER COLUMN for same-family widening, four-step otherwise
+    prefer_single_alter_column: Optional[bool] = None
     column_type_expansion_max_rows: int = 1000000
     indexes: Optional[Tuple[SQLServerIndexConfig, ...]] = None
     # false (default) | warn | true - how index reconciliation treats
