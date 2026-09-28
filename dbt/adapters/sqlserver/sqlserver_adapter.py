@@ -829,13 +829,27 @@ class SQLServerAdapter(SQLAdapter):
 
         return True
 
-    def expand_column_types(self, goal, current, max_rows: int = 1000000):
+    def expand_column_types(
+        self,
+        goal,
+        current,
+        max_rows: int = 1000000,
+        prefer_single_alter_column: Optional[bool] = None,
+    ):
         """Widen ``current``'s columns to match ``goal``, preserving the
         nvarchar / nchar family.
 
         Same-family resizes (a longer varchar) always proceed. Cross-family
         promotions (varchar -> nvarchar) are opt-in and gated; see
         ``_safe_expansion_allowed``.
+
+        ``prefer_single_alter_column`` is the model's config. Unset, a
+        same-family resize uses a single ``ALTER COLUMN``: metadata-only for a
+        longer varchar, atomic, and it keeps indexes, defaults and column
+        position, all of which block or move the four-step rewrite. A
+        cross-family promotion keeps the four-step path, since a single
+        ``ALTER COLUMN`` to nvarchar on a large columnstore table can fail
+        with Msg 35357 (dictionary size limit).
         """
 
         reference_columns = {c.name: c for c in self.get_columns_in_relation(goal)}
@@ -848,8 +862,9 @@ class SQLServerAdapter(SQLAdapter):
             if target_column is None:
                 continue
 
+            same_family = target_column.can_expand_to(reference_column)
             if not (
-                target_column.can_expand_to(reference_column)
+                same_family
                 or (safe_expansion_allowed and target_column.can_expand_safe(reference_column))
             ):
                 continue
@@ -866,11 +881,46 @@ class SQLServerAdapter(SQLAdapter):
                     table=_make_ref_key_dict(current),
                 )
             )
-            self.alter_column_type(current, column_name, new_type)
+            prefer_single = (
+                same_family if prefer_single_alter_column is None else prefer_single_alter_column
+            )
+            self.alter_column_type(current, column_name, new_type, prefer_single)
+
+    def alter_column_type(
+        self,
+        relation,
+        column_name,
+        new_column_type,
+        prefer_single_alter_column: Optional[bool] = None,
+    ) -> None:
+        """Pass the model's ``prefer_single_alter_column`` to the macro.
+
+        A macro run from Python sees no model config, so
+        ``config.get('prefer_single_alter_column')`` inside it is always the
+        default; and dbt-adapters' ``alter_column_type`` dispatcher forwards
+        only the three standard arguments. When the setting is known, call
+        the SQL Server implementation with it directly (dbt-msft/dbt-sqlserver#836).
+        """
+        if prefer_single_alter_column is None:
+            super().alter_column_type(relation, column_name, new_column_type)
+            return
+        self.execute_macro(
+            "sqlserver__alter_column_type",
+            kwargs={
+                "relation": relation,
+                "column_name": column_name,
+                "new_column_type": new_column_type,
+                "prefer_single": prefer_single_alter_column,
+            },
+        )
 
     @available.parse_none
     def expand_target_column_types(
-        self, from_relation: BaseRelation, to_relation: BaseRelation, max_rows: int = 1000000
+        self,
+        from_relation: BaseRelation,
+        to_relation: BaseRelation,
+        max_rows: int = 1000000,
+        prefer_single_alter_column: Optional[bool] = None,
     ) -> None:
         if not isinstance(from_relation, self.Relation):
             from dbt.adapters.base.impl import MacroArgTypeError
@@ -890,7 +940,7 @@ class SQLServerAdapter(SQLAdapter):
                 got_value=to_relation,
                 expected_type=self.Relation,
             )
-        self.expand_column_types(from_relation, to_relation, max_rows)
+        self.expand_column_types(from_relation, to_relation, max_rows, prefer_single_alter_column)
 
     @available
     def parse_index(self, raw_index: Any) -> Optional[SQLServerIndexConfig]:

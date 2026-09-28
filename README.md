@@ -250,7 +250,11 @@ your_profile:
 
 ### `prefer_single_alter_column`
 
-*(default: `false`)* Model-level config that controls how `alter_column_type` changes column types on tables. When `false` (default), the adapter uses the safer approach: add a temporary column, copy data, drop the original, and rename. When `true`, the adapter uses a single `ALTER COLUMN` statement, which is faster on small, medium tables and instant on safe type expansions but may fail for types that cannot be implicitly converted.
+*(default: unset)* Model-level config that controls how `alter_column_type` changes column types on tables:
+
+* `true`: a single `ALTER COLUMN` statement. It is atomic, instant for a longer `varchar`/`nvarchar`, and keeps the column's indexes, default constraint and position. It fails for types that cannot be implicitly converted, and changing `varchar` to `nvarchar` on a large clustered columnstore table can fail with Msg 35357 (dictionary size limit).
+* `false`: add a temporary column, copy the data, drop the original and rename. It fails when an index, default constraint or statistics object depends on the column, and it moves the column to the end of the table. A failed attempt no longer blocks the next run.
+* unset (default): `true` when column type expansion widens a column within its type (a longer `varchar`, or `varchar(max)`), `false` for every other change.
 
 ```sql
 -- In an incremental model
