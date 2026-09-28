@@ -54,8 +54,18 @@ class TestAnyValue(BaseAnyValue):
     pass
 
 
-@pytest.mark.skip(reason="Not supported/Not implemented")
-class TestArrayAppend(BaseArrayAppend):
+class JsonArrayRequired:
+    # sqlserver__array_construct emits JSON_ARRAY, which SQL Server added in 2022 (16.x).
+    @pytest.fixture(scope="class", autouse=True)
+    def skip_before_sql_server_2022(self, project):
+        major = project.run_sql(
+            "select cast(serverproperty('ProductMajorVersion') as int)", fetch="one"
+        )[0]
+        if major < 16:
+            pytest.skip("JSON_ARRAY requires SQL Server 2022 or later")
+
+
+class TestArrayAppend(JsonArrayRequired, BaseArrayAppend):
     pass
 
 
@@ -64,8 +74,7 @@ class TestArrayConcat(BaseArrayConcat):
     pass
 
 
-@pytest.mark.skip(reason="Not supported/Not implemented")
-class TestArrayConstruct(BaseArrayConstruct):
+class TestArrayConstruct(JsonArrayRequired, BaseArrayConstruct):
     pass
 
 
