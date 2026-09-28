@@ -54,7 +54,6 @@ class TestAnyValue(BaseAnyValue):
     pass
 
 
-@pytest.mark.skip(reason="Not supported/Not implemented")
 class TestArrayAppend(BaseArrayAppend):
     pass
 
@@ -64,7 +63,6 @@ class TestArrayConcat(BaseArrayConcat):
     pass
 
 
-@pytest.mark.skip(reason="Not supported/Not implemented")
 class TestArrayConstruct(BaseArrayConstruct):
     pass
 
