@@ -92,7 +92,10 @@ def _insert(contract_enforced):
 def test_empty_create_moves_no_rows(target, tmp_vw):
     """TOP 0 is the whole point: Sch-M is held for an instant, not for the load."""
     sql = _render(_create(False), target=target, tmp_vw=tmp_vw)
-    assert sql == 'SELECT TOP 0 * INTO "db"."sch"."rel" FROM "db"."sch"."rel__dbt_tmp_vw"'
+    assert " ".join(sql.split()) == (
+        'SELECT TOP 0 * INTO "db"."sch"."rel" FROM "db"."sch"."rel__dbt_tmp_vw" '
+        'UNION ALL SELECT TOP 0 * FROM "db"."sch"."rel__dbt_tmp_vw"'
+    )
 
 
 def test_empty_create_under_contract_emits_ddl(target, tmp_vw):

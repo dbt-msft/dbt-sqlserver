@@ -281,6 +281,47 @@ select 1 as column_a
 )
 
 
+models__identity_table_sql = """
+{{ config(materialized = "table", as_columnstore = False) }}
+
+select * from {{ target.schema }}.identity_src
+
+"""
+
+models__identity_incr_sql = """
+{{ config(materialized = "incremental", as_columnstore = False, unique_key = "code") }}
+
+select * from {{ target.schema }}.identity_src
+{% if is_incremental() %}
+where id > (select max(id) from {{ this }})
+{% endif %}
+
+"""
+
+models__identity_prebuilt_sql = """
+{{
+  config(
+    materialized = "table",
+    as_columnstore = False,
+    full_refresh_build = "prebuilt"
+  )
+}}
+
+select * from {{ target.schema }}.identity_src
+
+"""
+
+
+def get_id_column(project, unique_schema, table_name):
+    return project.run_sql(
+        f"""
+        select is_identity, is_nullable from sys.columns
+        where object_id = OBJECT_ID('{unique_schema}.{table_name}') and name = 'id'
+        """,
+        fetch="one",
+    )
+
+
 class TestFullRefreshBuild:
     """Every case below targets its own model via an explicit --models select
     and none of them touch project_config_update, so they all share one
@@ -303,6 +344,9 @@ class TestFullRefreshBuild:
             "selfref_model.sql": models__selfref_model_sql,
             "cache_drift_incr.sql": models__cache_drift_incremental_sql,
             "cache_drift_table.sql": models__cache_drift_table_sql,
+            "identity_table.sql": models__identity_table_sql,
+            "identity_incr.sql": models__identity_incr_sql,
+            "identity_prebuilt.sql": models__identity_prebuilt_sql,
         }
 
     def row_count(self, project, unique_schema, table="guard_model"):
@@ -315,6 +359,40 @@ class TestFullRefreshBuild:
                 and name = 'dbt_full_refresh_incomplete'""",
             fetch="one",
         )[0]
+
+    # A rowversion column is deliberately not covered: it is a type, not a property,
+    # so the stage keeps it and the load's explicit value is rejected. Fixing that
+    # means either freezing it as binary(8) or regenerating it on every build, and
+    # neither is what a rowversion is for.
+    def test_identity_source_column_builds_without_the_property(self, project, unique_schema):
+        project.run_sql(
+            f"""
+            create table {unique_schema}.identity_src (
+                id int identity(10, 5) not null, code varchar(10) not null
+            );
+            insert into {unique_schema}.identity_src (code) values ('a'), ('b');
+            """
+        )
+
+        # the stage's SELECT ... INTO must not carry IDENTITY into a table the
+        # load then fills with explicit ids
+        for name in ["identity_table", "identity_incr", "identity_prebuilt"]:
+            run_dbt(["run", "--models", name])
+            assert self.row_count(project, unique_schema, name) == 2, name
+            assert tuple(get_id_column(project, unique_schema, name)) == (False, False), name
+            ids = project.run_sql(
+                f"select id from {unique_schema}.{name} order by id", fetch="all"
+            )
+            assert [r[0] for r in ids] == [10, 15], name
+
+        # the incremental merge inserts explicit ids into the built table
+        project.run_sql(f"insert into {unique_schema}.identity_src (code) values ('c')")
+        run_dbt(["run", "--models", "identity_incr"])
+        assert self.row_count(project, unique_schema, "identity_incr") == 3
+
+        run_dbt(["run", "--models", "identity_incr", "identity_prebuilt", "--full-refresh"])
+        assert self.row_count(project, unique_schema, "identity_incr") == 3
+        assert self.row_count(project, unique_schema, "identity_prebuilt") == 3
 
     def test_invalid_value(self, project):
         _, output = run_dbt_and_capture(["run", "--models", "invalid_value"], expect_pass=False)
