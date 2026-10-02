@@ -35,7 +35,11 @@
         {{ get_assert_columns_equivalent(sql) }}
         {{ build_columns_constraints(relation) }}
     {%- else -%}
+        {#- the UNION ALL keeps SELECT INTO from copying an IDENTITY column, which the
+            load's explicit ids would then violate; nullability and types are unchanged -#}
         SELECT TOP 0 * INTO {{ relation }} FROM {{ tmp_relation }}
+        UNION ALL
+        SELECT TOP 0 * FROM {{ tmp_relation }}
     {%- endif -%}
 {%- endmacro %}
 
