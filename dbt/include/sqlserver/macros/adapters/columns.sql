@@ -43,10 +43,17 @@
         {% set prefer_single = config.get('prefer_single_alter_column', false) %}
     {% endif %}
 
+    {#-- ALTER COLUMN without NOT NULL makes the column nullable --#}
+    {% set nullable_sql %}
+        {{ get_use_database_sql(relation.database) }}
+        select columnproperty(object_id('{{ escape_single_quotes(relation) }}'), '{{ escape_single_quotes(column_name) }}', 'AllowsNull')
+    {%- endset %}
+    {%- set not_null = run_query(nullable_sql).columns[0].values()[0] == 0 -%}
+
     {% if prefer_single and relation.type == 'table' %}
         {% set alter_sql %}
             alter {{ relation.type }} {{ relation }}
-            alter column "{{ column_name }}" {{ new_column_type }};
+            alter column "{{ column_name }}" {{ new_column_type }}{{ ' not null' if not_null }};
         {%- endset %}
         {% do run_query(alter_sql) %}
 
@@ -76,12 +83,19 @@
         {% set rename_column %}
             exec sp_rename '{{ relation_name }}.{{ escape_single_quotes(adapter.quote(tmp_column)) }}', '{{ escape_single_quotes(column_name) }}', 'column'
         {%- endset %}
+        {% set alter_sql_not_null %}
+            alter {{ relation.type }} {{ relation }}
+            alter column "{{ column_name }}" {{ new_column_type }} not null;
+        {%- endset %}
 
         {% do run_query(drop_leftover) %}
         {% do run_query(add_column) %}
         {% do run_query(update_column) %}
         {% do run_query(drop_column) %}
         {% do run_query(rename_column) %}
+        {% if not_null %}
+            {% do run_query(alter_sql_not_null) %}
+        {% endif %}
     {% endif %}
 
 {% endmacro %}
