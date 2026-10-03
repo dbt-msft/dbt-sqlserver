@@ -61,25 +61,20 @@ select cast(txt as int) as val from {{{{ ref('source_rows') }}}}
 """
 
 
-big_source_sql = """
+gate_source_sql = """
 {{ config(materialized='table', as_columnstore=False) }}
-select top 1500000
-  row_number() over (order by (select null)) as id,
-  replicate('x', 40) as payload
-from sys.all_columns a cross join sys.all_columns b cross join sys.all_columns c
+select id, cast('x' as varchar(10)) as payload from (values (1), (2)) v(id)
 """
 
 
-# hashbytes over a widened payload keeps the load in the seconds range, so the
-# probe below samples it many times over
-_slow_select = """
-select a.id, a.payload, v.n, hashbytes('SHA2_512', replicate(a.payload, 50)) as h
-from {{ ref('big_source') }} a
-cross join (values (1), (2), (3), (4)) v(n)
+# READCOMMITTEDLOCK makes the load wait on the test's row lock even where
+# READ_COMMITTED_SNAPSHOT is on. The empty create reads no rows, so it does not.
+_gated_select = """
+select id, payload from {{ ref('gate_source') }} with (readcommittedlock)
 """
 
 
-def _slow_model(scope, pre_hook=True, materialized="table"):
+def _gated_model(scope, pre_hook=True, materialized="table"):
     hook = "pre_hook=[{'sql': \"select 1 as noop\", 'transaction': True}]," if pre_hook else ""
     return f"""
 {{{{ config(
@@ -87,21 +82,21 @@ def _slow_model(scope, pre_hook=True, materialized="table"):
   pre_hook_transaction_scope='{scope}',
   {hook}
 ) }}}}
-{_slow_select}
+{_gated_select}
 """
 
 
-def _slow_snapshot(scope):
+def _gated_snapshot(scope):
     """First build of a snapshot: the stage, then the load - the path
     sqlserver__snapshot_stage owns."""
     return f"""
-{{% snapshot slow_snap %}}
+{{% snapshot gated_snap %}}
 {{{{ config(
-  unique_key='id', strategy='check', check_cols=['n'],
+  unique_key='id', strategy='check', check_cols=['payload'],
   as_columnstore=False,
   pre_hook_transaction_scope='{scope}'
 ) }}}}
-{_slow_select}
+{_gated_select}
 {{% endsnapshot %}}
 """
 
@@ -167,49 +162,46 @@ class TestBuildScopeRollsBackThePreHook(_RollbackCase):
 # -- 2. locks ---------------------------------------------------------------
 
 
-# Sampled from a second connection while the model builds, once every 0.1s:
+# The test holds an X lock on one row of gate_source in an open transaction, so
+# the model's load - the only statement that reads rows from it - stops inside
+# its INSERT and waits. While it waits, the building session's locks are read
+# once, then the gate commits and the load finishes. No timing is involved:
+# the INSERT is known to be running when the locks are read.
 #
-#   is the session running the load  request text names this schema + TABLOCK
-#   holding a blocking lock          OBJECT / Sch-M / GRANT on that session
-#
-# DMVs take no lock on user objects, so this reads the building session
-# directly instead of timing out a catalog scan from outside. That matters at
-# `-n auto`: another worker's DDL blocks a sys.tables scan no matter what this
-# model does, so a timing-out scan measures the suite, not the change.
-#
-# TABLOCK identifies the load half in both scopes (it is the only statement in
-# the materialization that carries the hint) and under 'build' the fused batch
-# carries the empty CREATE with it. `session_id <> @@spid` drops the probe's
-# own request, whose text contains both literals.
-_SAMPLE_SQL = """
-with loading as (
-  select r.session_id
-  from sys.dm_exec_requests r
-  cross apply sys.dm_exec_sql_text(r.sql_handle) t
-  where r.session_id <> @@spid
-    and t.text like '%{schema}%'
-    and t.text like '%TABLOCK%'
-)
-select
-  (select count(*) from loading),
-  (select count(*) from loading
-    where exists (select 1 from sys.dm_tran_locks l
-                  where l.request_session_id = loading.session_id
-                    and l.resource_type = 'OBJECT'
-                    and l.request_mode = 'Sch-M'
-                    and l.request_status = 'GRANT'))
+# DMVs take no lock on user objects, so reading them cannot block behind the
+# Sch-M being looked for. TABLOCK identifies the load in both scopes (it is
+# the only statement in the materialization that carries the hint).
+# `session_id <> @@spid` drops the probe's own request, whose text contains
+# both literals.
+_PAUSED_LOAD_SQL = """
+select count(sch_m.held)
+from sys.dm_exec_requests r
+cross apply sys.dm_exec_sql_text(r.sql_handle) t
+outer apply (select top 1 1 as held from sys.dm_tran_locks l
+             where l.request_session_id = r.session_id
+               and l.resource_type = 'OBJECT'
+               and l.request_mode = 'Sch-M'
+               and l.request_status = 'GRANT') sch_m
+where r.session_id <> @@spid
+  and r.wait_type like 'LCK_M_%'
+  and t.text like '%{schema}%'
+  and substring(t.text, r.statement_start_offset / 2 + 1,
+                (case r.statement_end_offset when -1 then datalength(t.text)
+                 else r.statement_end_offset end - r.statement_start_offset) / 2 + 1)
+      like '%TABLOCK%'
+having count(*) > 0
 """
 
 
-def _probe_connection(project):
+def _gate_connection(project):
     """A second session, opened through the adapter's own connect path so it
     speaks whichever backend the profile names, but owned by this test rather
     than by dbt's connection manager: run_dbt closes every connection that
-    manager knows about, which would pull this one out from under the probe
+    manager knows about, which would pull this one out from under the gate
     thread mid-query."""
     connection = Connection(
         type="sqlserver",
-        name="sch_m_probe",
+        name="sch_m_gate",
         state="init",
         transaction_open=False,
         handle=None,
@@ -219,27 +211,37 @@ def _probe_connection(project):
     return connection.handle
 
 
-def _probe(project, stop, samples, failures):
-    """Append True/False - Sch-M held or not - once per sample taken while the
-    load is running; ignore every sample taken when it is not."""
+def _hold_the_load(project, gate_closed, result):
+    """Hold the gate until the load waits on it, record whether the building
+    session holds Sch-M at that point, then release the load."""
     try:
-        handle = _probe_connection(project)
-        sql = _SAMPLE_SQL.format(schema=project.test_schema)
+        handle = _gate_connection(project)
+        cursor = handle.cursor()
         try:
-            while not stop.is_set():
-                cursor = handle.cursor()
-                try:
-                    cursor.execute(sql)
-                    loading, holding_sch_m = cursor.fetchone()
-                finally:
-                    cursor.close()
-                if loading:
-                    samples.append(bool(holding_sch_m))
-                time.sleep(0.1)
+            cursor.execute(
+                "begin transaction; "
+                f"update {project.test_schema}.gate_source set payload = payload where id = 1"
+            )
+            gate_closed.set()
+            sql = _PAUSED_LOAD_SQL.format(schema=project.test_schema)
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                cursor.execute(sql)
+                row = cursor.fetchone()
+                if row:
+                    result["sch_m"] = bool(row[0])
+                    return
+                time.sleep(0.05)
         finally:
+            # explicitly: mssql-python pools connections, so close() alone can
+            # leave the gate's transaction open and the load waiting forever
+            cursor.execute("if @@trancount > 0 rollback")
+            cursor.close()
             handle.close()
     except BaseException as e:  # noqa: BLE001 - a probe that dies silently lies
-        failures.append(e)
+        result["error"] = e
+    finally:
+        gate_closed.set()
 
 
 class _LockCase:
@@ -249,14 +251,14 @@ class _LockCase:
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "big_source.sql": big_source_sql,
-            "slow_model.sql": _slow_model(self.scope, self.pre_hook, self.materialized),
+            "gate_source.sql": gate_source_sql,
+            "gated_model.sql": _gated_model(self.scope, self.pre_hook, self.materialized),
         }
 
     def _build_the_model(self):
-        return run_dbt(["run", "--select", "slow_model"])
+        return run_dbt(["run", "--select", "gated_model"])
 
-    def _sch_m_during_the_load(self, project):
+    def _sch_m_while_loading(self, project):
         # deliberately not a skip: this is the only functional guard on the
         # lock #819 is about, and a silent skip on a login without the
         # permission would retire it with no signal at all
@@ -264,29 +266,26 @@ class _LockCase:
             "select has_perms_by_name(null, null, 'VIEW SERVER STATE')", fetch="one"
         )[0], "these tests read sys.dm_exec_requests; grant the test login VIEW SERVER STATE"
 
-        run_dbt(["run", "--select", "big_source"])
+        run_dbt(["run", "--select", "gate_source"])
 
-        samples, failures = [], []
-        stop = threading.Event()
-        probe = threading.Thread(target=_probe, args=(project, stop, samples, failures))
-        probe.start()
+        result, gate_closed = {}, threading.Event()
+        gate = threading.Thread(target=_hold_the_load, args=(project, gate_closed, result))
+        gate.start()
+        gate_closed.wait()
         try:
             results = self._build_the_model()
         finally:
-            stop.set()
-            probe.join()
+            gate.join()
 
-        assert not failures, f"the lock probe failed: {failures[0]!r}"
+        assert "error" not in result, f"the lock probe failed: {result['error']!r}"
+        assert "sch_m" in result, "the load never waited on the gate"
         assert results[0].status == "success"
-        assert len(samples) >= 5, "the load finished before the probe could sample it"
-        return samples
+        return result["sch_m"]
 
 
 class _NoSchM(_LockCase):
     def test_no_sch_m_during_the_load(self, project):
-        samples = self._sch_m_during_the_load(project)
-        held = samples.count(True)
-        assert held == 0, f"Sch-M held during {held} of {len(samples)} samples: {samples}"
+        assert not self._sch_m_while_loading(project), "Sch-M held during the load"
 
 
 class TestLoadScopeDoesNotBlockCatalogReaders(_NoSchM):
@@ -318,11 +317,11 @@ class TestSnapshotBuildScopeWithoutAnInTxHookHoldsNothing(_NoSchM):
 
     @pytest.fixture(scope="class")
     def models(self):
-        return {"big_source.sql": big_source_sql}
+        return {"gate_source.sql": gate_source_sql}
 
     @pytest.fixture(scope="class")
     def snapshots(self):
-        return {"slow_snap.sql": _slow_snapshot(self.scope)}
+        return {"gated_snap.sql": _gated_snapshot(self.scope)}
 
     def _build_the_model(self):
         return run_dbt(["snapshot"])
@@ -332,22 +331,9 @@ class TestBuildScopeBlocksCatalogReaders(_LockCase):
     scope = "build"
 
     def test_sch_m_spans_the_load(self, project):
-        samples = self._sch_m_during_the_load(project)
-        # The create shares the pre-hook's transaction, so its Sch-M is held to
-        # commit - held CONTINUOUSLY from the create to the end of the load,
-        # which is what this asserts, rather than merely "held in most
-        # samples". The request is matched by its batch text, so it is visible
-        # for a moment at each end while no Sch-M is held yet - and the two
-        # DMV reads in one sample are not atomic, so the sample that lands on
-        # the commit can see the request still running with its locks already
-        # gone. One sample at each end is allowed to miss; none in between.
-        assert True in samples, f"Sch-M never held during the load: {samples}"
-        first = samples.index(True)
-        last = len(samples) - 1 - samples[::-1].index(True)
-        held = samples[first : last + 1]
-        assert all(held), f"Sch-M released mid-load: {samples}"
-        assert len(samples) - len(held) <= 2, f"Sch-M held for only part of the load: {samples}"
-        assert len(held) >= 5, f"too little of the load sampled: {samples}"
+        # The create shares the pre-hook's transaction, so its Sch-M is still
+        # held while the load runs.
+        assert self._sch_m_while_loading(project), "Sch-M not held during the load"
 
 
 # -- 3. bindability ---------------------------------------------------------
