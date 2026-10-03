@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+### v1.11.3
+
+#### Bugfixes
+
+- Fix a snapshot failing to add a new column whose name needs quoting, such as `order` or one containing a space. ([#881](https://github.com/dbt-msft/dbt-sqlserver/issues/881))
+- Fix a column type change on an incremental model or snapshot making a `NOT NULL` column nullable. Both the single `ALTER COLUMN` and the four-step rewrite now keep `NOT NULL`. ([#881](https://github.com/dbt-msft/dbt-sqlserver/issues/881))
+- Fix seeds failing on whole numbers beyond `int` or text longer than 8,000 bytes. Those columns are now created as `bigint` (or `numeric(38,0)` beyond `bigint`) and `varchar(max)`; columns that loaded before keep their type. ([#883](https://github.com/dbt-msft/dbt-sqlserver/issues/883))
+
 ### v1.11.2
 
 #### Features
