@@ -447,8 +447,15 @@ class SQLServerAdapter(SQLAdapter):
 
     @classmethod
     def convert_number_type(cls, agate_table, col_idx):
-        decimals = agate_table.aggregate(agate.MaxPrecision(col_idx))
-        return "float" if decimals else "int"
+        if agate_table.aggregate(agate.MaxPrecision(col_idx)):
+            return "float"
+        values = agate_table.columns[col_idx].values_without_nulls()
+        low, high = (min(values), max(values)) if values else (0, 0)
+        if -(2**31) <= low and high < 2**31:
+            return "int"
+        if -(2**63) <= low and high < 2**63:
+            return "bigint"
+        return "numeric(38,0)"
 
     def create_schema(self, relation: BaseRelation) -> None:
         relation = relation.without_identifier()
@@ -471,6 +478,8 @@ class SQLServerAdapter(SQLAdapter):
         # see https://github.com/fishtown-analytics/dbt/pull/2255
         lens = [len(d.encode("utf-8")) for d in column.values_without_nulls()]
         max_len = max(lens) if lens else 64
+        if max_len > 8000:
+            return "varchar(max)"
         length = max_len if max_len > 16 else 16
         return "varchar({})".format(length)
 
