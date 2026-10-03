@@ -2,6 +2,16 @@
 
 <!-- towncrier release notes start -->
 
+### v1.12.1
+
+#### Bugfixes
+
+- A `table` or `incremental` model that selects an `IDENTITY` column no longer fails with error 8101: the empty intermediate table is created without the `IDENTITY` property, so the load can insert the column's values ([#876](https://github.com/dbt-msft/dbt-sqlserver/issues/876)). ([#876](https://github.com/dbt-msft/dbt-sqlserver/issues/876))
+- Fix a snapshot failing to add a new column whose name needs quoting, such as `order` or one containing a space. ([#881](https://github.com/dbt-msft/dbt-sqlserver/issues/881))
+- Fix a column type change on an incremental model or snapshot making a `NOT NULL` column nullable. Both the single `ALTER COLUMN` and the four-step rewrite now keep `NOT NULL`. ([#881](https://github.com/dbt-msft/dbt-sqlserver/issues/881))
+- Fix `delete+insert` `incremental_predicates` failing when they reference `DBT_INTERNAL_DEST`, the target alias dbt documents. The delete now aliases the target, so a predicate that qualifies a column with the target's table name (`orders.col`, `dbo.orders.col`) no longer binds; use `DBT_INTERNAL_DEST.col` or an unqualified column instead. ([#882](https://github.com/dbt-msft/dbt-sqlserver/issues/882))
+- Fix seeds failing on whole numbers beyond `int` or text longer than 8,000 bytes. Those columns are now created as `bigint` (or `numeric(38,0)` beyond `bigint`) and `varchar(max)`; columns that loaded before keep their type. ([#883](https://github.com/dbt-msft/dbt-sqlserver/issues/883))
+
 ### v1.12.0
 
 #### Behavior changes
