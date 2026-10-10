@@ -211,7 +211,7 @@
 {% endmacro %}
 
 
-{% macro sqlserver__create_table_as_prebuilt(relation, sql) -%}
+{% macro sqlserver__create_table_as_prebuilt(relation, sql, mask_config) -%}
     {#-
       In-place build for full_refresh_build=prebuilt: create the table empty
       under its final name with its clustered design (the as_columnstore CCI
@@ -283,18 +283,26 @@
         {{ setup_sql }}
     {%- endcall %}
 
+    {#- Mask the empty table before its clustered design is built (a mask
+        cannot be added to an index key column: SQL Server before 2022
+        rejects it, the adapter's check refuses it on every version) and
+        before the load, so no row lands unmasked. In the setup transaction:
+        a refused mask rolls back with the create rather than committing a
+        table it cannot mask. -#}
+    {% do apply_masks(relation, mask_config) %}
+
     {#- Commit the marker on its own ('main' above always opened a transaction,
         so this always commits - taking any transaction: true pre-hook with
         it, which is why build scope cannot deliver rollback here). The load
         below then runs AUTOCOMMITTED:
 
-          commit marker
+          commit marker and masks
           |- CREATE clustered design on the empty table   Sch-M ends with the statement
           |- EXEC('BEGIN TRAN; INSERT WITH (TABLOCK); drop marker; COMMIT')
           |                                               a real transaction: load and
           |                                               unmark stay atomic (#718)
           |- DROP VIEW
-          begin_if_closed                                 masks, post-hooks, trailing commit
+          begin_if_closed                                 post-hooks, trailing commit
 
         Reopened before the load instead, that Sch-M sat on the LIVE name
         until the materialization's trailing commit (#819). -#}

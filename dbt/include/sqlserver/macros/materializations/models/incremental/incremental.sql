@@ -72,6 +72,7 @@
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
   {% set to_drop = [] %}
+  {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}
 
   {% if branch == 'prebuilt' %}
     {% if existing_relation is not none %}
@@ -95,7 +96,7 @@
     {#- Calls its own statement() blocks (including 'main') rather than
         returning SQL to run below, so it can commit its in-progress marker
         independently of the load that follows - see the macro for why. -#}
-    {% do sqlserver__create_table_as_prebuilt(target_relation, sql) %}
+    {% do sqlserver__create_table_as_prebuilt(target_relation, sql, mask_config) %}
     {#- the prebuilt path lands the table via raw SQL, not a cache-maintaining
         adapter method (rename_relation/drop_relation), so register it here to
         keep dbt's relation cache in sync with the database. On the
@@ -198,12 +199,11 @@
     {% do to_drop.append(temp_relation) %}
   {% endif %}
 
-  {% set mask_config = adapter.resolve_masks(model, config.get('masks')) %}
-  {% if fresh_build %}
-    {#- Fresh table: masks before create_indexes (a mask cannot be added to
-        an index key column), and inside the transaction - the table carries
-        no masks yet, so a failure after the commit would leave it live and
-        exposed. -#}
+  {% if branch == 'create' %}
+    {#- Fresh table (prebuilt masks its own): masks before create_indexes
+        (a mask cannot be added to an index key column), and inside the
+        transaction - the table carries no masks yet, so a failure after the
+        commit would leave it live and exposed. -#}
     {% do apply_masks(target_relation, mask_config) %}
   {% endif %}
 

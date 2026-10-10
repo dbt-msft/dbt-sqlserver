@@ -1,0 +1,1 @@
+`full_refresh_build: prebuilt` now applies masks to the empty table before its clustered index and the load, so a mask on a clustered-index key column no longer fails a fresh build or full refresh. A mask that is refused now rolls back the create and leaves no table, where it left a loaded, unmasked one; the previous table is not restored, and the next run rebuilds it.
