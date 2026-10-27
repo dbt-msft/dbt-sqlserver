@@ -93,6 +93,8 @@ class TestTabletoView(BaseTableView):
             project, f"SELECT * INTO {project.test_schema}.mat_object FROM ({model_sql}) t"
         )
         run_dbt(["run"])
+        backup = f"{project.test_schema}.mat_object__dbt_backup"
+        assert project.run_sql(f"select object_id('{backup}')", fetch="one")[0] is None
 
 
 class TestTabletoViewRollback(BaseTableView):

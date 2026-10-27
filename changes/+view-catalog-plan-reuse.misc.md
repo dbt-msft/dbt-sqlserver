@@ -1,0 +1,1 @@
+View builds no longer cache a separate plan per view for their catalog lookups. The unchanged-view check and the dependent-view lookup now run through `sp_executesql` with typed parameters, so every view shares one plan. A view build also no longer drops a `__dbt_backup` it never created, which ran the dependent-view lookup on every build.
