@@ -1,7 +1,8 @@
 """A view build's catalog lookups share one cached plan across views.
 
-Read from the plan cache, which needs VIEW SERVER STATE. Every test on the server
-shares the cache, so a class finds a copy made for one of its views by its schema.
+Read from the plan cache, which needs VIEW SERVER STATE through SQL Server 2019
+and VIEW SERVER PERFORMANCE STATE on SQL Server 2022 and later. Every test on the
+server shares the cache, so a class finds a copy made for one of its views by its schema.
 Each model's name and body hold the schema too, so a copy holds it whichever of the
 view's schema, name or body went into its text. The shared plan holds none of them.
 """
