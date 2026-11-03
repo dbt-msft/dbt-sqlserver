@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+### v1.12.2
+
+#### Under the hood
+
+- View builds no longer cache a separate plan per view for their catalog lookups. The unchanged-view check and the dependent-view lookup now run through `sp_executesql` with typed parameters, so every view shares one plan. A view build no longer attempts to drop a `__dbt_backup` it never created; that unnecessary drop triggered the dependent-view lookup on every build.
+
+
 ### v1.12.1
 
 #### Bugfixes
