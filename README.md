@@ -11,7 +11,6 @@ The adapter is tested against:
 
 | Python version | Status |
 |---|---|
-| 3.10 | Installable (not tested in CI) |
 | 3.11 | Officially supported |
 | 3.12 | Officially supported |
 | 3.13 | Officially supported |
