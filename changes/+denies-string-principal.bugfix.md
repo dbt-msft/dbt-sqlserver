@@ -1,0 +1,1 @@
+Fix `denies` splitting a principal given as a string, such as `denies={"select": "reporting"}`, into one principal per letter, so the DENY never applied. A string is now one principal, as in `grants`.

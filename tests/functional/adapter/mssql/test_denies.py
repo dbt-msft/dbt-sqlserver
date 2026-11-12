@@ -135,6 +135,26 @@ class TestTableDenies:
         assert blocked, "the denied principal was able to SELECT despite the DENY"
 
 
+string_principal_sql = with_principal(
+    """
+{{ config(materialized="table", denies={"select": "__DENY_PRINCIPAL__"}) }}
+select 1 as id
+"""
+)
+
+
+class TestStringPrincipal:
+    """A bare string is one principal, as in `grants`."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"denied_table.sql": string_principal_sql}
+
+    def test_string_principal_is_denied(self, project):
+        run_dbt(["run"])
+        assert denied_permissions(project, "denied_table") == {("SELECT", DENY_PRINCIPAL)}
+
+
 # ---------------------------------------------------------------------------
 # view materialization — the case that matters most: a view is recreated on
 # every run, so an object-level DENY is lost most often here.
