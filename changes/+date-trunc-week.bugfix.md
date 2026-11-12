@@ -1,0 +1,1 @@
+`date_trunc` with `week` returned the following Monday for a Sunday. It now returns the Monday on or before the date. Incremental models that store weekly values need a full refresh to correct their Sunday rows.
