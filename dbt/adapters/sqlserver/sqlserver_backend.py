@@ -311,9 +311,9 @@ def _finalize_mssql_python_handle(
         and _RUNTIME_STATE.take_timeout_warning()
     ):
         logger.warning(
-            "Configured query_timeout=%r, but the mssql-python backend does not "
-            "support per-connection query timeouts; the setting will be ignored.",
-            credentials.query_timeout,
+            f"Configured query_timeout={credentials.query_timeout!r}, but the mssql-python "
+            "backend does not support per-connection query timeouts; the setting will be "
+            "ignored."
         )
 
     _log_connected_database(credentials)

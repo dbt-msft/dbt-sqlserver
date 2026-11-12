@@ -140,9 +140,8 @@ def validate_adbc_requirements(credentials: SQLServerCredentials) -> None:
 
     if credentials.query_timeout not in (None, 0):
         logger.warning(
-            "query_timeout=%r is set but the ADBC backend may not support "
-            "per-connection query timeouts; the setting will be ignored.",
-            credentials.query_timeout,
+            f"query_timeout={credentials.query_timeout!r} is set but the ADBC backend may "
+            "not support per-connection query timeouts; the setting will be ignored."
         )
 
 

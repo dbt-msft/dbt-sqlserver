@@ -818,21 +818,17 @@ class SQLServerAdapter(SQLAdapter):
 
         if max_rows == 0:
             logger.info(
-                "Safe type expansion skipped for %s: column_type_expansion_max_rows is 0.",
-                current,
+                f"Safe type expansion skipped for {current}: column_type_expansion_max_rows is 0."
             )
             return False
 
         row_count = self._get_row_count(current)
         if row_count > max_rows:
             logger.warning(
-                "Safe type expansion skipped for %s: "
-                "%s rows exceeds column_type_expansion_max_rows (%s). "
+                f"Safe type expansion skipped for {current}: "
+                f"{row_count} rows exceeds column_type_expansion_max_rows ({max_rows}). "
                 "Set column_type_expansion_max_rows=-1 to disable "
-                "this check, or increase the limit.",
-                current,
-                row_count,
-                max_rows,
+                "this check, or increase the limit."
             )
             return False
 
