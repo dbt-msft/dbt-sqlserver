@@ -43,6 +43,7 @@ from dbt.adapters.sqlserver.sqlserver_helpers import (
     format_connection_string_value,
     is_mssql_python_backend,
     sanitize_connection_string_for_logging,
+    split_connection_string_parts,
     validate_connection_requirements,
     validate_mssql_python_requirements,
     validate_pyodbc_requirements,
@@ -1483,6 +1484,19 @@ def test_open_with_mssql_python_backend_enables_pooling(
 
     assert fake_module.OperationalError in captured["retryable_exceptions"]
     assert fake_module.InternalError in captured["retryable_exceptions"]
+
+
+@pytest.mark.parametrize(
+    "build", [_build_pyodbc_connection_string, _build_mssql_python_connection_string]
+)
+def test_connection_string_keeps_database_name_in_one_segment(
+    credentials: SQLServerCredentials, build
+) -> None:
+    credentials.database = "sales;APP=evil"
+
+    parts = split_connection_string_parts(build(credentials))
+
+    assert "Database={sales;APP=evil}" in parts
 
 
 def test_open_with_mssql_python_backend_fails_fast_for_pyodbc_token_auth_aliases(

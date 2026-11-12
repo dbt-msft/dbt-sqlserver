@@ -61,7 +61,9 @@ def build_common_connection_string_parts(
     """
 
     con_str = [f"SERVER={build_server_arg(credentials)}"]
-    con_str.append(f"Database={credentials.database}")
+    con_str.append(
+        f"Database={format_connection_string_value(credentials.database, mssql_python_backend)}"
+    )
 
     authentication = normalize_connection_authentication(
         credentials.authentication,
