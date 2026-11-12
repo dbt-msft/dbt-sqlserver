@@ -51,7 +51,6 @@ class SQLServerRelation(BaseRelation):
             return f"(select TOP {self.limit} * from {rendered}){self._render_limited_alias()}"
 
     def __post_init__(self):
-        # Check for length of Redshift table/view names.
         # Check self.type to exclude test relation identifiers
         if (
             self.identifier is not None
