@@ -685,7 +685,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
                 )
             )
 
-            pre = time.time()
+            pre = time.perf_counter()
 
             cursor = connection.handle.cursor()
             # Track the in-flight cursor so cancel() / cancel_open() can stop it
@@ -714,7 +714,7 @@ class SQLServerConnectionManager(SQLConnectionManager):
             fire_event(
                 SQLQueryStatus(
                     status=str(self.get_response(cursor)),
-                    elapsed=round((time.time() - pre)),
+                    elapsed=time.perf_counter() - pre,
                     node_info=get_node_info(),
                 )
             )
