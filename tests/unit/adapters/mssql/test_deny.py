@@ -34,6 +34,11 @@ def test_resolve_empty_config():
     assert unsupported == []
 
 
+def test_resolve_string_principal_is_one_principal():
+    resolved, _, _ = resolve_denies({"select": "Restricted_Read_Only"}, None, "m")
+    assert resolved == {"select": ["Restricted_Read_Only"]}
+
+
 def test_resolve_lowercases_privilege():
     resolved, _, _ = resolve_denies({"SELECT": ["A"]}, None, "m")
     assert resolved == {"select": ["A"]}

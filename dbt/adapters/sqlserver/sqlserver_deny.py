@@ -33,7 +33,12 @@ def _normalize(name: str) -> str:
 
 
 def _dedupe_ci(principals: Sequence[str]) -> List[str]:
-    """Drop case-insensitive duplicates, preserving first-seen spelling/order."""
+    """Drop case-insensitive duplicates, preserving first-seen spelling/order.
+
+    A bare string is one principal, as in ``grants``.
+    """
+    if isinstance(principals, str):
+        principals = [principals]
     seen: Dict[str, str] = {}
     for principal in principals or []:
         key = _normalize(principal)
