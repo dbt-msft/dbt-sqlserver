@@ -4,7 +4,7 @@ from dbt_common.dataclass_schema import StrEnum
 
 from dbt.adapters.contracts.relation import Policy
 
-MAX_CHARACTERS_IN_IDENTIFIER = 127
+MAX_CHARACTERS_IN_IDENTIFIER = 128
 
 
 class SQLServerRelationType(StrEnum):

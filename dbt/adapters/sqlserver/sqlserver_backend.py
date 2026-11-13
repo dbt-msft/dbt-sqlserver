@@ -61,7 +61,9 @@ def build_common_connection_string_parts(
     """
 
     con_str = [f"SERVER={build_server_arg(credentials)}"]
-    con_str.append(f"Database={credentials.database}")
+    con_str.append(
+        f"Database={format_connection_string_value(credentials.database, mssql_python_backend)}"
+    )
 
     authentication = normalize_connection_authentication(
         credentials.authentication,
@@ -311,9 +313,9 @@ def _finalize_mssql_python_handle(
         and _RUNTIME_STATE.take_timeout_warning()
     ):
         logger.warning(
-            "Configured query_timeout=%r, but the mssql-python backend does not "
-            "support per-connection query timeouts; the setting will be ignored.",
-            credentials.query_timeout,
+            f"Configured query_timeout={credentials.query_timeout!r}, but the mssql-python "
+            "backend does not support per-connection query timeouts; the setting will be "
+            "ignored."
         )
 
     _log_connected_database(credentials)
