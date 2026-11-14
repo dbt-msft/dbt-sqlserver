@@ -1,0 +1,1 @@
+`date_trunc` with `hour`, `minute`, `second` or `millisecond` returns a `datetime2` truncated to that unit, as other adapters do. It returned midnight as a `date`, or failed with an overflow. Run a full refresh of incremental models that store these values, to fix old rows and change the column from `date`.
