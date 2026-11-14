@@ -1,7 +1,7 @@
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn
+from dbt.adapters.sqlserver.sqlserver_column import SQLServerColumn, SQLServerColumnNative
 
 
 class TestSQLServerColumnIsString:
@@ -179,3 +179,10 @@ class TestSQLServerColumnStringSize:
         col = SQLServerColumn("c", "int")
         with pytest.raises(DbtRuntimeError, match="Called string_size"):
             col.string_size()
+
+
+class TestSQLServerColumnTranslateType:
+    @pytest.mark.parametrize("column_class", [SQLServerColumn, SQLServerColumnNative])
+    @pytest.mark.parametrize("data_type", ["money", "smallmoney"])
+    def test_contract_money_types_are_kept(self, column_class, data_type):
+        assert column_class.translate_type(data_type) == data_type

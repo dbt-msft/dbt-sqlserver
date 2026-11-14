@@ -1,0 +1,1 @@
+Fix contract columns declared as `money` or `smallmoney` being built as `decimal(18,0)`, which rounded every value to a whole number. They now keep the declared type. An incremental model built with the old type keeps it until a full refresh.

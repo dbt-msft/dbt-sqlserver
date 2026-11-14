@@ -28,8 +28,6 @@ class SQLServerColumn(Column):
         "BOOLEAN": "BIT",
         "DECIMAL": "DECIMAL",
         "NUMERIC": "NUMERIC",
-        "MONEY": "DECIMAL",
-        "SMALLMONEY": "DECIMAL",
         "UNIQUEIDENTIFIER": "UNIQUEIDENTIFIER",
         "VARBINARY": "VARBINARY(MAX)",
         "BINARY": "BINARY(1)",
