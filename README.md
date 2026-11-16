@@ -228,6 +228,8 @@ dispatch:
     search_order: ["<your_project>", "dbt", "dbt_utils"]
 ```
 
+> **Note:** This applies to every `dbt_utils` macro, not only `generate_surrogate_key`: any `sqlserver__` override the adapter ships for `dbt_utils`, now or in a future release, takes precedence over the package's version.
+
 ### `xact_abort`
 
 *(default: `true`)* Profile/connection field. When enabled, the adapter runs `SET XACT_ABORT ON;` once per connection, right after it opens. With `XACT_ABORT ON`, a run-time error partway through a multi-statement batch (e.g. a `NOT NULL`/constraint violation during the DML table refresh's DELETE+INSERT swap) aborts the whole batch and rolls back any open transaction, instead of only aborting the failing statement and letting a trailing `COMMIT` persist a partial result. See [#718](https://github.com/dbt-msft/dbt-sqlserver/issues/718).
