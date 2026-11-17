@@ -219,6 +219,17 @@ flags:
   dbt_sqlserver_use_native_string_types: false  # deprecated legacy behavior
 ```
 
+With `VARCHAR(MAX)`, `dbt_utils.generate_surrogate_key` casts each input to a LOB type, which forces the joins and aggregates around the key into row mode. The adapter ships `sqlserver__generate_surrogate_key`, which casts to `VARCHAR(8000)` and produces the same hashes. dbt only searches adapter macros for the `dbt` namespace, so opt in from your project:
+
+```yaml
+# dbt_project.yml
+dispatch:
+  - macro_namespace: dbt_utils
+    search_order: ["<your_project>", "dbt", "dbt_utils"]
+```
+
+> **Note:** This applies to every `dbt_utils` macro, not only `generate_surrogate_key`: any `sqlserver__` override the adapter ships for `dbt_utils`, now or in a future release, takes precedence over the package's version.
+
 ### `xact_abort`
 
 *(default: `true`)* Profile/connection field. When enabled, the adapter runs `SET XACT_ABORT ON;` once per connection, right after it opens. With `XACT_ABORT ON`, a run-time error partway through a multi-statement batch (e.g. a `NOT NULL`/constraint violation during the DML table refresh's DELETE+INSERT swap) aborts the whole batch and rolls back any open transaction, instead of only aborting the failing statement and letting a trailing `COMMIT` persist a partial result. See [#718](https://github.com/dbt-msft/dbt-sqlserver/issues/718).
