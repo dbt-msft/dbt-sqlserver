@@ -2171,6 +2171,41 @@ def test_cancel_falls_back_to_adbc_cancel() -> None:
     adbc_cancel.assert_called_once_with()
 
 
+class _MssqlPythonCursor:
+    """Stands in for mssql_python.Cursor: no cancel(), SQLCancel on the handle."""
+
+    __module__ = "mssql_python.cursor"
+
+    def __init__(self, cancel: MagicMock) -> None:
+        self.hstmt = SimpleNamespace(_cancel=cancel)
+
+
+def test_cancel_falls_back_to_mssql_python_statement_handle() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    sqlcancel = MagicMock()
+    connection = SimpleNamespace(
+        name="conn-1",
+        _dbt_sqlserver_in_flight_cursor=_MssqlPythonCursor(sqlcancel),
+    )
+
+    manager.cancel(connection)
+
+    sqlcancel.assert_called_once_with()
+
+
+def test_cancel_ignores_statement_handle_of_other_drivers() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    # Only mssql-python's handle carries this; reaching into another driver's
+    # handle would cancel on a guess.
+    sqlcancel = MagicMock()
+    cursor = SimpleNamespace(hstmt=SimpleNamespace(_cancel=sqlcancel))
+    connection = SimpleNamespace(name="conn-1", _dbt_sqlserver_in_flight_cursor=cursor)
+
+    manager.cancel(connection)
+
+    sqlcancel.assert_not_called()
+
+
 def test_cancel_swallows_errors_from_cursor_cancel() -> None:
     manager = object.__new__(SQLServerConnectionManager)
     cursor = MagicMock()
