@@ -2157,6 +2157,20 @@ def test_cancel_handles_cursor_without_cancel_support() -> None:
     manager.cancel(connection)
 
 
+def test_cancel_falls_back_to_adbc_cancel() -> None:
+    manager = object.__new__(SQLServerConnectionManager)
+    # ADBC's DB-API cursor exposes only the statement-level adbc_cancel().
+    adbc_cancel = MagicMock()
+    connection = SimpleNamespace(
+        name="conn-1",
+        _dbt_sqlserver_in_flight_cursor=SimpleNamespace(adbc_cancel=adbc_cancel),
+    )
+
+    manager.cancel(connection)
+
+    adbc_cancel.assert_called_once_with()
+
+
 def test_cancel_swallows_errors_from_cursor_cancel() -> None:
     manager = object.__new__(SQLServerConnectionManager)
     cursor = MagicMock()
