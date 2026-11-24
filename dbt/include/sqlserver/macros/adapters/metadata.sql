@@ -245,6 +245,110 @@
       @dbt_sqlserver_skip_check_body = N'{{ escape_single_quotes(compiled_sql) }}';
 {% endmacro %}
 
+{% macro get_view_needs_check_sql(relation, compiled_sql) %}
+    {{ return(adapter.dispatch('get_view_needs_check_sql')(relation, compiled_sql)) }}
+{% endmacro %}
+
+{#- `definition` for the skip decision, and `needs_check` when the metadata check has to run.
+    The check compiles the whole stack under the body, and between two runs almost nothing
+    under a view changes, so it only runs when an object below the view was modified after
+    the view was written. sys.objects.modify_date records that: ALTER TABLE, ALTER VIEW,
+    sp_refreshview and ALTER AUTHORIZATION all move it, as do an index drop, an indexed
+    view's index drop and a change-tracking toggle. A grant, a deny and an extended-property
+    write do not, and none of them changes a column.
+    - The closure is walked with sys.sql_expression_dependencies. option (maxrecursion 0)
+      because the default stops at 100 levels.
+    - needs_check is also 1 when the walk cannot vouch for an input, so the describe keeps
+      its answer: an unresolved or cross-database reference, a linked server, a synonym, an
+      encrypted module, a caller-dependent name, or text naming a system view of another
+      database. Those leave no dependency row, so the body is flattened and searched.
+    - Run through sp_executesql, so the statement text is the same for every view and SQL
+      Server caches one plan for all of them. -#}
+{% macro sqlserver__get_view_needs_check_sql(relation, compiled_sql) -%}
+  {%- set object_name = "quotename(@schema) + '.' + quotename(@identifier)" -%}
+  {%- set check_sql -%}
+  set nocount on;
+  declare @root int = object_id({{ object_name }}, 'V');
+  declare @needs_check bit = 1;
+  declare @nodes table (node_id int primary key);
+  declare @flat nvarchar(max);
+
+  if @root is not null
+  begin
+      ;with closure as (
+          select @root as node_id
+          union all
+          select d.referenced_id
+          from closure as c
+          join sys.sql_expression_dependencies as d {{ information_schema_hints() }}
+            on d.referencing_id = c.node_id
+          where d.referenced_id is not null
+      )
+      insert @nodes (node_id) select distinct node_id from closure option (maxrecursion 0);
+
+      {#- the body without white space, brackets or quotes, so `otherdb . sys . tables`
+          reads as `otherdb.sys.tables`. -#}
+      set @flat = replace(translate(
+          @dbt_sqlserver_body,
+          nchar(9) + nchar(10) + nchar(13) + nchar(32) + nchar(160) + N'[]"',
+          replicate(nchar(1), 8)), nchar(1), N'');
+
+      {#- Matched with the collation on each comparison: a variable takes the database's
+          collation, so a COLLATE on the assignment is lost and a case-sensitive database
+          would miss an upper-case OPENQUERY. -#}
+      set @needs_check = case when
+          isnull(has_perms_by_name(N'sys.sql_expression_dependencies', N'OBJECT', N'SELECT'), 0) <> 1
+          or isnull(has_perms_by_name(db_name(), N'DATABASE', N'VIEW DEFINITION'), 0) <> 1
+          or exists (
+              select 1
+              from @nodes as n
+              left join sys.objects as o {{ information_schema_hints() }} on o.object_id = n.node_id
+              left join sys.sql_modules as m {{ information_schema_hints() }} on m.object_id = n.node_id
+              where o.object_id is null
+                 or o.type = 'SN'
+                 or (o.type in ('V', 'P', 'FN', 'IF', 'TF') and m.definition is null))
+          or exists (
+              select 1
+              from @nodes as n
+              join sys.sql_expression_dependencies as d {{ information_schema_hints() }}
+                on d.referencing_id = n.node_id
+              where d.referenced_class <> 1
+                 or d.referenced_server_name is not null
+                 or d.is_caller_dependent = 1
+                 or d.is_ambiguous = 1
+                 or d.referenced_id is null
+                 or (d.referenced_database_name is not null
+                     and d.referenced_database_name collate database_default
+                         <> db_name() collate database_default))
+          or charindex(N'openquery', @flat collate Latin1_General_100_CI_AS) > 0
+          or charindex(N'openrowset', @flat collate Latin1_General_100_CI_AS) > 0
+          or charindex(N'opendatasource', @flat collate Latin1_General_100_CI_AS) > 0
+          or charindex(N'.sys.', @flat collate Latin1_General_100_CI_AS) > 0
+          or charindex(N'.dbo.sys', @flat collate Latin1_General_100_CI_AS) > 0
+          or charindex(N'.information_schema.', @flat collate Latin1_General_100_CI_AS) > 0
+          or @flat collate Latin1_General_100_CI_AS like N'%[^.]..[^.]%'
+          then 1 else 0 end;
+
+      if @needs_check = 0 and exists (
+          select 1
+          from @nodes as n
+          join sys.objects as o {{ information_schema_hints() }} on o.object_id = n.node_id
+          where n.node_id <> @root
+            and o.modify_date > (select modify_date from sys.objects {{ information_schema_hints() }}
+                                 where object_id = @root))
+          set @needs_check = 1;
+
+      select object_definition(@root) as definition, @needs_check as needs_check;
+  end
+  {%- endset -%}
+  {{ get_use_database_sql(relation.database) }}
+  exec sp_executesql N'{{ escape_single_quotes(check_sql) }}',
+      N'@schema sysname, @identifier sysname, @dbt_sqlserver_body nvarchar(max)',
+      @schema = N'{{ escape_single_quotes(relation.schema) }}',
+      @identifier = N'{{ escape_single_quotes(relation.identifier) }}',
+      @dbt_sqlserver_body = N'{{ escape_single_quotes(compiled_sql) }}';
+{% endmacro %}
+
 {% macro sqlserver__get_relation_last_modified(information_schema, relations) -%}
   {%- call statement('last_modified', fetch_result=True) -%}
         select
