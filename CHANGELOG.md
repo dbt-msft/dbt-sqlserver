@@ -2,6 +2,29 @@
 
 <!-- towncrier release notes start -->
 
+### v1.12.3
+
+#### Behavior changes
+
+- `date_trunc` with `hour`, `minute`, `second` or `millisecond` returns a `datetime2` truncated to that unit, as other adapters do. It returned midnight as a `date`, or failed with an overflow. Run a full refresh of incremental models that store these values, to fix old rows and change the column from `date`.
+
+#### Bugfixes
+
+- `SQLServerConnectionManager.cancel()` falls back to the ADBC cursor's `adbc_cancel()` when the cursor exposes no `cancel()`, so interrupting a run with `backend: adbc` now issues the cancel instead of skipping it. The ADBC `mssql` driver 1.8.0 accepts the call without stopping the statement; pyodbc keeps the `cursor.cancel()` path, mssql-python goes through the statement handle, and cancellation stays best-effort. ([#922](https://github.com/dbt-msft/dbt-sqlserver/issues/922))
+- Escape the database name in the `pyodbc` and `mssql-python` connection strings, so a name containing `;`, `{` or `}` can no longer add or change connection settings.
+- Fix `denies` splitting a principal given as a string, such as `denies={"select": "reporting"}`, into one principal per letter, so the DENY never applied. A string is now one principal, as in `grants`.
+- Fix contract columns declared as `money` or `smallmoney` being built as `decimal(18,0)`, which rounded every value to a whole number. They now keep the declared type. An incremental model built with the old type keeps it until a full refresh.
+- Fix runs failing when a schema dbt builds into holds a table or view with a 128-character name.
+- `SQLServerConnectionManager.cancel()` now stops in-flight statements on the mssql-python backend. mssql-python has no public `Cursor.cancel()` (microsoft/mssql-python#424), so the adapter feature-detects the statement handle's SQLCancel binding, which is the cross-thread cancel the driver itself uses. A public `cancel()` takes over as soon as the driver ships one.
+- `date_trunc` with `week` returned the following Monday for a Sunday. It now returns the Monday on or before the date. Incremental models that store weekly values need a full refresh to correct their Sunday rows.
+
+#### Under the hood
+
+- Add `sqlserver__generate_surrogate_key` for `dbt_utils.generate_surrogate_key`. It casts inputs to `varchar(8000)` instead of `dbt.type_string()` (`varchar(max)`), so the key expression no longer forces surrounding joins and aggregates into row mode. Hashes are unchanged, since `sqlserver__hash` already hashes only the first 8,000 bytes. Opt in by adding `dbt` to the `dbt_utils` dispatch search order. ([#912](https://github.com/dbt-msft/dbt-sqlserver/issues/912))
+- Fix log lines that printed `%s` and `%r` placeholders instead of their values.
+- Fix query timings in the log being rounded to whole seconds.
+
+
 ### v1.12.2
 
 #### Under the hood
