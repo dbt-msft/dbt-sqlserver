@@ -181,6 +181,16 @@ Key design decisions:
 | Windows auth      | Fully supported                  | Not yet (clear error)         |
 | `autocommit` attr | Yes                              | No (always autocommit)        |
 | `cursor.nextset`  | Supported                        | Not supported (drained safely)|
+| Cancel (Ctrl-C)   | `SQLCancel`                      | `adbc_cancel()`; see below    |
+
+Cancellation: `SQLServerConnectionManager.cancel()` falls back to the ADBC
+cursor's `adbc_cancel()`. The `mssql` driver 1.8.0 accepts the call and returns
+success without stopping the statement, so interrupting a run with
+`backend: adbc` leaves the statement running on the server until the client
+process exits. Closing the ADBC connection from the cancelling thread is not a
+workaround: it segfaults `adbc-driver-manager` 1.12.0. `KILL <spid>` from
+another session stops the statement but needs `ALTER ANY CONNECTION`, which
+ordinary logins do not hold.
 
 ---
 
