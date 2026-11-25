@@ -233,6 +233,35 @@ def get_mssql_python_retryable_exceptions(
     return tuple(retryable_exceptions)
 
 
+def warning_sqlstate(error: Exception) -> str | None:
+    """Return the SQLSTATE of *error* when it is a warning (class 01), else None.
+
+    A warning cannot fail a statement, so a raised one means the driver also
+    received an error and dropped it. Nothing recovers it afterwards:
+    ``nextset()`` returns False and ``cursor.messages`` is empty.
+    """
+
+    module = type(error).__module__
+    if module == "pyodbc":
+        # No pyodbc class maps SQLSTATE 01, so this is the base ``pyodbc.Error``,
+        # not a ``DatabaseError``; its args are (sqlstate, message).
+        sqlstate = error.args[0] if error.args else None
+        if isinstance(sqlstate, str) and sqlstate.startswith("01"):
+            return sqlstate
+    elif module.startswith("mssql_python"):
+        # mssql-python keeps no SQLSTATE, only the class and fixed
+        # ``driver_error`` text it maps the state to. Match 01003 alone: 01004
+        # maps to the same pair as 22001, a real truncation error.
+        from mssql_python.exceptions import sqlstate_to_exception
+
+        reference = sqlstate_to_exception("01003", "")
+        if type(error) is type(reference) and (
+            getattr(error, "driver_error", None) == reference.driver_error
+        ):
+            return "01003"
+    return None
+
+
 def handle_backend_database_error(
     error: Exception,
     database_error: type[Exception] | None,
@@ -240,11 +269,12 @@ def handle_backend_database_error(
 ) -> None:
     """Translate backend database exceptions into dbt runtime errors.
 
-    Call this only after the caller has identified the backend-specific error
-    type; non-database errors should bypass this helper.
+    Returns without raising for anything that is neither a backend database
+    error nor a warning standing in for one (see ``warning_sqlstate``).
     """
 
-    if database_error is None or not isinstance(error, database_error):
+    sqlstate = warning_sqlstate(error)
+    if sqlstate is None and (database_error is None or not isinstance(error, database_error)):
         return
 
     logger.debug(f"Database error: {error}")
@@ -252,7 +282,18 @@ def handle_backend_database_error(
     with suppress(Exception):
         release_connection()
 
-    raise dbt_common.exceptions.DbtDatabaseError(str(error).strip()) from error
+    message = str(error).strip()
+    if sqlstate is not None:
+        message = (
+            f"The statement failed, but the driver reported only a warning "
+            f"(SQLSTATE {sqlstate}) and lost the real error. This happens when "
+            f"both are raised inside a nested batch (EXEC(), sp_executesql or a "
+            f"stored procedure). To see the real error, run the compiled SQL "
+            f"directly (SSMS shows every message) or capture it with an Extended "
+            f"Events session on error_reported. The warning was: {message}"
+        )
+
+    raise dbt_common.exceptions.DbtDatabaseError(message) from error
 
 
 def log_connection_string(connection_string: str) -> None:
