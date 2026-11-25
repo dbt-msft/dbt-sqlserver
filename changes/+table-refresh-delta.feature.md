@@ -1,0 +1,1 @@
+Add `table_refresh_method: delta`, an opt-in variant of `dml` that deletes and inserts only the rows that differ between the table and the new build, and falls back to the full `dml` swap when that is unsafe or slower. See the README for its limitations, `delta_key` and `delta_max_churn_percent`.

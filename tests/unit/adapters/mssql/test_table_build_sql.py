@@ -347,7 +347,9 @@ def test_table_materialization_stages_before_the_in_transaction_pre_hooks():
     source = TABLE_SQL.read_text()
     outside_hooks = source.find("run_hooks(pre_hooks, inside_transaction=False)")
     stage = source.find("call statement('create_table_stage', auto_begin=False)")
-    dml_stage = source.find("sqlserver__table_dml_refresh_stage(target_relation, sql)")
+    dml_stage = source.find(
+        "sqlserver__table_dml_refresh_stage(target_relation, sql, table_refresh_method)"
+    )
     in_tx_hooks = source.find("run_hooks(pre_hooks, inside_transaction=True)")
     load = source.find("call statement('main', auto_begin=False)")
     begin = source.find("adapter.begin_if_closed()")
