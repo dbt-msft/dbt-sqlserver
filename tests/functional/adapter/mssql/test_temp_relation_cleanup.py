@@ -119,33 +119,78 @@ unit_tests:
     given: []
     expect:
       rows: [{data: 2}]
+  - name: ut_error
+    model: error_model
+    given: []
+    expect:
+      rows: [{data: 1}]
+  - name: ut_compile_error
+    model: table_model
+    given: []
+    expect:
+      rows: [{nope: 1}]
+"""
+
+# Divides by zero only when the rows are read, so the unit test's fixture table
+# (built from the empty subquery) is created before the comparison raises.
+error_model = """
+SELECT 1 / (data - data) AS data FROM (SELECT 1 AS data) AS source
+"""
+
+unit_test_views_sql = """
+SELECT TABLE_NAME
+FROM {database}.INFORMATION_SCHEMA.VIEWS
+WHERE TABLE_SCHEMA = '{schema}'
+    AND (TABLE_NAME LIKE 'testview[_]%' OR TABLE_NAME LIKE 'expectedview[_]%')
 """
 
 
-class TestUnitTestTempCleanup(BaseTempRelationCleanup):
-    """A unit test's fixture table is dropped whether the test passes or fails."""
-
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"dbt_sqlserver_use_dbt_transactions": True}}
+class BaseUnitTestTempCleanup(BaseTempRelationCleanup):
+    """A unit test's fixture table and comparison views are dropped whether the
+    test passes, fails, or errors."""
 
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "table_model.sql": table_model,
+            "error_model.sql": error_model,
             "schema.yml": model_yml,
             "unit_tests.yml": unit_test_yml,
         }
 
     def test_drops_fixture_table(self, project):
-        run_dbt(["run"])
+        run_dbt(["run", "--select", "table_model"])
         results = run_dbt(["test", "--select", "test_type:unit"], expect_pass=False)
         assert sorted((r.node.name, str(r.status)) for r in results) == [
+            ("ut_compile_error", "error"),
+            ("ut_error", "error"),
             ("ut_fail", "fail"),
             ("ut_pass", "pass"),
         ]
+        [error_result] = [r for r in results if r.node.name == "ut_error"]
+        assert "Divide by zero" in error_result.message
 
         self.validate_temp_objects(project)
+        with get_connection(project.adapter):
+            _, table = project.adapter.execute(
+                unit_test_views_sql.format(
+                    database=project.database, schema=project.created_schemas[0]
+                ),
+                fetch=True,
+            )
+        assert [row[0] for row in table.rows] == []
+
+
+class TestUnitTestTempCleanup(BaseUnitTestTempCleanup):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"dbt_sqlserver_use_dbt_transactions": True}}
+
+
+class TestUnitTestTempCleanupAutocommit(BaseUnitTestTempCleanup):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"dbt_sqlserver_use_dbt_transactions": False}}
 
 
 class TestIncrementalTempCleanup(BaseTempRelationCleanup):
