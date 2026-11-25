@@ -119,10 +119,10 @@ to an index build.
 
 On the rename swap and the DML fallback a mask failure rolls the swap back, so
 the old, masked table keeps serving. `full_refresh_build: prebuilt` has no swap
-to roll back — it drops the target and rebuilds in place — so a mask failure
-there leaves a loaded target carrying the `dbt_full_refresh_incomplete` marker,
-which blocks normal runs until a `--full-refresh` succeeds. That is the
-trade-off `prebuilt` already makes.
+to roll back — it drops the target and rebuilds in place — so it masks the
+empty table before the load, and a mask failure rolls back the create. The old
+table is already dropped and is not restored: the target is absent rather than
+loaded and exposed, and the next run rebuilds it.
 
 On the persisted-table paths (`table_refresh_method: dml` swap, incremental
 append, snapshot merge) the table already carries its masks, so reconciliation runs outside — a
