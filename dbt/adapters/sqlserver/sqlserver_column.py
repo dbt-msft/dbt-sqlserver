@@ -1,11 +1,16 @@
-from typing import Any, ClassVar, Dict
+from dataclasses import dataclass
+from typing import Any, ClassVar, Dict, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.base.column import Column
 
 
+@dataclass
 class SQLServerColumn(Column):
+    # sys.columns.collation_name: None for non-character columns.
+    collation: Optional[str] = None
+
     TYPE_LABELS: ClassVar[Dict[str, str]] = {
         "STRING": "VARCHAR(8000)",
         "VARCHAR": "VARCHAR(8000)",

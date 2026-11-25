@@ -133,7 +133,8 @@
                 else c.max_length
             end as character_maximum_length,
             c.precision as numeric_precision,
-            c.scale as numeric_scale
+            c.scale as numeric_scale,
+            c.collation_name
         from sys.columns c {{ information_schema_hints() }}
         inner join sys.types t {{ information_schema_hints() }}
         on c.user_type_id = t.user_type_id
