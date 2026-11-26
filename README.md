@@ -298,6 +298,32 @@ You can also set it per model:
 
 With `table_refresh_method: dml`, a schema change makes the refresh fall back to a rename-swap. On that run — and only that run — the scratch table is rebuilt the way this adapter builds every other table, so it carries the model's columnstore index, and under an enforced contract its `NOT NULL`s and inline constraints, into the swap. That run therefore executes the model's SQL twice — once for the `SELECT … INTO` that probes for the schema change, once for the rebuild — and builds the columnstore index once. Steady-state refreshes are unaffected and keep the single `SELECT … INTO`. A table that lost its columnstore index to this bug before you upgraded is not repaired automatically: its schema still matches, so it stays on the cheap path. To rebuild it, temporarily set `full_refresh_build: prebuilt` and run with `--full-refresh`.
 
+### `table_refresh_method`
+
+_(default: `rename`)_ How a `table` model replaces a table that already exists.
+
+| Value | Refresh |
+|---|---|
+| `rename` | Builds a new table and renames it into place. |
+| `dml` | Keeps the table and, in one transaction, deletes every row and inserts the new build. Under RCSI readers see the old rows until the commit. |
+| `delta` | As `dml`, but deletes and inserts only the rows that differ. |
+
+```sql
+{{ config(materialized="table", table_refresh_method="delta") }}
+```
+
+`dml` and `delta` fall back to a rename-swap on a run that changes the model's columns.
+
+`delta` compares whole rows, each column under its own collation, variable-length string and binary columns by byte length as well, so a trailing-space change counts, and `datetimeoffset` columns by offset as well, so an offset change that keeps the instant counts. It takes the full `dml` swap, in the same transaction, when the new build holds duplicate rows, when more than `delta_max_churn_percent` of the rows would be deleted (a number from 0 to 100, default `15`: past about 22–25% the full swap measured faster), or when the row count is wrong afterwards (the table held duplicates); the run logs which. It suits large tables where little changes between runs. Set `delta_key` (a column or list of columns) to a key that is unique in the model, and the duplicate check skips its full-row comparison while the key stays unique. A model that stamps every row, such as `current_timestamp as loaded_at`, changes 100% of them and should use `dml`.
+
+Known limitations of `delta`:
+
+- A change that is equal under the column's collation is not written. Under a case-insensitive collation, `abc` becoming `ABC` leaves `abc` in the table until another column of that row changes or a run takes the full swap.
+- If a column's collation differs between the table and the new build (the model or its source changed collation), the run warns and takes the full swap, on every run until the table is rebuilt: one run with `table_refresh_method: rename`, or a `--full-refresh` with `full_refresh_build: prebuilt`.
+- A table with an `xml`, `text`, `ntext`, `image`, `geography`, `geometry`, `sql_variant`, `json` or `vector` column (or an alias type over one) cannot be compared: the run warns and takes the full swap.
+- So does a table whose columns, plus one more for each variable-length string, binary or `datetimeoffset` column, number more than 1023.
+- On a table with masked columns, a dbt login without `UNMASK` takes the full swap on any run that changes a row.
+
 ### Ephemeral models
 
 Ephemeral models are supported, with one limit: an ephemeral model can't start with its own `WITH`. dbt inlines it as a CTE, and T-SQL can't nest a `WITH` inside one (still true on SQL Server 2025). Write it with derived tables instead, or materialize it as a `view`, which SQL Server expands into the calling query the same way.

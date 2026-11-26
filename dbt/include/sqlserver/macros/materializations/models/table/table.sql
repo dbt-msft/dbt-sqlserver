@@ -18,10 +18,10 @@
   {% set grant_config = config.get('grants') %}
 
   {%- set table_refresh_method = config.get('table_refresh_method', 'rename') -%}
-  {%- if table_refresh_method not in ['rename', 'dml'] -%}
+  {%- if table_refresh_method not in ['rename', 'dml', 'delta'] -%}
     {{ exceptions.raise_compiler_error(
       "Invalid table_refresh_method '" ~ table_refresh_method ~ "'. "
-      "Valid values are: 'rename' (default), 'dml'."
+      "Valid values are: 'rename' (default), 'dml', 'delta'."
     ) }}
   {%- endif -%}
   {%- set full_refresh_build = config.get('full_refresh_build', 'heap_then_index') -%}
@@ -32,7 +32,7 @@
     and (should_full_refresh() or existing_relation is none)
   ) -%}
   {%- set use_dml_refresh = (
-    table_refresh_method == 'dml'
+    table_refresh_method in ['dml', 'delta']
     and not use_prebuilt
     and existing_relation is not none
     and existing_relation.type == 'table'
@@ -59,7 +59,7 @@
       and the new object's Sch-M ends with its statement (#819). -#}
   {% if stage_before_hooks %}
     {% if use_dml_refresh %}
-      {% set dml_stage = sqlserver__table_dml_refresh_stage(target_relation, sql) %}
+      {% set dml_stage = sqlserver__table_dml_refresh_stage(target_relation, sql, table_refresh_method) %}
     {% else %}
       {%- set stage_sql = sqlserver__get_create_table_stage_sql(False, intermediate_relation, sql) -%}
       {% call statement('create_table_stage', auto_begin=False) -%}
@@ -82,7 +82,7 @@
 
   {% if use_dml_refresh %}
     {% if not stage_before_hooks %}
-      {% set dml_stage = sqlserver__table_dml_refresh_stage(target_relation, sql) %}
+      {% set dml_stage = sqlserver__table_dml_refresh_stage(target_relation, sql, table_refresh_method) %}
     {% endif %}
     {#- Leaves the swap's transaction open for the tail to close after the
         post-hooks; returns schema_match (picks the tail's index strategy) and
@@ -216,6 +216,12 @@
     {% call statement('dml_refresh_cleanup_post', auto_begin=False) -%}
       {{ get_use_database_sql(dml_result['refresh_relation'].database) }}
       DROP TABLE IF EXISTS {{ dml_result['refresh_relation'] }};
+    {%- endcall %}
+  {% endif %}
+  {% if use_dml_refresh and table_refresh_method == 'delta' %}
+    {% call statement('delta_refresh_cleanup_post', auto_begin=False) -%}
+      {{ get_use_database_sql(dml_stage['gone_relation'].database) }}
+      DROP TABLE IF EXISTS {{ dml_stage['gone_relation'] }};
     {%- endcall %}
   {% endif %}
 
