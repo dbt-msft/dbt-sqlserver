@@ -41,7 +41,7 @@
     {% endfor %}
     {% set build_sql = get_create_view_as_sql(intermediate_relation, sql) %}
   {% elif existing_relation is not none and existing_relation.type == 'view' %}
-    {% set current_view_definition_table = run_query(get_view_skip_check_sql(existing_relation, sql)) %}
+    {% set current_view_definition_table = run_query(get_view_needs_check_sql(existing_relation, sql)) %}
     {% set view_metadata_is_stale = false %}
     {% if current_view_definition_table is not none and current_view_definition_table.rows | length > 0 %}
       {#- Compare the view *body* exactly, not by suffix. The stored definition is
@@ -68,7 +68,16 @@
         {% set model_body = (model_body[:-1] if model_body.endswith(';') else model_body) | trim %}
         {% set should_skip_view_update = stored_body == model_body %}
       {% endif %}
-      {% set view_metadata_is_stale = current_view_definition_table.rows[0][1] == 1 %}
+      {#- Only compile the body when something it reads was modified since the view was
+          written; see get_view_needs_check_sql for what falls back to compiling anyway. -#}
+      {% if should_skip_view_update and current_view_definition_table.rows[0][1] == 1 %}
+        {% set skip_check_table = run_query(get_view_skip_check_sql(existing_relation, sql)) %}
+        {% if skip_check_table is not none and skip_check_table.rows | length > 0 %}
+          {% set view_metadata_is_stale = skip_check_table.rows[0][1] == 1 %}
+        {% else %}
+          {% set should_skip_view_update = false %}
+        {% endif %}
+      {% endif %}
     {% endif %}
     {% if should_skip_view_update and view_metadata_is_stale %}
       {#- A source changed shape under an unchanged body (e.g. a `select *` expansion).
